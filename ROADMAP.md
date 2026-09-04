@@ -148,8 +148,6 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
 - [x] GRDB şeması + migration'lar (CLAUDE.md'deki şema, üç migration:
       şema → FTS → indeksler)
 - [x] FTS5 sanal tablosu + insert/delete/update trigger'ları
-- [x] Eski ora SQLite'ından **içe aktarma** — sandbox nedeniyle dosya kullanıcı
-      tarafından seçilir; ses dosyaları taşınmaz
 - [x] Sol kenar çubuğu: toplantı listesi, başlık + FTS5 transkript araması,
       yeniden adlandırma, onaylı silme
 - [x] Orta panel: **Özet | Transkript** (Konuşmacılar sekmesi yok — DESIGN.md §4;
@@ -168,8 +166,7 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
 - `meeting_participants` ve `participants` tabloları şemada var, henüz yazan yok
   (takvim entegrasyonu Faz 6)
 - Arayüzde doğrulanmayan yollar: arama kutusuna yazma, bağlam menüsünden silme
-  ve dışa aktarım panelleri. Depolama tarafı SQL düzeyinde doğrulandı (§16),
-  içe aktarma uygulamada uçtan uca koşturuldu
+  ve dışa aktarım panelleri. Depolama tarafı SQL düzeyinde doğrulandı (§16)
 
 ---
 

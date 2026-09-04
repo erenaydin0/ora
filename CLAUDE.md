@@ -287,8 +287,7 @@ summaries(id, meeting_id UNIQUE, overview, decisions JSON, next_meeting, sentime
 transcripts_fts -- FTS5 virtual table (text, speaker), insert/delete/update trigger'ları
 ```
 **Tarih sütunları** GRDB'nin varsayılan biçiminde yazılır
-(`YYYY-MM-DD HH:MM:SS.SSS`, UTC). Okuma tarafı ISO 8601'i de kabul eder —
-eski ora'dan içe aktarma bu sayede iki biçimi de okuyabiliyor.
+(`YYYY-MM-DD HH:MM:SS.SSS`, UTC).
 
 **Silme davranışı:** `meetings` satırı silinince `transcripts`, `summaries`,
 `action_items`, `topic_segments` cascade ile gider ve FTS trigger'ı indeksi
@@ -399,8 +398,7 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       50.000 karakterlik transkript 6 parçada ~55 sn (RESEARCH.md §15).
       **Faz 5 — Depolama, Arama, UI** tamam: GRDB şeması + migration'lar,
       FTS5 + trigger'lar, toplantı listesi ve arama, düzeltme, silme,
-      Markdown/PDF/e-posta dışa aktarımı, eski ora verisini içe aktarma
-      (RESEARCH.md §16).
+      Markdown/PDF/e-posta dışa aktarımı (RESEARCH.md §16).
     - Bekleyen: **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
       (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa; gerçek bir
       toplantı hâlâ gerekli. Ardından **Faz 6 — Akıllı Katman**
@@ -425,7 +423,7 @@ ora/Transcribe/        — SpeechTranscription (tam geçiş), LiveTranscription,
 ora/Intelligence/      — FoundationIntelligence (noktalama + map-reduce özet),
                          Ozet (@Generable şemalar), TranscriptChunker, Intelligent
 ora/Store/             — OraDatabase (şema + migration), MeetingStore (tek kapı),
-                         Records (GRDB kayıtları), LegacyImport (eski ora.db)
+                         Records (GRDB kayıtları)
 ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          RecordingController, MeetingSidebar, MeetingDetail,
                          TranscriptView, SummaryView, MeetingExport,

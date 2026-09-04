@@ -39,15 +39,10 @@ struct RootView: View {
                         if let payload = recorder.exportPayload { MeetingExport.copyEmailDraft(payload) }
                     }
                     .disabled(recorder.exportPayload == nil)
-                    Divider()
-                    Button("Eski ora verisini içe aktar…") {
-                        Task { await recorder.importLegacyData() }
-                    }
-                    .disabled(recorder.isRecording)
                 } label: {
-                    Label("Dışa ve içe aktar", systemImage: "ellipsis.circle")
+                    Label("Dışa aktar", systemImage: "square.and.arrow.up")
                 }
-                .help("Dışa aktar · içe aktar")
+                .help("Dışa aktar")
             }
             ToolbarItem {
                 Picker("Dil", selection: Binding(get: { recorder.language },
@@ -71,13 +66,6 @@ struct RootView: View {
         }
         .navigationTitle("ora")
         .task { recorder.scanForInterruptedRecordings() }
-        .alert("İçe aktarma tamamlandı",
-               isPresented: Binding(get: { recorder.importReport != nil },
-                                    set: { if !$0 { recorder.importReport = nil } })) {
-            Button("Tamam", role: .cancel) { recorder.importReport = nil }
-        } message: {
-            Text(recorder.importReport ?? "")
-        }
         .alert(recorder.error?.turkishMessage ?? "",
                isPresented: Binding(get: { recorder.error != nil },
                                     set: { if !$0 { recorder.error = nil } })) {

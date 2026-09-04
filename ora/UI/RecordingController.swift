@@ -40,8 +40,6 @@ final class RecordingController {
     private(set) var summaryNotice: String?
     /// Veritabanı açılamadıysa kullanıcıya söylenecek not.
     private(set) var storageNotice: String?
-    /// İçe aktarma sonucu — kullanıcıya bir kez gösterilir.
-    var importReport: String?
 
     private(set) var transcriptionStage: Stage = .idle
     enum Stage: Equatable {
@@ -229,21 +227,6 @@ final class RecordingController {
             await load(meetingID)
         } catch {
             Log.error(.store, "Düzeltme kaydedilemedi", error)
-        }
-    }
-
-    // MARK: - Eski ora verisini içe aktarma
-
-    func importLegacyData() async {
-        guard let url = LegacyImport.chooseFile() else { return }
-        do {
-            let report = try await LegacyImport.run(from: url, into: store)
-            importReport = report.turkishSummary
-            await refresh()
-        } catch {
-            Log.error(.store, "İçe aktarma başarısız", error)
-            importReport = "İçe aktarma başarısız oldu. Seçtiğiniz dosya bir ora "
-                + "veritabanı olmayabilir.\n\n\(error.localizedDescription)"
         }
     }
 
