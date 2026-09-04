@@ -11,17 +11,26 @@ struct MeetingSidebar: View {
 
     var body: some View {
         List(selection: $recorder.selection) {
-            ForEach(recorder.meetings) { meeting in
-                row(meeting)
-                    .tag(meeting.id)
-                    .contextMenu {
-                        Button("Yeniden adlandır") {
-                            draftTitle = meeting.title
-                            renaming = meeting.id
-                        }
-                        Divider()
-                        Button("Sil", role: .destructive) { confirmingDelete = meeting }
+            ForEach(groups) { group in
+                Section {
+                    ForEach(group.meetings) { meeting in
+                        row(meeting)
+                            .tag(meeting.id)
+                            .contextMenu {
+                                Button("Yeniden adlandır") {
+                                    draftTitle = meeting.title
+                                    renaming = meeting.id
+                                }
+                                Divider()
+                                Button("Sil", role: .destructive) { confirmingDelete = meeting }
+                            }
                     }
+                } header: {
+                    Text(group.id.uppercased())
+                        .font(.system(size: 11, weight: .semibold))
+                        .kerning(0.5)
+                        .foregroundStyle(Color.oraInkMuted)
+                }
             }
         }
         .listStyle(.sidebar)
@@ -66,8 +75,23 @@ struct MeetingSidebar: View {
         }
     }
 
+    /// Tarihe göre gruplanmış liste. Sıra korunur — sorgu zaten tarihe göre
+    /// azalan geliyor, burada yalnızca ardışık aynı etiketliler toplanır.
+    private var groups: [MeetingGroup] {
+        var result: [MeetingGroup] = []
+        for meeting in recorder.meetings {
+            let label = meeting.groupLabel
+            if result.last?.id == label {
+                result[result.count - 1].meetings.append(meeting)
+            } else {
+                result.append(MeetingGroup(id: label, meetings: [meeting]))
+            }
+        }
+        return result
+    }
+
     private func row(_ meeting: MeetingListItem) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 6) {
                 if meeting.status != MeetingRecord.Status.ready.rawValue {
                     Image(systemName: meeting.status == MeetingRecord.Status.recording.rawValue
@@ -77,21 +101,31 @@ struct MeetingSidebar: View {
                                          ? Color.oraRed : Color.oraInkMuted)
                 }
                 Text(meeting.title)
-                    .font(.system(size: 14))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color.oraInk)
                     .lineLimit(1)
             }
-            HStack(spacing: 6) {
-                Text(meeting.dateLabel)
-                if meeting.duration > 0 {
-                    Text("·")
-                    Text(meeting.durationLabel)
-                }
-            }
-            .font(.system(size: 12))
-            .foregroundStyle(Color.oraInkMuted)
+            Text(secondaryLine(meeting))
+                .font(.system(size: 11))
+                .foregroundStyle(Color.oraInkMuted)
+                .lineLimit(1)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
+    }
+}
+
+/// Kenar çubuğunda bir gün/dönem başlığı ve altındaki toplantılar.
+private struct MeetingGroup: Identifiable {
+    let id: String
+    var meetings: [MeetingListItem]
+}
+
+private extension MeetingSidebar {
+    /// Saat · süre. Gün bilgisi grup başlığında, satırda tekrar edilmez.
+    func secondaryLine(_ meeting: MeetingListItem) -> String {
+        meeting.duration > 0
+            ? "\(meeting.timeLabel) · \(meeting.durationLabel)"
+            : meeting.timeLabel
     }
 }
 

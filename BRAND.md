@@ -37,8 +37,11 @@ AppKit etiket rengini kendiliğinden koyuya çevirdiği için her şey okunur ka
   turuncusu ondan açıkça ayırt edilebilir kalmalı, aksi hâlde kayıt göstergesinin
   anlamı sulanır.
 
-Core Blue (`.oraBlue`) vurgu değil **içerik** rengidir: bağlantı metni, aksiyon
-sahibi adı, ilerleme göstergesi.
+Core Blue (`.oraBlue`) vurgu değil **içerik** rengidir ve yalnızca iki yerde
+kullanılır: bağlantı metni ve ilerleme göstergesi. **Metadata mavi yapılmaz** —
+aksiyon sahibi, son tarih, konuşmacı etiketi gibi ikincil bilgiler
+`.oraInkMuted` taşır. Aksi hâlde ekranda turuncu vurgunun yanında ikinci bir
+vurgu rengi belirip arayüzü renkli gösteriyordu.
 
 Bu tablo tek kaynaktır. Renkler `Resources/Assets.xcassets/Colors` içinde
 **bir kez** tanımlanır; `Color.oraPaper` gibi token'lar asset kataloğundan

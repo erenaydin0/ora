@@ -27,9 +27,9 @@ struct MeetingDetail: View {
             // olmayan bir toplantı da başlığıyla ve kendi boş durumuyla görünür.
             // Aksi hâlde kullanıcı bir satıra tıklar ve hiçbir şey olmaz.
             if let meeting = recorder.selectedMeeting {
-                loaded(header: MeetingHeader(meeting: meeting))
+                loaded(meeting: meeting)
             } else if hasContent {
-                loaded(header: nil)
+                loaded(meeting: nil)
             } else {
                 EmptyState(
                     icon: "text.bubble",
@@ -43,23 +43,15 @@ struct MeetingDetail: View {
     }
 
     @ViewBuilder
-    private func loaded(header: MeetingHeader?) -> some View {
+    private func loaded(meeting: MeetingListItem?) -> some View {
         VStack(spacing: 0) {
-            if let header { header }
+            // Başlık ve sekme aynı satırda: kimlik solda, görünüm anahtarı sağda.
+            // İkisini alt alta koymak başlığa gereksiz yükseklik veriyordu.
+            MeetingHeader(meeting: meeting, tab: $tab)
 
             if recorder.canRetry {
                 RetryNotice(recorder: recorder)
             }
-
-            Picker("", selection: $tab) {
-                ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 320)
-            .padding(.horizontal, 16)
-            .padding(.top, header == nil ? 16 : 0)
-            .padding(.bottom, 16)
 
             if recorder.isTranscribing {
                 TranscriptionProgressBar(stage: recorder.transcriptionStage)
@@ -112,40 +104,55 @@ private struct RetryNotice: View {
     }
 }
 
-/// Seçili toplantının kimliği: başlık, tarih, süre ve tamamlanmamışsa nedeni.
+/// Seçili toplantının kimliği: başlık, tarih, süre ve tamamlanmamışsa nedeni —
+/// solda; görünüm sekmesi sağda, başlıkla aynı yatay hizada.
 private struct MeetingHeader: View {
 
-    let meeting: MeetingListItem
+    let meeting: MeetingListItem?
+    @Binding var tab: MeetingDetail.Tab
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(meeting.title)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Color.oraInk)
-                .lineLimit(2)
-                .textSelection(.enabled)
-            HStack(spacing: 6) {
-                Text(meeting.dateLabel)
-                if meeting.duration > 0 {
-                    Text("·")
-                    Text(meeting.durationLabel)
-                }
-                if let note = statusNote {
-                    Text("·")
-                    Text(note)
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(meeting?.title ?? "Yeni kayıt")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.oraInk)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .textSelection(.enabled)
+                if let line = metadataLine {
+                    Text(line)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.oraInkMuted)
+                        .lineLimit(1)
                 }
             }
-            .font(.system(size: 12))
-            .foregroundStyle(Color.oraInkMuted)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Picker("", selection: $tab) {
+                ForEach(MeetingDetail.Tab.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 190)
+            .fixedSize()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
-        .padding(.top, 16)
+        .padding(.top, 14)
         .padding(.bottom, 12)
     }
 
+    /// Tarih · saat · süre — tek satırda, ayrı ayrı `Text` yığmadan.
+    private var metadataLine: String? {
+        guard let meeting else { return nil }
+        var parts = [meeting.dateLabel]
+        if meeting.duration > 0 { parts.append(meeting.durationLabel) }
+        if let statusNote { parts.append(statusNote) }
+        return parts.joined(separator: " · ")
+    }
+
     private var statusNote: String? {
-        switch meeting.status {
+        switch meeting?.status {
         case MeetingRecord.Status.recording.rawValue:  "yarım kalmış kayıt"
         case MeetingRecord.Status.processing.rawValue: "işleniyor"
         default: nil

@@ -55,8 +55,9 @@ struct TranscriptView: View {
                         }
                         Color.clear.frame(height: 1).id("son")
                     }
-                    .padding(20)
-                    .frame(maxWidth: 760, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 20)
+                    .frame(maxWidth: OraStyle.readableWidth, alignment: .leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .onChange(of: segments.count) { _, _ in
@@ -80,15 +81,18 @@ private struct SegmentRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 8) {
+                // Konuşmacı ayrımı ağırlıkla kurulur, renkle değil: mavi bir
+                // etiket transkriptte gereksiz bir vurgu kaynağı oluyordu.
                 Text(segment.speaker)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(segment.channel == .mic ? Color.oraBlue : Color.oraInk)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(segment.channel == .mic ? Color.oraInk : Color.oraInkMuted)
                 Text(segment.timeLabel)
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundStyle(Color.oraInkMuted)
             }
             Text(segment.text)
                 .font(.system(.body, design: .monospaced))
+                .lineSpacing(OraStyle.bodyLineSpacing)
                 .foregroundStyle(Color.oraInk)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
@@ -109,6 +113,7 @@ private struct VolatileRow: View {
                 .foregroundStyle(Color.oraInkMuted)
             Text(text)
                 .font(.system(.body, design: .monospaced))
+                .lineSpacing(OraStyle.bodyLineSpacing)
                 .foregroundStyle(Color.oraInkMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }

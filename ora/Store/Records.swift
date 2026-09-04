@@ -130,8 +130,25 @@ struct MeetingListItem: Identifiable, Hashable, FetchableRecord, Decodable {
         date.formatted(date: .abbreviated, time: .shortened)
     }
 
+    /// Yalnızca saat — kenar çubuğunda gün bilgisini grup başlığı taşır,
+    /// satırda tarihi tekrar etmek gürültü.
+    var timeLabel: String {
+        date.formatted(date: .omitted, time: .shortened)
+    }
+
     var durationLabel: String {
         duration >= 60 ? "\(duration / 60) dk" : "\(duration) sn"
+    }
+
+    /// Kenar çubuğu grubu: bugün, dün, bu hafta, sonra ay.
+    var groupLabel: String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Bugün" }
+        if calendar.isDateInYesterday(date) { return "Dün" }
+        if let week = calendar.date(byAdding: .day, value: -7, to: .now), date > week {
+            return "Son 7 gün"
+        }
+        return date.formatted(.dateTime.month(.wide).year().locale(Locale(identifier: "tr_TR")))
     }
 }
 

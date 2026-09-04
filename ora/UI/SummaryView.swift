@@ -20,21 +20,24 @@ struct SummaryView: View {
                        detail: "Özetleme kayıt bittikten sonra çalışır.")
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 28) {
                     if let notice {
                         Notice(text: notice, action: onSummarizeNow)
                     }
                     if let summary {
                         Section("Genel bakış") {
+                            // Tek blok metin: satır arası açık, satır uzunluğu
+                            // sınırlı — özet okunacak metindir, veri değil.
                             Text(summary.genelBakis)
                                 .font(.system(size: 14))
+                                .lineSpacing(OraStyle.bodyLineSpacing)
                                 .foregroundStyle(Color.oraInk)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .textSelection(.enabled)
                         }
                         if !summary.kararlar.isEmpty {
                             Section("Kararlar") {
-                                VStack(alignment: .leading, spacing: 6) {
+                                VStack(alignment: .leading, spacing: 8) {
                                     ForEach(Array(summary.kararlar.enumerated()), id: \.offset) { _, karar in
                                         Bullet(text: karar)
                                     }
@@ -43,7 +46,7 @@ struct SummaryView: View {
                         }
                         if !summary.aksiyonlar.isEmpty {
                             Section("Aksiyonlar") {
-                                VStack(alignment: .leading, spacing: 10) {
+                                VStack(alignment: .leading, spacing: 6) {
                                     ForEach(summary.aksiyonlar) { ActionRow(action: $0) }
                                 }
                             }
@@ -57,23 +60,29 @@ struct SummaryView: View {
                     }
                     if !topics.isEmpty {
                         Section("Konular") {
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: 2) {
                                 ForEach(topics) { topic in
-                                    HStack(spacing: 10) {
+                                    HStack(alignment: .firstTextBaseline, spacing: 12) {
                                         Text(topic.timeLabel)
                                             .font(.system(size: 12, design: .monospaced))
                                             .foregroundStyle(Color.oraInkMuted)
                                         Text(topic.title)
                                             .font(.system(size: 13))
                                             .foregroundStyle(Color.oraInk)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                        Spacer(minLength: 0)
                                     }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 7)
                                 }
                             }
                         }
                     }
                 }
-                .padding(20)
-                .frame(maxWidth: 760, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 32)
+                .frame(maxWidth: OraStyle.readableWidth, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -81,11 +90,12 @@ struct SummaryView: View {
 
     private func Section<Content: View>(_ title: String,
                                         @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
+            // Bölüm etiketi küçük, uppercase ve ikincil: içeriğin önüne geçmez.
             Text(title.uppercased())
-                .font(.system(size: 13, weight: .medium))
-                .kerning(0.6)
-                .foregroundStyle(Color.oraInk)
+                .font(.system(size: 11, weight: .semibold))
+                .kerning(0.8)
+                .foregroundStyle(Color.oraInkMuted)
             content()
         }
     }
@@ -98,6 +108,7 @@ private struct Bullet: View {
             Text("•").foregroundStyle(Color.oraInkMuted)
             Text(text)
                 .font(.system(size: 14))
+                .lineSpacing(OraStyle.bodyLineSpacing - 1)
                 .foregroundStyle(Color.oraInk)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
@@ -105,30 +116,56 @@ private struct Bullet: View {
     }
 }
 
+/// Aksiyon **yapılacak iş listesi değildir** — toplantıdan çıkarılmış bir
+/// bilgidir. Bu yüzden onay kutusu, durum veya ilerleme göstergesi yok:
+/// önce iş cümlesi, altında düşük kontrastlı üstlenen/son tarih bilgisi.
 private struct ActionRow: View {
     let action: Ozet.Aksiyon
+    @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 8) {
-                Text(action.kisi)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.oraBlue)
-                if action.sonTarih.lowercased(with: Locale(identifier: "tr_TR")) != "belirtilmedi" {
-                    Text(action.sonTarih)
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.oraInkMuted)
-                }
-            }
+        VStack(alignment: .leading, spacing: 4) {
             Text(action.gorev)
                 .font(.system(size: 14))
+                .lineSpacing(OraStyle.bodyLineSpacing - 1)
                 .foregroundStyle(Color.oraInk)
                 .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+            Text(metadataLine)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraInkMuted)
         }
-        .padding(12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .oraCard()
+        .oraQuietCard(hovered: isHovered)
+        .onHover { hovering in
+            withAnimation(OraStyle.transition) { isHovered = hovering }
+        }
     }
+
+    /// "Atanan kişi: …" — belirtilmemiş olması da bir bilgidir, ama vurgulanmaz.
+    private var metadataLine: String {
+        var parts = ["Atanan kişi: \(sentenceCased(action.kisi))"]
+        if isSpecified(action.sonTarih) {
+            parts.append("Son tarih: \(sentenceCased(action.sonTarih))")
+        }
+        return parts.joined(separator: "  ·  ")
+    }
+
+    private func isSpecified(_ value: String) -> Bool {
+        value.lowercased(with: Self.turkish) != "belirtilmedi"
+            && !value.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// Model alanları küçük harfle dönebiliyor ("ben", "belirtilmedi").
+    /// Türkçe locale ile büyütülür — aksi hâlde "i" → "I" olurdu.
+    private func sentenceCased(_ value: String) -> String {
+        guard let first = value.first else { return value }
+        return String(first).uppercased(with: Self.turkish) + value.dropFirst()
+    }
+
+    private static let turkish = Locale(identifier: "tr_TR")
 }
 
 /// Konuşma payı ve ölü hava — zaman damgalarından hesaplanır.

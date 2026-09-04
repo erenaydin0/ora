@@ -42,6 +42,11 @@ enum OraStyle {
     static let shadowOffsetY: CGFloat = 1
     /// Geçişler en fazla 150 ms.
     static let transition = Animation.easeOut(duration: 0.15)
+    /// Uzun metin satırı okunabilir kalsın diye içerik sütununun üst sınırı.
+    /// Pencere genişlese de gövde metni bundan geniş bir satıra dönüşmez.
+    static let readableWidth: CGFloat = 720
+    /// Gövde metninde satır arası — ekrandaki metin sıkışık görünmesin.
+    static let bodyLineSpacing: CGFloat = 4
 }
 
 extension View {
@@ -50,6 +55,15 @@ extension View {
         shadow(color: OraStyle.shadowColor,
                radius: OraStyle.shadowRadius,
                y: OraStyle.shadowOffsetY)
+    }
+
+    /// Sakin kart yüzeyi: kenarlık yok, yalnızca kâğıttan bir ton ayrılan zemin.
+    /// Aksiyon ve konu blokları gibi **çok sayıda** yan yana duran öğeler için —
+    /// her birine kenarlık çizmek arayüzü ızgaraya çeviriyor (BRAND: dekoratif
+    /// öğe yok). Ayrım boşluk ve zemin farkıyla kurulur.
+    func oraQuietCard(hovered: Bool = false) -> some View {
+        background(Color.oraSurface.opacity(hovered ? 1 : 0.6))
+            .clipShape(RoundedRectangle(cornerRadius: OraStyle.cornerRadius))
     }
 
     /// Kart yüzeyi: beyaz zemin, ince kenarlık, 8 köşe.
