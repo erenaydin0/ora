@@ -20,10 +20,18 @@ Lucide yerine SF Symbols.
 | Metin & tipografi | Slate Black | `#333333` | `.oraInk` |
 | İkincil metin | — | `#888888` | `.oraInkMuted` |
 | Vurgu | Core Blue | `#1A56A3` | `.oraBlue` |
-| Seçili arka plan | — | `#EEF3FB` | `.oraBlueSoft` |
+| Seçili arka plan | Baby Blue | `#CDE3F7` | `.oraBlueSoft` |
 | Kayıt durumu | Active Red | `#E53935` | `.oraRed` |
 | Kart / panel içi | Pure White | `#FFFFFF` | `.oraSurface` |
 | Kenarlık | Soft Border | `#E8E8E8` | `.oraBorder` |
+
+**Uygulamanın vurgu rengi (`AccentColor`) `.oraBlueSoft`'tur.** macOS'un
+varsayılan sistem mavisi kullanılmaz: liste seçimi, anahtarlar ve varsayılan
+butonlar bu yumuşak maviyi alır. Doygun bir mavide seçili satırdaki metin ve
+kayıt noktası birbirine giriyordu; açık zeminde AppKit etiket rengini
+kendiliğinden koyuya çeviriyor ve her şey okunur kalıyor.
+Core Blue (`.oraBlue`) vurgu değil **içerik** rengidir: bağlantı metni, aksiyon
+sahibi adı, ilerleme göstergesi.
 
 Bu tablo tek kaynaktır. Renkler `Resources/Assets.xcassets/Colors` içinde
 **bir kez** tanımlanır; `Color.oraPaper` gibi token'lar asset kataloğundan
@@ -63,7 +71,8 @@ kendiliğinden uyar. Marka kimliğini renk, boşluk ve ton taşır; font değil.
 ## Bileşen Renk Kuralları
 - Birincil buton: `.oraBlue` zemin, beyaz metin
 - İkincil buton: `.oraSurface` zemin, `.oraInk` metin, `.oraBorder` kenarlık
-- Aktif / seçili: `.oraBlue` metin, `.oraBlueSoft` zemin
+- Aktif / seçili: `.oraBlueSoft` zemin, `.oraInk` metin — sistem seçimi de
+  bu rengi kullanır (uygulama vurgu rengi olarak tanımlıdır)
 - Yıkıcı eylem: `.oraRed`
 - Kayıt butonu **yalnızca**: `.oraRed`, aktifken nabız animasyonu
 - Sol kenar çubuğu + araç çubuğu: **native malzeme** (kendi rengimizi basmayız —

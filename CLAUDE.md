@@ -54,6 +54,9 @@ Python yok, Node yok, Electron yok, model dosyası indirme yok.
    yuvarlatılmış köşeyi ve gölgeyi macOS 26 kendisi uygular; kendi kabuğunu
    çizen sanat eseri Dock'ta boş bir çerçeve gibi görünür (RESEARCH.md §20)
 9. Active Red (#E53935) yalnızca kayıt butonu ve menü bar noktası için
+9b. Uygulamanın vurgu rengi (`AccentColor` asset'i) `.oraBlueSoft`'tur —
+    macOS'un varsayılan sistem mavisi hiçbir yerde görünmez. Seçim, anahtarlar
+    ve varsayılan butonlar bunu kullanır.
 10. Uygulama adı her zaman küçük harf "ora"
 11. Kayıt **stereo** yazılır: kanal 0 = mikrofon, kanal 1 = sistem sesi.
     Kanallar asla tek kanala karıştırılmaz. Kısa kalan kanal sessizlikle
