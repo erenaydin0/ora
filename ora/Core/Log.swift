@@ -41,10 +41,19 @@ enum Log {
 
     static func error(_ category: LogCategory, _ message: String, _ error: Error? = nil) {
         if let error {
-            emit(.error, category, "\(message) — \(error.localizedDescription)")
+            emit(.error, category, "\(message) — \(describe(error))")
         } else {
             emit(.error, category, message)
         }
+    }
+
+    /// `localizedDescription` köprülenmiş Swift hatalarında hiçbir şey söylemez
+    /// ("Foundation._GenericObjCError hatası 0"). Hatanın kendi tanımı da
+    /// yazılır — log teşhis içindir, kullanıcı metni değil.
+    static func describe(_ error: Error) -> String {
+        let localized = error.localizedDescription
+        let raw = String(describing: error)
+        return localized.contains(raw) ? localized : "\(localized) [\(raw)]"
     }
 
     // MARK: - Uygulama

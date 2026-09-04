@@ -878,3 +878,47 @@ kimliklerini kabul etmesi.
 olarak çalıştığı için varsayılan odur. Sabit kimlik gerektiren her şey
 (TCC izinlerinin kalıcılığı, muhtemelen Dock ikonu) Apple Developer Program
 üyeliğini bekliyor.
+
+## 22. `AVAudioFile.read` dosya sonunda hata kurmadan başarısız oluyor
+
+**Belirti.** 49 saniyelik gerçek bir kayıttan sonra kayıt sonrası tam geçiş
+anında düşüyordu: *"Transkripsiyon tamamlanamadı — İşlem tamamlanamadı.
+(Foundation._GenericObjCError hatası 0.)"* Hiçbir şey loglanmıyordu, hiçbir
+segment yazılmıyordu ve toplantı `processing` durumunda takılı kalıyordu.
+
+**Ölçüm.** Aynı WAV `probes/transcribe_stereo.swift` ile sorunsuz çözülüyor
+(mic 3 segment, güven 0.50–0.81). Fark, probe'un okuma hatasını yutması.
+Adım adım log ile hata `SpeechTranscription.channelPeaks` içine indirgendi:
+
+```
+[AYIKLA] Tam geçiş: kanal tepeleri ölçülüyor
+[HATA]   Tam geçiş başarısız (tr-TR) — … (Foundation._GenericObjCError hatası 0.) [nilError]
+```
+
+`AVAudioFile.read(into:)` dosya sonunda `NO` dönüyor ama `NSError` **kurmuyor**;
+Swift köprüsü bunu `_GenericObjCError.nilError` olarak fırlatıyor. `while true`
+döngüsü son (kısmi) buffer'dan sonra bir kez daha okuduğu için bu her kayıtta
+oluyordu — yani kayıt sonrası tam geçiş gerçek dosyalarda hiç tamamlanmıyordu.
+
+**Kural.** `AVAudioFile` okuma döngüsünün sınırı `framePosition < length` ile
+çizilir; okuma yine de hata verirse konum dosya sonundaysa döngü biter,
+değilse hata yukarı taşınır (ortadaki gerçek okuma hatası yutulmaz).
+
+**Doğrulama (aynı kayıt, düzeltmeden sonra).**
+
+```
+tepeler 0.1075 / 0.0000      → system kanalı sessiz, atlandı
+mic kanalı çözüldü — 3 segment
+Tam geçiş bitti — 3 segment, tr-TR
+Özet hazır — 0 karar, 6 aksiyon, 1 konu     (toplam ~9 sn)
+```
+
+**Yan bulgu — sessiz kanal eşiği doğru çalışıyor.** Probe, tepe genliği 0.0000
+olan sistem kanalından "Evet" üretmişti; `DictationTranscriber` dijital
+sessizlikte uydurma sonuç verebiliyor. Kanal atlama bunu eliyor.
+
+**İki hat kuralı bu vakadan çıktı:**
+1. `catch` bloğu kullanıcıya hata gösteriyorsa **loga da yazar** — hata
+   görünürken logun sessiz kalması teşhisi imkânsız kılıyordu.
+2. `localizedDescription` köprülenmiş Swift hatalarında hiçbir şey söylemez;
+   log satırı `String(describing:)` hâlini de taşır (`Log.describe`).

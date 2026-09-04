@@ -47,6 +47,10 @@ struct MeetingDetail: View {
         VStack(spacing: 0) {
             if let header { header }
 
+            if recorder.canRetry {
+                RetryNotice(recorder: recorder)
+            }
+
             Picker("", selection: $tab) {
                 ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
             }
@@ -82,6 +86,29 @@ struct MeetingDetail: View {
                                    : nil)
             }
         }
+    }
+}
+
+/// Ses diskte ama transkript yok — hata mesajının vaat ettiği tekrar denemenin
+/// gerçek yüzeyi. Sessizce yarım kalmış bir toplantı bırakılmaz.
+private struct RetryNotice: View {
+
+    let recorder: RecordingController
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.arrow.circlepath")
+                .foregroundStyle(Color.oraInkMuted)
+            Text("Bu toplantı yazıya dökülmedi. Ham ses kaydı duruyor.")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.oraInk)
+            Spacer()
+            Button("Yeniden dene") { Task { await recorder.retryProcessing() } }
+        }
+        .padding(10)
+        .oraCard()
+        .padding(.horizontal, 20)
+        .padding(.bottom, 12)
     }
 }
 

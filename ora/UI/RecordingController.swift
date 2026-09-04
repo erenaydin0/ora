@@ -41,6 +41,11 @@ final class RecordingController {
     /// Veritabanı açılamadıysa kullanıcıya söylenecek not.
     private(set) var storageNotice: String?
 
+    /// Seçili toplantının sesi diskte duruyor ama transkripti yok — işlem
+    /// yeniden denenebilir. Hata mesajı "daha sonra tekrar deneyebilirsiniz"
+    /// diyor; o vaadin karşılığı budur.
+    private(set) var retryableAudio: URL?
+
     /// Algılamadan gelen öneri; kullanıcı karar verene kadar durur.
     var pendingSignal: MeetingSignal? { detector.pendingSignal }
     /// Toplantı uygulaması mikrofonu 30 sn'den uzun bıraktı.
@@ -302,6 +307,11 @@ final class RecordingController {
         selection != nil && !isRecording && !isTranscribing && !transcript.isEmpty
     }
 
+    /// Yeniden deneme düğmesi görünür mü?
+    var canRetry: Bool {
+        retryableAudio != nil && !isRecording && !isTranscribing
+    }
+
     var exportPayload: MeetingExport.Payload? {
         guard let meeting = selectedMeeting, !isRecording,
               !transcript.isEmpty || summary != nil else { return nil }
@@ -344,6 +354,7 @@ final class RecordingController {
             metrics = loaded.metrics
             summaryNotice = nil
             transcriptionStage = loaded.segments.isEmpty ? .idle : .done
+            retryableAudio = loaded.segments.isEmpty ? Self.existingAudio(loaded.meeting) : nil
             chatTurns = (try? await store.chatHistory(meetingID)) ?? []
             calendarParticipants = (try? await store.calendarParticipants(meetingID)) ?? []
         } catch {
@@ -461,8 +472,10 @@ final class RecordingController {
             await refresh()
             await runFullPass(meetingID: meetingID, url: url, duration: duration)
         } catch let error as OraError {
+            Log.error(.capture, "Kayıt kapatılamadı", error)
             self.error = error
         } catch {
+            Log.error(.capture, "Kayıt kapatılamadı", error)
             self.error = .audioWriteFailed(underlying: error)
         }
         activeMeetingID = nil
@@ -497,6 +510,7 @@ final class RecordingController {
         chatTurns = []
         calendarParticipants = []
         transcriptionStage = .idle
+        retryableAudio = nil
     }
 
     // MARK: - Canlı transkripsiyon (en iyi çaba)
@@ -557,11 +571,13 @@ final class RecordingController {
 
         do {
             let module = SpeechTranscription.makeTranscriber(locale: locale, live: false)
+            Log.debug(.transcribe, "Tam geçiş: dil hazırlanıyor (\(locale.identifier))")
             try await TranscriptionLocale.ensureInstalled(locale, module: module) { [weak self] value in
                 Task { @MainActor in self?.transcriptionStage = .downloadingLanguage(value) }
             }
             transcriptionStage = .transcribing(0)
             let words = (try? await vocabularyStore.activeWords()) ?? []
+            Log.debug(.transcribe, "Tam geçiş: \(words.count) sözlük terimi, ses açılıyor")
             let segments = try await transcription.transcribe(
                 url: url, locale: locale, vocabulary: words
             ) { [weak self] value in
@@ -575,11 +591,37 @@ final class RecordingController {
             await runIntelligence(meetingID: meetingID, segments: segments, duration: duration)
         } catch let error as OraError {
             transcriptionStage = .idle
+            Log.error(.transcribe, "Tam geçiş başarısız (\(locale.identifier))", error)
+            retryableAudio = url
             self.error = error
         } catch {
             transcriptionStage = .idle
+            Log.error(.transcribe, "Tam geçiş başarısız (\(locale.identifier))", error)
+            retryableAudio = url
             self.error = .transcriptionFailed(underlying: error)
         }
+    }
+
+    /// Başarısız veya yarım kalmış bir toplantıyı elle yeniden işler.
+    /// Ham ses diskte durduğu için kayıt tekrarlanmaz — hat baştan koşar.
+    func retryProcessing() async {
+        guard let meetingID = selection, let url = retryableAudio,
+              !isRecording, !isTranscribing else { return }
+        Log.info(.pipeline, "İşlem elle yeniden başlatıldı — toplantı \(meetingID)")
+        retryableAudio = nil
+        let duration = Self.duration(of: url)
+        try? await store.markProcessing(meetingID, audioPath: url, duration: duration)
+        await refresh()
+        await runFullPass(meetingID: meetingID, url: url, duration: duration)
+        if transcript.isEmpty { retryableAudio = url }
+        await refresh()
+    }
+
+    /// Ses dosyası hâlâ diskte mi?
+    private static func existingAudio(_ meeting: MeetingRecord) -> URL? {
+        guard let path = meeting.audioPath,
+              FileManager.default.fileExists(atPath: path) else { return nil }
+        return URL(fileURLWithPath: path)
     }
 
     private func runIntelligence(meetingID: Int64, segments: [Segment],

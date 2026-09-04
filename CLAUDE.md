@@ -426,6 +426,10 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       **Faz 7 — Paketleme** tamam: uygulama ikonu, `MenuBarExtra` (taşıyıcı yüzey),
       kayıt sırasında kırmızı nokta ve kanal seviyeleri, ilk açılış onboarding'i,
       `scripts/build-release.sh` ile 3,7 MB .dmg (RESEARCH.md §18).
+      **Gerçek kayıtla uçtan uca doğrulandı (RESEARCH.md §22):** kayıt sonrası
+      tam geçiş `AVAudioFile.read`'in dosya sonundaki `nilError`'ı yüzünden her
+      kayıtta düşüyordu; düzeltildi. Başarısız veya yarım kalmış bir toplantı
+      artık **"Yeniden dene"** düğmesiyle ham sesten yeniden işlenir.
     - Bekleyen:
       1. **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
