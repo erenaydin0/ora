@@ -25,18 +25,19 @@ Lucide yerine SF Symbols.
 | Kart / panel içi | Pure White | `#FFFFFF` | `.oraSurface` |
 | Kenarlık | Soft Border | `#E8E8E8` | `.oraBorder` |
 
-Bu tablo tek kaynaktır. Renkler `Color+Ora.swift` içinde **bir kez** tanımlanır;
-görünümlerde ham hex veya `Color(red:green:blue:)` yazılmaz.
+Bu tablo tek kaynaktır. Renkler `Resources/Assets.xcassets/Colors` içinde
+**bir kez** tanımlanır; `Color.oraPaper` gibi token'lar asset kataloğundan
+derleme zamanında üretilir. Görünümlerde ham hex veya `Color(red:green:blue:)`
+yazılmaz.
 
 ## Tipografi
-Fontlar uygulama kaynağı olarak **paketlenir** (toplam ~232 KB), indirilmez.
-Dosyalar önceki projede hazır: `../src/renderer/assets/fonts/` — masaüstü için
-woff2 yerine ttf/otf sürümleri gerekir, `scripts/fetch-fonts` eşdeğeriyle üretilir.
+**Sistem fontu kullanılır — font paketlenmez, indirilmez.** Gövde ve başlık
+`SF Pro` (SwiftUI'da `.system(...)`), transkript sistem monospace
+(`.system(.body, design: .monospaced)`).
 
-- Gövde: **Inter** (Regular 400, Medium 500, Bold 700)
-- Başlık / özet metni: **Source Serif 4**
-- Transkript: sistem monospace (`.system(.body, design: .monospaced)`)
-- `latin-ext` alt kümesi **zorunlu** — Türkçe ı İ ğ Ğ ş Ş bu alt kümededir
+Gerekçe: SF Pro Türkçe diakritikleri (ı İ ğ Ğ ş Ş) eksiksiz taşır, uygulama
+boyutuna sıfır ekler ve macOS'un metin ölçekleme/erişilebilirlik ayarlarına
+kendiliğinden uyar. Marka kimliğini renk, boşluk ve ton taşır; font değil.
 
 | Kullanım | Boyut | Ağırlık | Renk |
 |---|---|---|---|
@@ -44,15 +45,10 @@ woff2 yerine ttf/otf sürümleri gerekir, `scripts/fetch-fonts` eşdeğeriyle ü
 | Bölüm başlığı | 13 | Medium, uppercase + letter-spacing | `.oraInk` |
 | Küçük etiket | 12 | Regular | `.oraInkMuted` |
 
-> Alternatif: SF Pro'ya geçilirse paketleme sıfırlanır ve uygulama daha
-> "yerel" hisseder, ama marka kimliğinden sapılır. Karar verilmedi —
-> varsayılan Inter'dir, değiştirmeden önce sor.
-
 ## Logo Kuralları
 - Uygulama adı **her zaman** küçük harf: **ora**
 - Asla: Ora, ORA, O.R.A.
-- Başlık çubuğunda ve onboarding'de: "ora", Inter Medium, `.oraInk`,
-  arka plan `.oraChrome`
+- Başlık çubuğunda ve onboarding'de: "ora", SF Pro Medium, `.oraInk`
 
 ## UI Kişiliği
 - Bol boşluk, dekoratif öğe yok
@@ -70,7 +66,9 @@ woff2 yerine ttf/otf sürümleri gerekir, `scripts/fetch-fonts` eşdeğeriyle ü
 - Aktif / seçili: `.oraBlue` metin, `.oraBlueSoft` zemin
 - Yıkıcı eylem: `.oraRed`
 - Kayıt butonu **yalnızca**: `.oraRed`, aktifken nabız animasyonu
-- Sol kenar çubuğu + başlık çubuğu: `.oraChrome`
+- Sol kenar çubuğu + araç çubuğu: **native malzeme** (kendi rengimizi basmayız —
+  DESIGN.md §5). `.oraChrome` yalnızca marka yüzeylerinde kullanılır:
+  onboarding, hoş geldin ekranı, boş durum kartları
 - Ana panel + sohbet paneli: `.oraPaper`
 - Toplantı sağlık kartları: `.oraSurface` zemin, ince `.oraBorder`
 

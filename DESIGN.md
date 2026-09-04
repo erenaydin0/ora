@@ -99,7 +99,7 @@ katlama animasyonu, araç çubuğu düğmesi ve durum hatırlama getiriyor.
 ┌──────────────┬────────────────────────────┬───────────────┐
 │ Sidebar      │ Content                    │ Inspector     │
 │ 240–300pt    │ esnek                      │ katlanabilir  │
-│ .oraChrome   │ .oraPaper                  │ .oraPaper     │
+│ native malz. │ .oraPaper                  │ .oraPaper     │
 │              │                            │               │
 │ arama        │ Özet | Transkript          │ sohbet        │
 │ toplantılar  │                            │               │

@@ -46,17 +46,10 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
 *Çıktı:* açılan, hiçbir şey yapmayan ama doğru görünen uygulama
 
 **Faz 1'de kapatılmayan, bilinçli bırakılanlar:**
-- **Tipografi paketlenmedi.** BRAND.md Inter + Source Serif 4 istiyor; eski projede
-  yalnızca `woff2` var (`../Ora/src/renderer/assets/fonts/`), masaüstü ttf/otf yok.
-  İskelet sistem fontuyla duruyor. Font paketlemesi UI'ın gerçek metin taşıdığı
-  Faz 5'te yapılır
 - **Uygulama ikonu yok** — Faz 7
 - **Karanlık mod paleti yok.** BRAND.md tek bir açık palet tanımlıyor, bu yüzden
   uygulama `NSAppearance(named: .aqua)` ile açık moda sabitlendi. Karanlık mod
   istenirse önce BRAND.md'ye ikinci bir palet yazılmalı
-- **Araç çubuğu native malzemede** (DESIGN.md §5), kenar çubuğu `.oraChrome`
-  (BRAND.md + DESIGN.md §4). DESIGN.md §4 ile §5 bu noktada çelişiyor;
-  çoğunluk kararı uygulandı, seam görünür durumda — karar netleşince düzeltilir
 
 ---
 

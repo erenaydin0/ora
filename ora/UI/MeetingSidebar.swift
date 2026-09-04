@@ -22,8 +22,6 @@ struct MeetingSidebar: View {
             .padding(.vertical, 2)
         }
         .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
-        .background(Color.oraChrome)
         .searchable(text: $searchText, placement: .sidebar, prompt: "Toplantılarda ara")
         .overlay {
             if meetings.isEmpty {

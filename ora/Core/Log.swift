@@ -49,7 +49,7 @@ enum Log {
 
     // MARK: - Uygulama
 
-    private static let subsystem = Bundle.main.bundleIdentifier ?? "com.datassist.ora"
+    private static let subsystem = Bundle.main.bundleIdentifier ?? "com.orameetings.ora"
 
     private static let loggers: [LogCategory: Logger] = {
         var map: [LogCategory: Logger] = [:]
@@ -123,7 +123,7 @@ private final class FileLogSink: @unchecked Sendable {
         guard !openFailed else { return }
         openFailed = true
         handle = nil
-        Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.datassist.ora", category: "app")
+        Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.orameetings.ora", category: "app")
             .error("Günlük dosyası yazılamıyor: \(error.localizedDescription, privacy: .public)")
     }
 }
