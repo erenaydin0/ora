@@ -54,14 +54,20 @@ yüzeydir. Sayı yeterli; adlar uygulama içinde kalır.
 - **Boşta:** ora işareti, tek renk `.oraInk`
 - **Kayıtta:** `.oraRed` nokta (BRAND kural #9 — kırmızı yalnızca burada ve kayıt butonunda)
 - **İşlemde:** ince belirsiz ilerleme göstergesi
-- **Tık → popover** (SwiftUI, ~280pt genişlik):
-  - geçen süre, iki kanalın seviye göstergesi (mic / sistem — kanal ayrımı görünür olsun)
-  - canlı transkriptin son satırı, sönümlenerek akan
-  - **Durdur** butonu (`.oraRed`)
-  - "Pencereyi aç"
-- **Takvim açıksa** popover'ın altında sıradaki toplantı: `14:00  Sprint Planlama`.
+- **Tık → native menü** (`.menuBarExtraStyle(.menu)`), seçenekler alt alta:
+  - durum satırı: `Kaydediliyor · 12:34` / `Toplantı işleniyor…` / `ora hazır`
+  - **Kaydı başlat** veya **Kaydı durdur** (⌘⇧R)
+  - kayıt sürerken canlı transkriptin son satırı
+  - algılama önerisi varsa "… toplantısını kaydet" / "Şimdi değil"
+  - "Pencereyi aç", "Ayarlar…", "ora'dan çık"
+- **Takvim açıksa** menüde sıradaki toplantı: `Sıradaki: 14:00  Sprint Planlama`.
   Boştayken menü barın tek bilgi taşıdığı yer burasıdır — kayıt yokken bile
   uygulamanın bir işe yaradığını gösterir
+
+> Önceki taslak burada özel çizilmiş bir popover (seviye çubukları dahil)
+> öngörüyordu. Native menü tercih edildi: klavye gezinme, vurgulama ve kapanma
+> davranışı bedava gelir ve menü çubuğundaki diğer uygulamalarla aynı hisseder.
+> Kanal seviyeleri kayıt sırasında ana pencerede gösterilir.
 
 ---
 
@@ -91,6 +97,12 @@ sürekli duran bir kutu değil, yalnızca bir şey olurken beliren bir gösterge
 ## 4. Ana pencere — iki mod
 
 ### Yapı: native `NavigationSplitView` + `.inspector`
+Araç çubuğu **kendi zeminini çizmez**
+(`.toolbarBackgroundVisibility(.hidden, for: .windowToolbar)`): aksi hâlde beyaz
+araç çubuğu ile krem tuval arasında yatay bir dikiş kalıyor. BRAND.md'nin
+"pencere arka planı tuvalle aynı olmalı" kuralının bu düzendeki karşılığı budur.
+Başlık çubuğunda düz "ora" metni yoktur; kimlik ikon, logo ve menü bardan gelir.
+
 Eski ora üç sütunu elle kuruyordu (300px sabit sol, esnek orta, 320px sağ sohbet).
 SwiftUI'da bunun native karşılığı var ve bedavaya sürükle-boyutlandırma,
 katlama animasyonu, araç çubuğu düğmesi ve durum hatırlama getiriyor.

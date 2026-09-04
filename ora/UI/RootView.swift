@@ -46,17 +46,6 @@ struct RootView: View {
                 .help("Dışa aktar")
             }
             ToolbarItem {
-                Picker("Dil", selection: Binding(get: { recorder.language },
-                                                 set: { recorder.language = $0 })) {
-                    ForEach(TranscriptionLanguage.allCases) { language in
-                        Text(language.turkishName).tag(language)
-                    }
-                }
-                .pickerStyle(.menu)
-                .disabled(recorder.isRecording)
-                .help("Transkripsiyon dili")
-            }
-            ToolbarItem {
                 Button {
                     withAnimation(OraStyle.transition) { isChatShown.toggle() }
                 } label: {
@@ -65,7 +54,12 @@ struct RootView: View {
                 .help("Sohbet panelini aç/kapat")
             }
         }
-        .navigationTitle("ora")
+        // Başlıkta düz metin yok; kimlik ikon ve menü bardan geliyor.
+        .navigationTitle("")
+        // Araç çubuğu kendi zeminini çizmez; altındaki tuval kesintisiz devam
+        // eder. Aksi hâlde beyaz araç çubuğu ile krem tuval arasında yatay bir
+        // dikiş kalıyor (BRAND.md: pencere arka planı tuvalle aynı olmalı).
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         .task {
             recorder.scanForInterruptedRecordings()
             await recorder.startServices()

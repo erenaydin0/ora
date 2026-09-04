@@ -345,7 +345,11 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 - `NSCalendarsFullAccessUsageDescription` — yalnızca takvim özelliği açıksa
   istenir; metin "yazmaz, veri çıkmaz" güvencesini içerir
 - `NSAudioCaptureUsageDescription` — sistem sesi tap'i için (ekran kaydı izni DEĞİL)
-- Sandbox girişleri: `com.apple.security.device.audio-input`
+- Sandbox girişleri: `com.apple.security.device.audio-input`,
+  **`com.apple.security.personal-information.calendars`** (takvim için).
+  Ölçüldü (RESEARCH.md §19): takvim yetkisi olmadan `requestFullAccessToEvents`
+  sandbox'lı uygulamada **istem çıkarmadan** başarısız oluyor. Yeni bir izin
+  eklerken TCC metniyle birlikte entitlement'ı da yaz.
 - Sistem sesi izni reddedilirse yalnız-mikrofon moduna düş, çökme
 
 ## Hata Yönetimi

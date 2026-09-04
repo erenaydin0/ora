@@ -18,9 +18,7 @@ struct OnboardingView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("ora")
-                    .font(.system(size: 26, weight: .medium))
-                    .foregroundStyle(Color.oraInk)
+                OraLogo(height: 28, showsWordmark: true)
                 Text("Toplantılarınızı kaydeder, yazıya döker ve özetler. "
                      + "Tüm işlem bu Mac'te yapılır; hiçbir veri cihazınızdan çıkmaz.")
                     .font(.system(size: 13))

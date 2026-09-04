@@ -6,6 +6,10 @@
 	<true/>
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
+	<!-- Takvim: sandbox'lı uygulamada bu yetki olmadan requestFullAccessToEvents
+	     istem çıkarmadan başarısız olur. ora takvime yalnızca OKUR. -->
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
 </dict>

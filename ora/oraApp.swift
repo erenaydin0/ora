@@ -12,7 +12,6 @@ struct OraApp: App {
         Window("ora", id: "main") {
             RootView(recorder: recorder)
                 .frame(minWidth: 900, minHeight: 560)
-                .background(Color.oraPaper)
         }
         .defaultSize(width: 1100, height: 700)
         .windowToolbarStyle(.unified)
@@ -23,7 +22,8 @@ struct OraApp: App {
         } label: {
             MenuBarLabel(recorder: recorder)
         }
-        .menuBarExtraStyle(.window)
+        // Native menü: seçenekler alt alta, sistem davranışıyla.
+        .menuBarExtraStyle(.menu)
 
         Settings {
             SettingsView(recorder: recorder, settings: settings)

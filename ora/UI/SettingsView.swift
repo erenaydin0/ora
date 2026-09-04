@@ -8,6 +8,8 @@ struct SettingsView: View {
 
     var body: some View {
         TabView {
+            GeneralSettings(recorder: recorder)
+                .tabItem { Label("Genel", systemImage: "gearshape") }
             DetectionSettings(recorder: recorder, settings: settings)
                 .tabItem { Label("Algılama", systemImage: "waveform.badge.mic") }
             CalendarSettings(recorder: recorder, settings: settings)
@@ -17,6 +19,60 @@ struct SettingsView: View {
         }
         .frame(width: 520, height: 420)
         .background(Color.oraPaper)
+    }
+}
+
+/// Genel ayarlar: transkripsiyon dili.
+private struct GeneralSettings: View {
+    let recorder: RecordingController
+
+    var body: some View {
+        Form {
+            Section("Toplantı dili") {
+                Picker("Dil", selection: Binding(get: { recorder.language },
+                                                 set: { recorder.language = $0 })) {
+                    ForEach(TranscriptionLanguage.allCases) { language in
+                        Text(language.turkishName).tag(language)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+                .disabled(recorder.isRecording)
+
+                Text("**Otomatik**, sesin ilk 40 saniyesini kurulu dillerle ayrı ayrı "
+                     + "çözer ve güven skoru yüksek olanı seçer. Apple'da konuşulan "
+                     + "dili tanıyan bir API yoktur; bu ölçüme dayalı bir seçimdir.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if recorder.isRecording {
+                    Text("Kayıt sürerken dil değiştirilemez.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.oraInkMuted)
+                }
+            }
+
+            Section("Apple Intelligence") {
+                HStack(spacing: 8) {
+                    Image(systemName: recorder.modelAvailability.isAvailable
+                          ? "checkmark.circle.fill" : "exclamationmark.circle")
+                        .foregroundStyle(recorder.modelAvailability.isAvailable
+                                         ? Color.oraBlue : Color.oraInkMuted)
+                    Text(recorder.modelAvailability.isAvailable
+                         ? "Hazır — özet, noktalama ve sohbet çalışıyor."
+                         : recorder.modelAvailability.turkishMessage)
+                        .font(.system(size: 13))
+                }
+                if !recorder.modelAvailability.isAvailable {
+                    Text(recorder.modelAvailability.turkishDetail)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.oraInkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 

@@ -768,3 +768,25 @@ profili varsa imzalar ve notarize eder, yoksa uyarıp geçer.
 **Bu makinede kod imzalama kimliği yok** (`security find-identity` → 0 kimlik),
 bu yüzden imzalama ve notarizasyon adımları **çalıştırılamadı**. Üretilen `.dmg`
 ad-hoc imzalıdır ve başka bir Mac'te Gatekeeper tarafından engellenir.
+
+
+---
+
+## 19. Sandbox'ta takvim: eksik yetki sessizce başarısız oluyor
+
+"Takvimi kullan" açıldığında hiçbir izin istemi çıkmıyordu. Sebep entitlements
+dosyasında eksik bir anahtar:
+
+```xml
+<key>com.apple.security.personal-information.calendars</key>
+<true/>
+```
+
+Bu yetki olmadan sandbox'lı bir uygulamada `requestFullAccessToEvents`
+**istem çıkarmadan** başarısız oluyor — hata da atmıyor, yalnızca izin verilmemiş
+gibi dönüyor. `probes/calendar.swift` sorunu göstermiyordu çünkü probe
+sandbox'sız bir komut satırı aracı.
+
+**Genel ders:** §12'deki "okumak `fullAccess` gerektirir" bulgusu doğruydu ama
+eksikti; sandbox'lı bir uygulamada TCC izninin yanında **entitlement de** gerekir.
+Mikrofon (`device.audio-input`) için bu baştan yazılmıştı, takvim için atlanmıştı.
