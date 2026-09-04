@@ -16,8 +16,8 @@ import AppKit
 // | Nötr vurgu / hover       | #F5F5F7   | .oraGray       |
 // | Metin & tipografi        | #333333   | .oraInk        |
 // | İkincil metin            | #888888   | .oraInkMuted   |
-// | Vurgu                    | #1A56A3   | .oraBlue       |
-// | Seçili arka plan         | #EEF3FB   | .oraBlueSoft   |
+// | Vurgu (içerik: bağlantı) | #1A56A3   | .oraBlue       |
+// | Vurgu / seçili zemin     | #F7C79A   | .oraAccentSoft |
 // | Kayıt durumu             | #E53935   | .oraRed        |
 // | Kart / panel içi         | #FFFFFF   | .oraSurface    |
 // | Kenarlık                 | #E8E8E8   | .oraBorder     |
@@ -29,7 +29,7 @@ import AppKit
 enum OraPalette {
     static let all: [ColorResource] = [
         .oraPaper, .oraChrome, .oraGray, .oraInk, .oraInkMuted,
-        .oraBlue, .oraBlueSoft, .oraRed, .oraSurface, .oraBorder,
+        .oraBlue, .oraAccentSoft, .oraRed, .oraSurface, .oraBorder,
     ]
 }
 

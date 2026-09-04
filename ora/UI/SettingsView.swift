@@ -228,8 +228,8 @@ private struct VocabularySettings: View {
                             Text("onay bekliyor")
                                 .font(.system(size: 11))
                                 .padding(.horizontal, 6).padding(.vertical, 1)
-                                .background(Color.oraBlueSoft)
-                                .foregroundStyle(Color.oraBlue)
+                                .background(Color.oraAccentSoft)
+                                .foregroundStyle(Color.oraInk)
                                 .clipShape(Capsule())
                         }
                         Text(word.sourceLabel)

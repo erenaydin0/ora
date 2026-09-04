@@ -87,11 +87,11 @@ struct ChatInspector: View {
                 } label: {
                     Text(starter)
                         .font(.system(size: 12))
-                        .foregroundStyle(Color.oraBlue)
+                        .foregroundStyle(Color.oraInk)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
-                        .background(Color.oraBlueSoft)
+                        .background(Color.oraAccentSoft)
                         .clipShape(RoundedRectangle(cornerRadius: OraStyle.cornerRadius))
                 }
                 .buttonStyle(.plain)
