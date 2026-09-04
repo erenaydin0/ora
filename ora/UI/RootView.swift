@@ -4,13 +4,11 @@ import SwiftUI
 struct RootView: View {
 
     @State private var recorder = RecordingController()
-    @State private var selection: Meeting.ID?
-    @State private var searchText = ""
     @State private var isChatShown = false
 
     var body: some View {
         NavigationSplitView {
-            MeetingSidebar(selection: $selection, searchText: $searchText)
+            MeetingSidebar(recorder: recorder)
                 .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 300)
         } detail: {
             if recorder.isRecording {
@@ -26,6 +24,30 @@ struct RootView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 RecordButton(recorder: recorder)
+            }
+            ToolbarItem {
+                Menu {
+                    Button("Markdown olarak kaydet…") {
+                        if let payload = recorder.exportPayload { MeetingExport.saveMarkdown(payload) }
+                    }
+                    .disabled(recorder.exportPayload == nil)
+                    Button("PDF olarak kaydet…") {
+                        if let payload = recorder.exportPayload { MeetingExport.savePDF(payload) }
+                    }
+                    .disabled(recorder.exportPayload == nil)
+                    Button("E-posta taslağını kopyala") {
+                        if let payload = recorder.exportPayload { MeetingExport.copyEmailDraft(payload) }
+                    }
+                    .disabled(recorder.exportPayload == nil)
+                    Divider()
+                    Button("Eski ora verisini içe aktar…") {
+                        Task { await recorder.importLegacyData() }
+                    }
+                    .disabled(recorder.isRecording)
+                } label: {
+                    Label("Dışa ve içe aktar", systemImage: "ellipsis.circle")
+                }
+                .help("Dışa aktar · içe aktar")
             }
             ToolbarItem {
                 Picker("Dil", selection: Binding(get: { recorder.language },
@@ -49,6 +71,13 @@ struct RootView: View {
         }
         .navigationTitle("ora")
         .task { recorder.scanForInterruptedRecordings() }
+        .alert("İçe aktarma tamamlandı",
+               isPresented: Binding(get: { recorder.importReport != nil },
+                                    set: { if !$0 { recorder.importReport = nil } })) {
+            Button("Tamam", role: .cancel) { recorder.importReport = nil }
+        } message: {
+            Text(recorder.importReport ?? "")
+        }
         .alert(recorder.error?.turkishMessage ?? "",
                isPresented: Binding(get: { recorder.error != nil },
                                     set: { if !$0 { recorder.error = nil } })) {

@@ -8,6 +8,11 @@ struct TranscriptView: View {
     let segments: [Segment]
     var volatileText: [Int: String] = [:]
     var notice: String?
+    /// Nil ise düzeltme kapalıdır (canlı modda düzeltme yapılmaz).
+    var onCorrect: ((Segment, String) -> Void)?
+
+    @State private var editing: Segment.ID?
+    @State private var draft = ""
 
     var body: some View {
         if segments.isEmpty && volatileText.isEmpty {
@@ -26,7 +31,24 @@ struct TranscriptView: View {
                                 .oraCard()
                         }
                         ForEach(segments) { segment in
-                            SegmentRow(segment: segment)
+                            if editing == segment.id, onCorrect != nil {
+                                CorrectionEditor(text: $draft) {
+                                    onCorrect?(segment, draft)
+                                    editing = nil
+                                } cancel: {
+                                    editing = nil
+                                }
+                            } else {
+                                SegmentRow(segment: segment)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture(count: 2) {
+                                        guard onCorrect != nil else { return }
+                                        draft = segment.text
+                                        editing = segment.id
+                                    }
+                                    .help(onCorrect == nil ? ""
+                                          : "Düzeltmek için çift tıklayın")
+                            }
                         }
                         ForEach(volatileLines, id: \.0) { channel, text in
                             VolatileRow(speaker: channel.speaker, text: text)
@@ -91,5 +113,32 @@ private struct VolatileRow: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityHidden(true)
+    }
+}
+
+
+/// Transkript satırını yerinde düzeltme. Kaydedilen düzeltme `corrections`
+/// tablosuna da yazılır ve Faz 6'da özel sözlüğü besleyecektir.
+private struct CorrectionEditor: View {
+    @Binding var text: String
+    let save: () -> Void
+    let cancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("Düzeltilmiş metin", text: $text, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(Color.oraInk)
+                .padding(8)
+                .oraCard()
+                .onSubmit(save)
+            HStack(spacing: 8) {
+                Spacer()
+                Button("Vazgeç", role: .cancel, action: cancel)
+                Button("Kaydet", action: save).keyboardShortcut(.defaultAction)
+            }
+        }
+        .onExitCommand(perform: cancel)
     }
 }

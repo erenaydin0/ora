@@ -284,8 +284,16 @@ meeting_participants(meeting_id, participant_id, source, role)
 topic_segments(id, meeting_id, title, start_time, end_time)
 summaries(id, meeting_id UNIQUE, overview, decisions JSON, next_meeting, sentiment,
           talk_share JSON, dead_air_pct, created_at)
-transcripts_fts -- FTS5 virtual table (text, speaker)
+transcripts_fts -- FTS5 virtual table (text, speaker), insert/delete/update trigger'ları
 ```
+**Tarih sütunları** GRDB'nin varsayılan biçiminde yazılır
+(`YYYY-MM-DD HH:MM:SS.SSS`, UTC). Okuma tarafı ISO 8601'i de kabul eder —
+eski ora'dan içe aktarma bu sayede iki biçimi de okuyabiliyor.
+
+**Silme davranışı:** `meetings` satırı silinince `transcripts`, `summaries`,
+`action_items`, `topic_segments` cascade ile gider ve FTS trigger'ı indeksi
+temizler (doğrulandı, RESEARCH.md §16.2). `corrections` **silinmez**, yalnızca
+`meeting_id` NULL olur — kullanıcının düzeltme bilgisi toplantıya bağlı değildir.
 Önceki ora'ya göre eklenenler ve gerekçeleri:
 - `transcripts.confidence` — Speech API `.transcriptionConfidence` veriyor
 - `meetings.calendar_event_id` — takvim etkinliğiyle bağ
@@ -313,8 +321,10 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 ## UI Kuralları
 - UI kodu yazmadan önce **BRAND.md** oku
 - SwiftUI; ikonlar SF Symbols
-- Düzen: 3 sütun — sol kenar çubuğu 300pt sabit, orta panel esnek
-  (sekmeler: Özet | Transkript | Konuşmacılar), sağ sohbet paneli 320pt katlanabilir
+- Düzen: 3 sütun — `NavigationSplitView` kenar çubuğu 240-300pt, orta panel esnek
+  (sekmeler: **Özet | Transkript**), sağ sohbet paneli `.inspector` ile katlanabilir.
+  "Konuşmacılar" sekmesi yoktur; kanal ayrımı sayesinde konuşmacı sayısı pratikte
+  ikidir ve istatistikler Özet içindeki kompakt kartta durur (DESIGN.md §4)
 - Gradyan yok
 - Gölge en fazla: `.shadow(color: .black.opacity(0.08), radius: 3, y: 1)`
 - Köşe yarıçapı en fazla 8
@@ -387,9 +397,13 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       noktalama adımı (kelime koruma güvenceli), map-reduce özetleme
       (`@Generable Ozet`), konu başlıkları, hesaplanmış sağlık metrikleri.
       50.000 karakterlik transkript 6 parçada ~55 sn (RESEARCH.md §15).
+      **Faz 5 — Depolama, Arama, UI** tamam: GRDB şeması + migration'lar,
+      FTS5 + trigger'lar, toplantı listesi ve arama, düzeltme, silme,
+      Markdown/PDF/e-posta dışa aktarımı, eski ora verisini içe aktarma
+      (RESEARCH.md §16).
     - Bekleyen: **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
       (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa; gerçek bir
-      toplantı hâlâ gerekli. Ardından **Faz 5 — Depolama, Arama, UI**
+      toplantı hâlâ gerekli. Ardından **Faz 6 — Akıllı Katman**
     - **Bilinen geliştirme engeli:** makinede kod imzalama kimliği yok
       (`security find-identity` → 0). Ad-hoc imza her derlemede değiştiği için
       TCC uygulamayı yeni sanıyor ve mikrofon izni **her derlemede** yeniden
@@ -410,9 +424,12 @@ ora/Transcribe/        — SpeechTranscription (tam geçiş), LiveTranscription,
                          TranscriptionLocale (dil + otomatik seçim), Segment
 ora/Intelligence/      — FoundationIntelligence (noktalama + map-reduce özet),
                          Ozet (@Generable şemalar), TranscriptChunker, Intelligent
+ora/Store/             — OraDatabase (şema + migration), MeetingStore (tek kapı),
+                         Records (GRDB kayıtları), LegacyImport (eski ora.db)
 ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          RecordingController, MeetingSidebar, MeetingDetail,
-                         TranscriptView, SummaryView, ChatInspector, EmptyState
+                         TranscriptView, SummaryView, MeetingExport,
+                         ChatInspector, EmptyState
 ora/Resources/Assets.xcassets/Colors — BRAND paletinin tek kaynağı
 ```
 Renkler asset kataloğundadır; `Color.oraPaper` gibi semboller derleme zamanında

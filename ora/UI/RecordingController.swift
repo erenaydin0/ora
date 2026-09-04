@@ -3,9 +3,6 @@ import Observation
 import AVFoundation
 
 /// Canlı buffer'ları o an açık olan `LiveTranscription`'a yönlendiren yönlendirici.
-///
-/// `liveBuffers` akışı uygulama ömrü boyunca tek tüketiciye sahiptir; hedef
-/// kayıt başlayıp bittikçe değişir.
 private final class LiveRoute: @unchecked Sendable {
     private let lock = NSLock()
     private var target: LiveTranscription?
@@ -13,10 +10,10 @@ private final class LiveRoute: @unchecked Sendable {
     var current: LiveTranscription? { lock.withLock { target } }
 }
 
-/// Kayıt ve transkripsiyon yüzeyinin durum sahibi.
+/// Kayıt, transkripsiyon, özetleme ve depolamayı süren tek durum sahibi.
 ///
-/// Faz 5'te bu tip `Pipeline`'ın arkasına geçecek; şimdilik Capture ve Transcribe'ı
-/// doğrudan sürüyor. Segmentler bellekte tutuluyor — `transcripts` tablosu Faz 5'te.
+/// ARCHITECTURE.md'deki `Pipeline` rolünü şimdilik bu tip üstleniyor: alt modüller
+/// (Capture, Transcribe, Intelligence, Store) birbirini çağırmaz, veriyi bu taşır.
 @MainActor
 @Observable
 final class RecordingController {
@@ -24,26 +21,27 @@ final class RecordingController {
     // MARK: - Yayınlanan durum
 
     private(set) var state: CaptureState = .idle
-    private(set) var lastRecording: URL?
     private(set) var interrupted: [InterruptedRecording] = []
     var error: OraError?
 
-    /// Kayıt sonrası tam geçişin nihai sonucu. Canlı çıktıyla çelişirse bu kazanır.
+    /// Kenar çubuğu listesi ve seçim.
+    private(set) var meetings: [MeetingListItem] = []
+    var searchText = "" { didSet { scheduleRefresh() } }
+    var selection: Int64? { didSet { if selection != oldValue { loadSelected() } } }
+
     private(set) var transcript: [Segment] = []
-    /// Kayıt sırasında kesinleşmiş canlı segmentler (ön izleme).
     private(set) var liveSegments: [Segment] = []
-    /// Henüz kesinleşmemiş canlı metin — arayüzde soluk gösterilir.
     private(set) var volatileText: [Int: String] = [:]
-    /// Canlı transkript durduysa nedeni.
     private(set) var liveNotice: String?
 
-    /// Özet, kararlar, aksiyonlar. Model kullanılamıyorsa `nil` kalır —
-    /// transkript yine de gösterilir (CLAUDE.md "Hata Yönetimi").
     private(set) var summary: Ozet?
     private(set) var topics: [TopicSegment] = []
     private(set) var metrics: MeetingMetrics?
-    /// Özetleme neden yapılamadı — kullanıcıya Türkçe anlatılır.
     private(set) var summaryNotice: String?
+    /// Veritabanı açılamadıysa kullanıcıya söylenecek not.
+    private(set) var storageNotice: String?
+    /// İçe aktarma sonucu — kullanıcıya bir kez gösterilir.
+    var importReport: String?
 
     private(set) var transcriptionStage: Stage = .idle
     enum Stage: Equatable {
@@ -56,32 +54,55 @@ final class RecordingController {
         case done
     }
 
-    var modelAvailability: ModelAvailability { intelligence.availability }
-
-    /// Kullanıcının dil tercihi.
     var language: TranscriptionLanguage {
         didSet { UserDefaults.standard.set(language.rawValue, forKey: Self.languageKey) }
     }
+
+    var modelAvailability: ModelAvailability { intelligence.availability }
 
     // MARK: - Bağımlılıklar
 
     private let capture: any AudioCapturing
     private let transcription: any Transcribing
     private let intelligence: any Intelligent
+    private let store: MeetingStore
+
     private let route = LiveRoute()
     private var live: LiveTranscription?
     private var liveUpdatesTask: Task<Void, Never>?
     private var observation: Task<Void, Never>?
     private var feedTask: Task<Void, Never>?
+    private var refreshTask: Task<Void, Never>?
+    /// Şu anda kaydedilen toplantının `meetings.id` değeri.
+    private var activeMeetingID: Int64?
 
     private static let languageKey = "transcriptionLanguage"
 
     init(capture: any AudioCapturing = AudioCapture(),
          transcription: any Transcribing = SpeechTranscription(),
-         intelligence: any Intelligent = FoundationIntelligence()) {
+         intelligence: any Intelligent = FoundationIntelligence(),
+         database: OraDatabase? = nil) {
         self.capture = capture
         self.transcription = transcription
         self.intelligence = intelligence
+
+        // Veritabanı açılamazsa uygulama işlevsiz kalmaz: bellek içi bir
+        // veritabanıyla sürer ve kullanıcıya Türkçe not düşülür.
+        var notice: String?
+        let resolved: OraDatabase
+        if let database {
+            resolved = database
+        } else {
+            do {
+                resolved = try OraDatabase.shared()
+            } catch {
+                Log.error(.store, "Veritabanı açılamadı, bellek içi moda düşüldü", error)
+                notice = "Veritabanı açılamadı. Bu oturumdaki kayıtlar saklanmayacak."
+                resolved = try! OraDatabase(path: ":memory:")
+            }
+        }
+        self.store = MeetingStore(database: resolved)
+        self.storageNotice = notice
         self.language = UserDefaults.standard.string(forKey: Self.languageKey)
             .flatMap(TranscriptionLanguage.init(rawValue:)) ?? .turkish
 
@@ -92,7 +113,6 @@ final class RecordingController {
                 if case .failed(let error) = next { self?.error = error }
             }
         }
-        // Uygulama ömrü boyunca tek tüketici; hedef kayıt başladıkça değişir.
         feedTask = Task { [route, capture] in
             for await buffer in capture.liveBuffers {
                 await route.current?.feed(buffer)
@@ -114,7 +134,6 @@ final class RecordingController {
         return nil
     }
 
-    /// Arayüzün gösterdiği segmentler: tam geçiş bittiyse o, yoksa canlı ön izleme.
     var displayedSegments: [Segment] {
         transcript.isEmpty ? liveSegments : transcript
     }
@@ -126,7 +145,109 @@ final class RecordingController {
         }
     }
 
-    // MARK: - Eylemler
+    var selectedMeeting: MeetingListItem? {
+        meetings.first { $0.id == selection }
+    }
+
+    /// Kayıt sürerken veya işlem sürerken düzeltme yapılmaz — metin değişecek.
+    var canCorrect: Bool {
+        selection != nil && !isRecording && !isTranscribing && !transcript.isEmpty
+    }
+
+    var exportPayload: MeetingExport.Payload? {
+        guard let meeting = selectedMeeting, !isRecording,
+              !transcript.isEmpty || summary != nil else { return nil }
+        return MeetingExport.Payload(title: meeting.title, date: meeting.date,
+                                     duration: meeting.duration, segments: transcript,
+                                     summary: summary, topics: topics, metrics: metrics)
+    }
+
+    // MARK: - Liste
+
+    func refresh() async {
+        do {
+            meetings = try await store.list(search: searchText)
+        } catch {
+            Log.error(.store, "Toplantı listesi okunamadı", error)
+        }
+    }
+
+    private func scheduleRefresh() {
+        refreshTask?.cancel()
+        refreshTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            await self?.refresh()
+        }
+    }
+
+    private func loadSelected() {
+        guard let selection, !isRecording else { return }
+        Task { [weak self] in await self?.load(selection) }
+    }
+
+    private func load(_ meetingID: Int64) async {
+        do {
+            guard let loaded = try await store.load(meetingID) else { return }
+            transcript = loaded.segments
+            liveSegments = []
+            summary = loaded.summary
+            topics = loaded.topics
+            metrics = loaded.metrics
+            summaryNotice = nil
+            transcriptionStage = loaded.segments.isEmpty ? .idle : .done
+        } catch {
+            Log.error(.store, "Toplantı yüklenemedi: \(meetingID)", error)
+            self.error = .audioWriteFailed(underlying: error)
+        }
+    }
+
+    func delete(_ meetingID: Int64) async {
+        do {
+            try await store.delete(meetingID)
+            if selection == meetingID {
+                selection = nil
+                clearDisplayed()
+            }
+            await refresh()
+        } catch {
+            Log.error(.store, "Toplantı silinemedi: \(meetingID)", error)
+        }
+    }
+
+    func rename(_ meetingID: Int64, to title: String) async {
+        try? await store.updateTitle(meetingID, title: title)
+        await refresh()
+    }
+
+    /// Transkriptte tıklayarak düzeltme — `corrections` tablosunu besler.
+    func correct(_ segment: Segment, to text: String) async {
+        guard let meetingID = selection else { return }
+        do {
+            try await store.applyCorrection(meetingID: meetingID, original: segment,
+                                            corrected: text)
+            await load(meetingID)
+        } catch {
+            Log.error(.store, "Düzeltme kaydedilemedi", error)
+        }
+    }
+
+    // MARK: - Eski ora verisini içe aktarma
+
+    func importLegacyData() async {
+        guard let url = LegacyImport.chooseFile() else { return }
+        do {
+            let report = try await LegacyImport.run(from: url, into: store)
+            importReport = report.turkishSummary
+            await refresh()
+        } catch {
+            Log.error(.store, "İçe aktarma başarısız", error)
+            importReport = "İçe aktarma başarısız oldu. Seçtiğiniz dosya bir ora "
+                + "veritabanı olmayabilir.\n\n\(error.localizedDescription)"
+        }
+    }
+
+    // MARK: - Kayıt
 
     func toggle() async {
         if isRecording { await stop() } else { await start() }
@@ -134,6 +255,54 @@ final class RecordingController {
 
     func start() async {
         guard !isRecording else { return }
+        clearDisplayed()
+
+        let meetingID: Int64
+        do {
+            meetingID = try await store.createMeeting()
+        } catch {
+            self.error = .audioWriteFailed(underlying: error)
+            return
+        }
+        activeMeetingID = meetingID
+        selection = meetingID
+
+        do {
+            try await capture.start(meetingID: meetingID)
+        } catch let error as OraError {
+            try? await store.delete(meetingID)
+            activeMeetingID = nil
+            self.error = error
+            return
+        } catch {
+            try? await store.delete(meetingID)
+            activeMeetingID = nil
+            self.error = .audioWriteFailed(underlying: error)
+            return
+        }
+        await refresh()
+        await startLive()
+    }
+
+    func stop() async {
+        guard isRecording, let meetingID = activeMeetingID else { return }
+        await stopLive()
+        do {
+            let url = try await capture.stop()
+            let duration = Self.duration(of: url)
+            try? await store.markProcessing(meetingID, audioPath: url, duration: duration)
+            await refresh()
+            await runFullPass(meetingID: meetingID, url: url, duration: duration)
+        } catch let error as OraError {
+            self.error = error
+        } catch {
+            self.error = .audioWriteFailed(underlying: error)
+        }
+        activeMeetingID = nil
+        await refresh()
+    }
+
+    private func clearDisplayed() {
         transcript = []
         liveSegments = []
         volatileText = [:]
@@ -143,38 +312,11 @@ final class RecordingController {
         metrics = nil
         summaryNotice = nil
         transcriptionStage = .idle
-
-        do {
-            try await capture.start(meetingID: Self.provisionalMeetingID())
-        } catch let error as OraError {
-            self.error = error
-            return
-        } catch {
-            self.error = .audioWriteFailed(underlying: error)
-            return
-        }
-        await startLive()
-    }
-
-    func stop() async {
-        guard isRecording else { return }
-        await stopLive()
-        do {
-            let url = try await capture.stop()
-            lastRecording = url
-            await runFullPass(url: url)
-        } catch let error as OraError {
-            self.error = error
-        } catch {
-            self.error = .audioWriteFailed(underlying: error)
-        }
     }
 
     // MARK: - Canlı transkripsiyon (en iyi çaba)
 
     private func startLive() async {
-        // Otomatik dilde canlı geçiş için ses henüz yok; kullanıcı tercihini
-        // ya da Türkçe'yi kullanır, tam geçişte gerçek seçim yapılır.
         let locale = language.locale ?? Locale(identifier: "tr-TR")
         let live = LiveTranscription()
         self.live = live
@@ -187,7 +329,6 @@ final class RecordingController {
             self.live = nil
             return
         }
-
         liveUpdatesTask = Task { [weak self] in
             for await update in await live.updates {
                 await self?.apply(update)
@@ -209,20 +350,17 @@ final class RecordingController {
             volatileText[update.channel.rawValue] = nil
             liveSegments.append(Segment(channel: update.channel,
                                         speaker: update.channel.speaker,
-                                        text: update.text,
-                                        start: update.start,
-                                        end: update.end,
-                                        confidence: nil,
-                                        words: []))
+                                        text: update.text, start: update.start,
+                                        end: update.end, confidence: nil, words: []))
             liveSegments.sort { $0.start < $1.start }
         } else {
             volatileText[update.channel.rawValue] = update.text
         }
     }
 
-    // MARK: - Kayıt sonrası tam geçiş
+    // MARK: - İşlem hattı (sıra CLAUDE.md'de sabittir)
 
-    private func runFullPass(url: URL) async {
+    private func runFullPass(meetingID: Int64, url: URL, duration: TimeInterval) async {
         transcriptionStage = .preparingLanguage
         let locale: Locale
         if let chosen = language.locale {
@@ -243,12 +381,12 @@ final class RecordingController {
             ) { [weak self] value in
                 Task { @MainActor in self?.transcriptionStage = .transcribing(value) }
             }
-            // Tam geçiş nihai gerçektir; canlı ön izlemenin yerini alır.
             transcript = segments
             liveSegments = []
+            try? await store.replaceTranscript(meetingID, segments: segments)
             Log.info(.transcribe, "Tam geçiş bitti — \(segments.count) segment, "
                      + "\(locale.identifier)")
-            await runIntelligence(url: url, segments: segments)
+            await runIntelligence(meetingID: meetingID, segments: segments, duration: duration)
         } catch let error as OraError {
             transcriptionStage = .idle
             self.error = error
@@ -258,23 +396,21 @@ final class RecordingController {
         }
     }
 
-    // MARK: - Noktalama ve özetleme (hat adımları 4-5)
-
-    /// İşlem hattı sırası sabittir: noktalama → özetleme → metrikler.
-    /// Model kullanılamıyorsa transkript yine gösterilir, yalnızca özet düşer.
-    private func runIntelligence(url: URL, segments: [Segment]) async {
-        let duration = Self.duration(of: url)
+    private func runIntelligence(meetingID: Int64, segments: [Segment],
+                                 duration: TimeInterval) async {
         metrics = MeetingMetrics.compute(segments: segments, duration: duration)
 
         let availability = intelligence.availability
         guard availability.isAvailable else {
             summaryNotice = availability.turkishMessage + ". " + availability.turkishDetail
+            try? await store.saveSummary(meetingID, ozet: nil, topics: [], metrics: metrics)
+            try? await store.markReady(meetingID)
             transcriptionStage = .done
             Log.warning(.intelligence, "Özetleme atlandı: \(availability.turkishMessage)")
             return
         }
 
-        // 4 — Noktalama restorasyonu (zorunlu adım)
+        // 4 — Noktalama restorasyonu
         transcriptionStage = .punctuating(0)
         do {
             let punctuated = try await intelligence.restorePunctuation(segments) { [weak self] value in
@@ -282,8 +418,8 @@ final class RecordingController {
             }
             transcript = punctuated
             metrics = MeetingMetrics.compute(segments: punctuated, duration: duration)
+            try? await store.replaceTranscript(meetingID, segments: punctuated)
         } catch {
-            // Noktalama bir iyileştirmedir; başarısız olursa hat durmaz.
             Log.warning(.intelligence, "Noktalama atlandı: \(error.localizedDescription)")
         }
 
@@ -304,6 +440,10 @@ final class RecordingController {
             summaryNotice = "Özet oluşturulamadı. Transkript korundu."
             Log.error(.intelligence, "Özetleme başarısız", error)
         }
+
+        // 6 — SQLite güncelle
+        try? await store.saveSummary(meetingID, ozet: summary, topics: topics, metrics: metrics)
+        try? await store.markReady(meetingID)
         transcriptionStage = .done
     }
 
@@ -326,10 +466,5 @@ final class RecordingController {
     func discard(_ recording: InterruptedRecording) {
         RecordingRecovery.discard(recording)
         interrupted.removeAll { $0.id == recording.id }
-    }
-
-    /// Faz 5'te `meetings` tablosuna satır eklenip gerçek id kullanılacak.
-    private static func provisionalMeetingID() -> Int64 {
-        Int64(Date().timeIntervalSince1970 * 1000)
     }
 }

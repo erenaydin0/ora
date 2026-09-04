@@ -50,7 +50,12 @@ struct MeetingDetail: View {
                                     metrics: recorder.metrics,
                                     notice: recorder.summaryNotice)
                     case .transcript:
-                        TranscriptView(segments: recorder.displayedSegments)
+                        TranscriptView(segments: recorder.displayedSegments,
+                                       onCorrect: recorder.canCorrect
+                                           ? { segment, text in
+                                               Task { await recorder.correct(segment, to: text) }
+                                             }
+                                           : nil)
                     }
                 }
             }

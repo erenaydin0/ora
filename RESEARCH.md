@@ -670,3 +670,43 @@ numaralı bir liste ve açıklama döküyor; `KonuBasligi` şemasıyla tek satı
 2-5 kelimelik başlık geliyor.
 
 *probe:* `probes/mapreduce60.swift`
+
+
+---
+
+## 16. Faz 5 ölçümleri — depolama, arama, içe aktarma
+
+### 16.1 FTS5 Türkçe davranışı, gerçek şema üzerinde
+Migration'lar uygulandıktan sonra ora'nın kendi veritabanında:
+```
+'istanbul'* → "İstanbul ofisinin kalemleri henüz gelmedi"   ✓ İ/i katlaması
+              "Ekip haftaya İstanbul'da toplanacak"
+'bütçe'*    → "Bütçe onayını perşembeye kadar iletebilir miyiz"  ✓ diakritik
+```
+§7'deki bulgu üretim şemasında da geçerli: `unicode61` tokenizer'ı özelleştirmeye
+gerek yok.
+
+### 16.2 Cascade silme ve FTS temizliği
+```
+silmeden önce : 3 toplantı · 4 transkript · 4 FTS satırı · 1 özet · 1 aksiyon · 1 konu
+DELETE FROM meetings WHERE id = 1
+sildikten sonra: 2 toplantı · 2 transkript · 2 FTS satırı · 0 özet · 0 aksiyon · 0 konu
+```
+Silinen toplantının metni FTS'te **0 eşleşme** veriyor (trigger indeksi temizledi),
+kalan kayıt hâlâ aranabiliyor. `corrections` satırı korunuyor ve `meeting_id`
+NULL oluyor (`ON DELETE SET NULL`) — kullanıcının düzeltme bilgisi toplantı
+silinince kaybolmuyor, Faz 6'da sözlüğü besleyecek.
+
+### 16.3 Eski ora verisini içe aktarma — uygulamada koşturuldu
+Sentetik bir eski `ora.db` (3 toplantı, 4 transkript, özet, aksiyon, konu,
+sözlük, düzeltme) menüden seçilip aktarıldı:
+```
+3 toplantı, 4 transkript satırı, 1 özet, 1 aksiyon, 2 sözlük kelimesi,
+1 düzeltme aktarıldı. Ses dosyaları taşınmadı.
+```
+Üç farklı tarih biçimi (`2025-03-27T14:30:00`, `2025-04-09 11:15:00`) doğru
+ayrıştırıldı.
+
+**Sandbox sonucu:** ora sandbox'lı olduğu için eski veritabanını kendisi bulup
+açamaz — kullanıcı `NSOpenPanel` ile seçer. Aynı nedenle eski **ses dosyaları
+kopyalanmaz**; `audio_path` NULL kalır ve kullanıcıya bu açıkça söylenir.
