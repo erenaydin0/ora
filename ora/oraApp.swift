@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // BRAND.md tek bir açık palet tanımlar; karanlık mod paleti yoktur.
         NSApp.appearance = NSAppearance(named: .aqua)
 
+
         do {
             try AppPaths.prepare()
             Log.info(.app, "ora başladı — veri dizini: \(AppPaths.base.path(percentEncoded: false))")

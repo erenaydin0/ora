@@ -834,9 +834,25 @@ ikon önbelleği (`iconservices.store` silindi, `iconservicesagent` ve Dock
 yeniden başlatıldı), DerivedData yolu (uygulama `/tmp` altından da denendi),
 bozuk asset kataloğu (`assetutil` çıktısı sağlıklı).
 
-Geriye kalan tek yapısal fark: uygulama **ad-hoc imzalı**. Kendinden imzalı bir
-sertifikayla denendi ama o yol kapalı (§21). Gerçek bir `Developer ID` kimliğiyle
-tekrar denenmeli.
+Elenen nedenlerin tam listesi:
+
+| Şüpheli | Nasıl elendi |
+|---|---|
+| İkon önbelleği | `iconservices.store` silindi, `iconservicesagent` ve Dock yeniden başlatıldı — değişmedi |
+| DerivedData yolu | Uygulama `/tmp` ve `~/Applications` altından da çalıştırıldı — değişmedi |
+| Bozuk asset kataloğu | `assetutil` 10 rendition'ı sağlıklı raporluyor (16…1024 px, `AssetType: Icon Image`) |
+| Eksik `Info.plist` anahtarı | `CFBundleIconFile` + `CFBundleIconName` dolu; Notes.app ile aynı |
+| macOS 26 yeni ikon biçimi (`.icon`) | Notes.app da macOS 26.3 SDK ile derlenmiş, `.icon` dosyası **yok**, yalnızca icns + Assets.car — ve ikonu çalışıyor |
+| Çalışma anında ikon atama | `NSApp.applicationIconImage = NSWorkspace.icon(forFile:)` denendi — Dock yine yer tutucu gösterdi, kod geri alındı |
+
+**Geriye kalan tek fark: kod imzası.** Notes.app Apple imzalı, Claude.app
+Developer ID imzalı, ora **ad-hoc**. Kendinden imzalı sertifikayla denendi ama
+o yol kapalı (§21). Bu, mikrofon izninin her derlemede yeniden sorulmasıyla
+**aynı kök nedendir**; ikisi de gerçek bir `Developer ID` kimliği bekliyor.
+
+`NSRunningApplication` uygulamayı `.regular` politikayla ve **ikonu var** diye
+raporluyor; yani sorun uygulamanın ikonu sağlamamasında değil, Dock'un onu
+çizmemesinde.
 
 
 ---
