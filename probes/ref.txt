@@ -1,0 +1,1 @@
+Toplantıya başlamadan önce geçen haftaki aksiyonları gözden geçirelim. Ayşe, entegrasyon testlerini tamamladı mı? Şirket içi güvenlik denetimi çarşamba gününe ertelendi. Mehmet Bey bütçe onayını perşembeye kadar iletecek. Yeni sürümün çıkış tarihini iki hafta öteliyoruz çünkü müşteri geri bildirimleri değerlendirilecek.

@@ -1,0 +1,11 @@
+probe
+locales
+transcribe
+summarize
+context_limit
+*.wav
+*.aiff
+*.dSYM/
+.build/
+DerivedData/
+.DS_Store
