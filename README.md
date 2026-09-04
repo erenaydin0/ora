@@ -55,17 +55,32 @@ Sabit bir kimlik bunu bitirir:
 
 1. **Anahtar Zinciri Erişimi**'ni aç → menüden *Sertifika Yardımcısı →
    Sertifika Oluştur…*
-2. Ad: `ora Development` · Kimlik Türü: **Kendinden İmzalı Kök** ·
-   Sertifika Türü: **Kod İmzalama** → Oluştur
-3. Sertifikayı çift tıkla → *Güven* → *Kod İmzalama*: **Her Zaman Güven**
-4. Derlerken kimliği ver:
+2. Ad: `ora Development` · Kimlik Türü: **Kendinden İmzalı Kök**
+3. **"Varsayılanları geçersiz kılmama izin ver" kutusunu İŞARETLE.**
+   Bu kutu işaretlenmezse Sertifika Türü sorulmaz ve sertifika **S/MIME
+   (e-posta)** olarak üretilir; `security find-identity -p codesigning`
+   onu görmez, derleme "No certificate matching" der.
+4. Sertifika Türü: **Kod İmzalama** → sonraki adımları varsayılanla geç → Oluştur
+5. Sertifikayı çift tıkla → *Güven* → *Kod İmzalama*: **Her Zaman Güven**
+6. Doğrula — kimlik listede görünmeli:
+
+```bash
+security find-identity -v -p codesigning
+```
+
+7. Derlerken kimliği ver:
 
 ```bash
 xcodebuild -project ora.xcodeproj -scheme ora -configuration Debug ORA_SIGN_IDENTITY="ora Development" build
 ```
 
 Kalıcı olsun istersen `ORA_SIGN_IDENTITY` proje ayarını Xcode'da bir kez
-`ora Development` yap. Bu sertifika **dağıtım için yetmez** — başka bir Mac'te
+`ora Development` yap. Proje **manuel imzalama** kullanır
+(`CODE_SIGN_STYLE = Manual`); otomatik imzalama kimlik `-` olmadığı anda
+Apple geliştirici takımı ister ve kendinden imzalı sertifikayla çalışmaz.
+
+Yanlış türde bir sertifika ürettiysen Anahtar Zinciri'nde sil ve 3. adımı
+atlamadan yeniden oluştur. Bu sertifika **dağıtım için yetmez** — başka bir Mac'te
 Gatekeeper yine engeller. Dağıtım Apple Developer Program üyeliği ve
 `Developer ID Application` sertifikası ister; `scripts/build-release.sh`
 kimlik ve `ora-notary` anahtarlık profili varsa imzalama ile notarizasyonu
