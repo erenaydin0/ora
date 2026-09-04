@@ -39,7 +39,12 @@ enum CaptureState { case idle, recording(elapsed: TimeInterval),
 - Çıktı **her zaman** stereo WAV: ch0 = mikrofon, ch1 = sistem sesi
 - Sistem sesi `CATapDescription` + `AudioHardwareCreateProcessTap` ile alınır;
   mümkünse `bundleIDs` ile **yalnızca toplantı uygulaması** yakalanır, olmazsa
-  kendimiz hariç global tap'e düşülür. ScreenCaptureKit kullanılmaz
+  kendimiz hariç global tap'e düşülür. ScreenCaptureKit kullanılmaz.
+  Tap özel bir toplama cihazına bağlanıp IOProc ile okunur
+- Kapsamlı tap'in **sessiz kalması izlenir**: 3 sn boyunca hiç frame gelmezken
+  sistemde başka bir süreç ses çalıyorsa global tap'e geçilir. Tarayıcı ve
+  Electron uygulamalarının sesi ana bundle'dan çıkmaz (RESEARCH.md §13.3);
+  bu gözcü olmadan sistem kanalı sessizce boş kalırdı
 - 1 sn'de bir diske flush; süreç çökerse dosya geçerli kalır
 - İki kaynak **host time** damgasıyla hizalanır, buffer sayısıyla değil
 - Sistem sesi izni yoksa `micOnly` durumuna düşer; ch1 sessizlikle doldurulur

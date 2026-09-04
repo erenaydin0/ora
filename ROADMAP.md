@@ -53,27 +53,37 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
 
 ---
 
-## Faz 2 — Ses Yakalama (en riskli teknik parça, erken yap)
-- [ ] `AVAudioEngine` ile mikrofon yakalama
-- [ ] **CoreAudio süreç tap'i** ile sistem sesi (`CATapDescription` +
-      `AudioHardwareCreateProcessTap` + toplama cihazı). ScreenCaptureKit kullanma
-- [ ] `bundleIDs` ile toplantı uygulamasını hedefle (Teams/Zoom/Slack),
-      bulunamazsa kendimiz hariç global tap'e düş
-- [ ] **İmzalı app bundle'da TCC istemini doğrula** — `NSAudioCaptureUsageDescription`.
-      Probe sandbox'sız komut satırında izin istemeden çalıştı; gerçek uygulamada
-      istem çıkması beklenir, çıkan istemin ekran kaydı DEĞİL ses yakalama olduğunu teyit et
-- [ ] İki akışı **ortak zaman tabanına** hizala — her iki kaynağın örneklerini
-      `CMTime`/host time damgasıyla eşle. Eski ora'nın çözemediği sorun buydu;
-      buffer sayısına göre hizalama yapma
-- [ ] **Artımlı stereo WAV yazımı**: ch0 = mic, ch1 = sistem; 1 sn'de bir flush,
-      append. Ses asla tamamı RAM'de tutulmaz (kural #12)
-- [ ] Kısa kalan kanal sessizlikle doldurulur, kırpılmaz (kural #11)
-- [ ] Sistem sesi izni reddedilirse yalnız-mikrofon moduna düş
-- [ ] Çökme kurtarma: yarım kalan WAV açılışta bulunur, kullanıcıya sorulur
-- [ ] `liveBuffers` akışı — canlı transkripsiyon için ikincil tüketici;
-      tüketici geri kalırsa buffer düşürülür, diske yazım asla beklemez
+## Faz 2 — Ses Yakalama ✅ (en riskli teknik parça, erken yapıldı)
+- [x] `AVAudioEngine` ile mikrofon yakalama
+- [x] **CoreAudio süreç tap'i** ile sistem sesi (`CATapDescription` +
+      `AudioHardwareCreateProcessTap` + özel toplama cihazı + IOProc).
+      ScreenCaptureKit kullanılmadı
+- [x] `bundleIDs` ile toplantı uygulamasını hedefle, bulunamazsa kendimiz hariç
+      global tap'e düş. **Tarayıcılar hedef listesinde değil** — sesleri yardımcı
+      süreçten çıkıyor (RESEARCH.md §13.3). Ayrıca kapsamlı tap sessiz kalırsa
+      global'e geçen bir gözcü var
+- [x] **İmzalı app bundle'da TCC istemi doğrulandı** — çıkan istem mikrofon istemi;
+      ekran kaydı istemi çıkmadı, ayrı bir sistem sesi istemi de çıkmadı
+- [x] İki akışı **ortak zaman tabanına** hizala — host time damgası; ölçülen
+      kanal hizalaması 20 ms (RESEARCH.md §13.5)
+- [x] **Artımlı stereo WAV yazımı**: 16 kHz · 16 bit · ch0 = mic, ch1 = sistem;
+      1 sn'de bir flush. Bellekte yalnızca son ~1 sn durur (kural #12)
+- [x] Kısa kalan kanal sessizlikle doldurulur, kırpılmaz (kural #11) — örnekler
+      mutlak frame konumuna yazıldığı için bu yapısal olarak sağlanıyor
+- [x] Sistem sesi alınamazsa yalnız-mikrofon moduna düş, kayıt kesilmez
+- [x] Çökme kurtarma: `.recording` işaretçisi + başlık onarımı; `kill -9` ile test edildi
+- [x] `liveBuffers` akışı — `bufferingNewest(16)`, tüketici geri kalırsa buffer düşer
 
-*Çıktı:* Kayıt başlat/durdur, diskte geçerli stereo WAV. *Efor:* 3-4 gün
+*Çıktı:* Kayıt başlat/durdur, diskte geçerli stereo WAV. **Ölçümler: RESEARCH.md §13.**
+
+**Faz 2'de bilinçli bırakılanlar:**
+- Kanal seviye göstergesi (VU) yok — menü bar yüzeyiyle birlikte Faz 6'da
+- Menü bar öğesi ve çentik HUD yok — Faz 6/7
+- Toplantı id'si geçici olarak zaman damgası; `meetings` satırı Faz 5'te gelince
+  gerçek id kullanılacak
+- Electron uygulamalarının (Teams/Slack) sesinin ana bundle'dan mı yardımcı
+  süreçten mi çıktığı **ölçülmedi**; gözcü her iki durumda da doğru davranıyor,
+  ama gerçek bir Teams toplantısında teyit edilmeli
 
 ---
 

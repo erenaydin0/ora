@@ -486,3 +486,82 @@ ora takvime **hiçbir zaman yazmaz** ama okumak için full access istemek zorund
    "Teams toplantısı algılandı" yerine "Q3 Bütçe Toplantısı — 4 katılımcı" olur.
 
 *probe:* `probes/calendar.swift` (varsayılan güvenli; `--request` ile gerçek veri)
+
+
+---
+
+## 13. Faz 2 ölçümleri — tap'ten gerçekten ses akıyor mu?
+
+§5 tap'in **oluştuğunu** göstermişti. Faz 2 tap'ten **PCM aktığını** ve imzalı,
+sandbox'lı bir uygulamada hangi iznin istendiğini ölçtü.
+
+### 13.1 Tap → toplama cihazı → IOProc (global kapsam)
+```
+tap: OSStatus 0   format: 48000 Hz · 1 kanal (mono mixdown) · 32 bit float
+toplama cihazı: OSStatus 0   giriş akışı: 48000 Hz · 1 kanal
+IOProc çağrısı  : 245        toplam frame: 125.440
+host time aralığı: 2.60 sn   tepe genlik : 0.616
+```
+Tap'i okumanın yolu: özel (`private`) bir toplama cihazı yaratıp tap'i
+`kAudioAggregateDeviceTapListKey` ile ona bağlamak, sonra
+`AudioDeviceCreateIOProcIDWithBlock` ile okumak. Saat kaynağı olarak varsayılan
+çıkış cihazı `kAudioAggregateDeviceMainSubDeviceKey` ile veriliyor.
+
+*probe:* `probes/tap_record.swift`
+
+### 13.2 `bundleIDs` ile kapsamlı tap — çalışıyor
+QuickTime Player hedeflenip ses çalarken ölçüldü:
+```
+IOProc çağrısı: 655   frame: 335.360   tepe genlik: 0.619
+```
+**Ama hedef uygulama ses üretmiyorken IOProc hiç çağrılmıyor** — sessiz buffer
+bile gelmiyor. Yazıcı örnekleri mutlak frame konumuna yazdığı için bu sorun
+değil: gelmeyen aralık sessizlik olarak dolar.
+
+*probe:* `probes/tap_bundleid.swift`
+
+### 13.3 **Tarayıcı ve Electron sesi ana bundle'dan çıkmıyor** ← en önemli bulgu
+Safari'de ses çalarken `isRunningOutput == true` olan süreç:
+```
+com.apple.WebKit.GPU   ← Safari'nin kendisi DEĞİL
+```
+`say` komutunun sesi ise bundle ID'si **olmayan** bir süreçten çıkıyor.
+
+**Sonucu:** `desc.bundleIDs = ["com.apple.Safari"]` gibi bir tap tarayıcı
+toplantısında **sessizlik** yakalar. Tarayıcılar bu yüzden tap hedefi olarak
+kullanılmaz; tarayıcı toplantıları doğrudan global tap'e gider
+(`MeetingApps.browsers`). Aynı risk Electron uygulamaları (Teams, Slack,
+Discord) için de var — ölçülmedi, bu yüzden koda bir gözcü kondu:
+kapsamlı tap 3 saniye boyunca hiç frame vermezken sistemde başka bir süreç ses
+çalıyorsa global tap'e geçilir. Sessizce boş kanal kaydetmek kabul edilemez.
+
+### 13.4 İmzalı, sandbox'lı uygulamada TCC
+```
+✅ Mikrofon istemi çıktı — metni Info.plist'teki Türkçe metin
+❌ Ekran kaydı istemi ÇIKMADI
+❌ Ayrı bir "sistem sesi" istemi de çıkmadı — tap ek istem olmadan açıldı
+```
+§5'in "ekran kaydı izni gerekmiyor" iddiası gerçek app bundle'da doğrulandı.
+
+### 13.5 Uçtan uca kayıt
+14,1 saniyelik kayıt; mikrofon konuşuyor, Safari ses çalıyor:
+```
+biçim : 2 kanal · 16000 Hz · Int16 · interleaved
+ch0 mic    tepe  5.486   (saniyelik: 3 4 4 2 4 4 5 4 4 5 3 0 0 0)
+ch1 sistem tepe 20.279   (saniyelik: 0 14 20 17 17 20 17 12 20 17 17 0 0 0)
+```
+**Kanal hizalaması:** iki kanalın 20 ms'lik zarfları çapraz korele edildi —
+en iyi gecikme **bir pencere (20 ms)**, normalize korelasyon 0.77. Bu, mikrofonun
+hoparlörü duymasındaki akustik gecikme mertebesindedir; host time hizalaması
+çalışıyor.
+
+### 13.6 Çökme kurtarma
+Kayıt sürerken `kill -9`:
+```
+diskte kalan: 1788552053337.wav + 1788552053337.wav.recording (işaretçi)
+açılışta    : "Yarım kalan kayıt bulundu: 5.6 sn"
+onarım sonrası: 2 ch · 16000 Hz · 5.59 sn, ch0 tepe 2.253 — dosya çalınabilir
+```
+Ses artımlı yazıldığı için içerik sağlam kalıyor; yalnızca son flush'tan sonraki
+başlık alanları onarılıyor. SIGKILL'de kaybedilen, henüz flush edilmemiş
+son ~1 saniyedir.

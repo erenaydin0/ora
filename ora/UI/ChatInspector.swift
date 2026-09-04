@@ -4,16 +4,26 @@ import SwiftUI
 /// Kayıt sırasında devre dışıdır — LLM kayıt sırasında çalışmaz (CLAUDE.md kural #1).
 struct ChatInspector: View {
 
+    var isDisabledDuringRecording = false
+
     @State private var question = ""
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
-                EmptyState(
-                    icon: "bubble.left.and.text.bubble.right",
-                    title: "Toplantı sohbeti",
-                    detail: "Toplantı işlendikten sonra transkript hakkında soru sorabilirsiniz."
-                )
+                if isDisabledDuringRecording {
+                    EmptyState(
+                        icon: "bubble.left.and.text.bubble.right",
+                        title: "Sohbet şu anda kapalı",
+                        detail: "Sohbet, toplantı bittikten sonra kullanılabilir."
+                    )
+                } else {
+                    EmptyState(
+                        icon: "bubble.left.and.text.bubble.right",
+                        title: "Toplantı sohbeti",
+                        detail: "Toplantı işlendikten sonra transkript hakkında soru sorabilirsiniz."
+                    )
+                }
             }
 
             Divider().overlay(Color.oraBorder)

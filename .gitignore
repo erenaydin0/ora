@@ -14,3 +14,11 @@ DerivedData/
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcworkspace/xcuserdata/
+tap_record
+tap_bundleid
+whoplays
+detect
+live
+notch
+calendar
+wintitle

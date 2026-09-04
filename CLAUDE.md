@@ -54,7 +54,9 @@ Python yok, Node yok, Electron yok, model dosyası indirme yok.
 10. Uygulama adı her zaman küçük harf "ora"
 11. Kayıt **stereo** yazılır: kanal 0 = mikrofon, kanal 1 = sistem sesi.
     Kanallar asla tek kanala karıştırılmaz. Kısa kalan kanal sessizlikle
-    doldurulur, kırpılmaz.
+    doldurulur, kırpılmaz. Disk formatı **16 kHz · 16 bit · stereo WAV**
+    (saatte ~230 MB). Örnekler buffer sırasına göre değil, host time'dan
+    hesaplanan **mutlak frame konumuna** yazılır — hizalamayı bu sağlar.
 12. Ses **artımlı olarak** diske yazılır (1 sn'de bir flush, dosya varsa append).
     Ses hiçbir zaman tamamı RAM'de tutulmaz — önceki ora'nın en pahalı hatası buydu.
 
@@ -84,16 +86,28 @@ Bu sıra asla değişmez:
   let desc = CATapDescription()
   desc.bundleIDs = ["com.microsoft.teams2", "us.zoom.xos"]  // macOS 26+
   desc.isExclusive = false          // yalnızca bunları yakala
-  desc.isMixdown  = true            // stereo mixdown
+  desc.isMono     = true            // mono mixdown — WAV'ın ch1'i tek kanal
+  desc.isMixdown  = true
   desc.isPrivate  = true            // tap yalnızca bize görünür
   desc.muteBehavior = .unmuted      // kullanıcı sesi duymaya devam eder
   desc.isProcessRestoreEnabled = true  // uygulama yeniden başlarsa tap'e geri döner
   ```
   Bu, Spotify'ı, bildirimleri ve diğer uygulamaların sesini transkripte
   **sokmaz** — global yakalamaya göre gerçek bir kalite kazancıdır.
+- **Tarayıcılar tap hedefi OLARAK KULLANILMAZ.** Ölçüldü (RESEARCH.md §13.3):
+  tarayıcı sesi ana uygulamadan değil yardımcı süreçten çıkıyor
+  (Safari → `com.apple.WebKit.GPU`). `com.apple.Safari`'yi hedefleyen bir tap
+  **sessizlik** yakalar. Tarayıcı toplantıları doğrudan global tap'e gider.
 - Toplantı uygulaması tespit edilemiyorsa global tap'e düş:
   `desc.processes = [kendi süreç nesnemiz]; desc.isExclusive = true`
   (kendimizi hariç tut — geri besleme döngüsünü önler).
+- **Kapsamlı tap gözcüsü zorunlu.** Kapsamlı tap 3 saniye boyunca hiç frame
+  vermezken sistemde (bizim dışımızda) ses çalan bir süreç varsa, hedeflediğimiz
+  bundle ID sesi üretmiyordur (Electron yardımcı süreçleri) → global tap'e geçilir.
+  Sessizce boş bir sistem kanalı kaydetmek kabul edilemez bir hata modudur.
+- Tap **doğrudan okunmaz**: özel bir toplama (aggregate) cihazına
+  `kAudioAggregateDeviceTapListKey` ile bağlanır, saat kaynağı olarak varsayılan
+  çıkış cihazı verilir, `AudioDeviceCreateIOProcIDWithBlock` ile okunur.
 - `muteBehavior` asla `.muted` yapılmaz; kullanıcı toplantıyı duymaya devam etmeli.
 - Tap bir toplama (aggregate) cihazına bağlanır, ondan `AVAudioEngine`/IOProc ile
   okunur. Mikrofon ayrı yakalanır; ikisi **host time** damgasıyla hizalanır.
@@ -336,9 +350,13 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       GRDB 7.11.1 çözüldü. `AppPaths`, `Log` (OSLog + dosya köprüsü),
       asset kataloğunda BRAND paleti, `NavigationSplitView` + `.inspector`
       boş pencere. Uygulama açılıyor, günlük yazıyor, hiçbir şey kaydetmiyor.
+      **Faz 2 — Ses Yakalama** tamam: mikrofon (`AVAudioEngine`) + sistem sesi
+      (CoreAudio süreç tap'i → özel toplama cihazı → IOProc), host time ile
+      hizalanmış artımlı stereo WAV, yalnız-mikrofon düşüşü, çökme kurtarma,
+      `liveBuffers` akışı. Gerçek kayıtla doğrulandı — RESEARCH.md §13.
     - Bekleyen: **Faz 0** — gerçek (TTS olmayan) toplantı sesiyle doğruluk kapısı;
       kullanıcının kendi kaydını gerektirir, kod tarafından yapılamaz.
-      Ardından **Faz 2 — Ses Yakalama** (bkz. ROADMAP.md)
+      Ardından **Faz 3 — Transkripsiyon** (bkz. ROADMAP.md)
 
 ### Proje Düzeni (Faz 1'de kuruldu)
 ```
@@ -347,9 +365,13 @@ ora.xcodeproj          — senkronize klasör grubu: ora/ altına eklenen dosya
 Config/Info.plist      — izin metinleri (INFOPLIST_FILE ile bağlı)
 Config/ora.entitlements— sandbox + audio-input; ağ girişi YOK (kural #3'ün garantisi)
 ora/oraApp.swift       — @main + AppDelegate (dizin hazırlığı, açık mod sabiti)
-ora/Core/              — AppPaths, Log
+ora/Core/              — AppPaths, Log, OraError
+ora/Capture/           — AudioCapture (orkestra), MicrophoneCapture,
+                         SystemAudioTap, StereoRecordingWriter, AudioClock,
+                         RecordingRecovery, MeetingApps, Channel
 ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
-                         MeetingSidebar, MeetingDetail, ChatInspector, EmptyState
+                         RecordingController, MeetingSidebar, MeetingDetail,
+                         ChatInspector, EmptyState
 ora/Resources/Assets.xcassets/Colors — BRAND paletinin tek kaynağı
 ```
 Renkler asset kataloğundadır; `Color.oraPaper` gibi semboller derleme zamanında
