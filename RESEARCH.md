@@ -790,3 +790,30 @@ sandbox'sız bir komut satırı aracı.
 **Genel ders:** §12'deki "okumak `fullAccess` gerektirir" bulgusu doğruydu ama
 eksikti; sandbox'lı bir uygulamada TCC izninin yanında **entitlement de** gerekir.
 Mikrofon (`device.audio-input`) için bu baştan yazılmıştı, takvim için atlanmıştı.
+
+
+---
+
+## 20. macOS 26 ikonu: sanat eseri kenardan kenara olmalı
+
+İlk ikon, kendi yuvarlatılmış köşesini ve %10 iç boşluğunu kendi çiziyordu.
+Sonuç Dock ve Cmd+Tab'da **boş bir çerçeve** gibi göründü.
+
+`NSWorkspace.icon(forFile:)` ile macOS'un ikonu nasıl çözdüğüne bakıldığında
+sebep görüldü: macOS 26 sanat eserinin üstüne **kendi kabuğunu** (yuvarlatılmış
+kare maskesi + gölge) uyguluyor. Kendi kabuğunu çizen bir sanat eseri
+"ikon içinde ikon" üretiyor; küçük boyutlarda iki iç içe çerçeve kalıyor ve
+marka kayboluyor.
+
+**Kural:** ikon PNG'leri **kenardan kenara dolu** olmalı — kendi köşe yarıçapı,
+kendi kenarlığı ve kendi iç boşluğu olmamalı. İçerik, maskenin kırpmayacağı
+orta alanda (kenarlardan ~%16 içeride) durmalı. `scripts/make-icon.swift`
+bunu böyle üretir.
+
+**Teşhis yöntemi:** ikonun paket içinde doğru olması yetmiyor; macOS'un onu nasıl
+çözdüğüne bakmak gerekiyor —
+`NSWorkspace.shared.icon(forFile: "…/ora.app")` çıktısını PNG olarak yazdır.
+Ayrıca ikon değişince LaunchServices önbelleği tazelenmeli:
+```bash
+touch ora.app && lsregister -f ora.app && killall Dock
+```

@@ -49,7 +49,10 @@ Python yok, Node yok, Electron yok, model dosyası indirme yok.
    çalışmadığı bir durum çıkarsa yedek yoldur.
 6. Kullanıcıya görünen tüm metinler Türkçe
 7. Tüm SQLite yazımları transaction içinde (GRDB `try db.write { }`)
-8. BRAND.md paletinin dışında renk kullanma
+8. BRAND.md paletinin dışında renk kullanma. Uygulama ikonu da bu paletten
+   çizilir (`scripts/make-icon.swift`) ve **kenardan kenara dolu** olmalıdır —
+   yuvarlatılmış köşeyi ve gölgeyi macOS 26 kendisi uygular; kendi kabuğunu
+   çizen sanat eseri Dock'ta boş bir çerçeve gibi görünür (RESEARCH.md §20)
 9. Active Red (#E53935) yalnızca kayıt butonu ve menü bar noktası için
 10. Uygulama adı her zaman küçük harf "ora"
 11. Kayıt **stereo** yazılır: kanal 0 = mikrofon, kanal 1 = sistem sesi.

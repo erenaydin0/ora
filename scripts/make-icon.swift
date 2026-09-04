@@ -24,27 +24,26 @@ func draw(size: Int) -> CGImage? {
                               bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
     else { return nil }
 
-    // macOS ikon güvenli alanı: kenarda %10 boşluk, köşe yarıçapı kenarın ~%22'si
-    let inset = s * 0.10
-    let rect = CGRect(x: inset, y: inset, width: s - inset * 2, height: s - inset * 2)
-    let radius = rect.width * 0.2237
-    ctx.addPath(CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius,
-                       transform: nil))
+    // macOS 26 ikon sanat eserini **kenardan kenara** ister: yuvarlatılmış köşeyi,
+    // gölgeyi ve kabuğu sistem kendi çizer. Kendi köşemizi çizersek ikon içinde
+    // ikon çıkar ve küçük boyutlarda marka kaybolur.
     ctx.setFillColor(paper)
-    ctx.fillPath()
+    ctx.fill(CGRect(x: 0, y: 0, width: s, height: s))
 
-    // İnce kenarlık — düz zeminin kenarı belirsiz kalmasın
-    ctx.addPath(CGPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5),
-                       cornerWidth: radius, cornerHeight: radius, transform: nil))
-    ctx.setStrokeColor(color(0xE8E8E8))
-    ctx.setLineWidth(max(1, s * 0.004))
-    ctx.strokePath()
+    // İçerik, sistem maskesinin kırpmayacağı orta alanda durur.
+    let safe = CGRect(x: 0, y: 0, width: s, height: s).insetBy(dx: s * 0.16, dy: s * 0.16)
 
     // "o" halkası
-    let ringDiameter = rect.width * 0.52
-    let ringWidth = ringDiameter * 0.20
-    let ringRect = CGRect(x: rect.midX - ringDiameter / 2,
-                          y: rect.midY - ringDiameter / 2,
+    let ringDiameter = safe.width * 0.66
+    let ringWidth = ringDiameter * 0.22
+    let barWidth = ringWidth * 0.58
+    let gap = ringWidth * 0.80
+    // Halka + iki çubuk birlikte yatayda ortalanır.
+    let barsWidth = size >= 32 ? (gap + barWidth) * 2 : 0
+    let totalWidth = ringDiameter + barsWidth
+    let originX = safe.midX - totalWidth / 2
+
+    let ringRect = CGRect(x: originX, y: safe.midY - ringDiameter / 2,
                           width: ringDiameter, height: ringDiameter)
         .insetBy(dx: ringWidth / 2, dy: ringWidth / 2)
     ctx.addEllipse(in: ringRect)
@@ -52,18 +51,18 @@ func draw(size: Int) -> CGImage? {
     ctx.setLineWidth(ringWidth)
     ctx.strokePath()
 
-    // Sesi temsil eden iki kısa çizgi — halkanın sağında, azalan uzunlukta
-    let barWidth = ringWidth * 0.55
-    let gap = ringWidth * 0.85
-    var x = ringRect.maxX + ringWidth / 2 + gap
-    for factor in [0.62, 0.34] where size >= 32 {
-        let height = ringDiameter * factor
-        let bar = CGRect(x: x, y: rect.midY - height / 2, width: barWidth, height: height)
-        ctx.addPath(CGPath(roundedRect: bar, cornerWidth: barWidth / 2,
-                           cornerHeight: barWidth / 2, transform: nil))
-        ctx.setFillColor(ink)
-        ctx.fillPath()
-        x += barWidth + gap
+    // Sesi temsil eden iki çubuk, azalan uzunlukta
+    if size >= 32 {
+        var x = originX + ringDiameter + gap
+        for factor in [0.60, 0.32] {
+            let height = ringDiameter * factor
+            let bar = CGRect(x: x, y: safe.midY - height / 2, width: barWidth, height: height)
+            ctx.addPath(CGPath(roundedRect: bar, cornerWidth: barWidth / 2,
+                               cornerHeight: barWidth / 2, transform: nil))
+            ctx.setFillColor(ink)
+            ctx.fillPath()
+            x += barWidth + gap
+        }
     }
     return ctx.makeImage()
 }
