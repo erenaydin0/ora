@@ -9,3 +9,8 @@ context_limit
 .build/
 DerivedData/
 .DS_Store
+
+# Xcode
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/

@@ -40,5 +40,12 @@ Windows kapsam dışıdır.
 - Tek gerçek gerileme: **diarization yok**; stereo kanal ayrımı çoğu ihtiyacı karşılıyor
 
 ## Durum
-Kod yazılmadı. Fizibilite ölçüldü, proje iskeleti hazır.
-Sıradaki iş: **ROADMAP.md Faz 0** — gerçek toplantı kayıtlarıyla doğruluk kıyaslaması.
+**Faz 1 tamam** — Xcode projesi ayakta, uygulama açılıyor: izin metinleri, sandbox,
+`AppPaths`, `Log`, BRAND paleti ve boş 3 sütunlu pencere. Henüz hiçbir şey kaydetmiyor.
+
+Sıradaki iş: **Faz 0** (gerçek toplantı sesiyle doğruluk kapısı — kullanıcı kaydı
+gerektirir) ve **Faz 2** (ses yakalama).
+
+```bash
+xcodebuild -project ora.xcodeproj -scheme ora -configuration Debug build
+```

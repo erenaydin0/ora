@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>tr</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>ora</string>
+	<key>CFBundleDisplayName</key>
+	<string>ora</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>ora — tüm işlem cihazınızda yapılır.</string>
+
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ora, toplantılarınızı kaydedebilmek için mikrofonunuzu kullanır. Ses kaydı yalnızca bu Mac'te saklanır ve hiçbir yere gönderilmez.</string>
+
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>ora, kaydettiğiniz toplantıları yazıya dökmek için konuşma tanımayı kullanır. Tanıma cihazınızda çalışır; ses ve metin cihazınızdan çıkmaz.</string>
+
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>ora, toplantıdaki diğer katılımcıların sesini kaydedebilmek için toplantı uygulamasının sistem sesini yakalar. Ekranınız kaydedilmez, ses cihazınızdan çıkmaz.</string>
+
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>ora toplantı adını ve katılımcıları okumak için takviminize erişir. Takviminize hiçbir şey yazmaz ve hiçbir veri cihazınızdan çıkmaz.</string>
+</dict>
+</plist>

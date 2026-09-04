@@ -331,5 +331,26 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
 
 ## Current Session Status
 [x] Her yeni oturumun başında güncelle:
-    - Çalışan: (henüz kod yok — proje iskeleti kuruldu, fizibilite ölçüldü)
-    - Bekleyen: Faz 0 — gerçek toplantı sesiyle doğruluk kıyaslaması (bkz. ROADMAP.md)
+    - Çalışan: **Faz 1 — İskelet**. `ora.xcodeproj` (objectVersion 77, senkronize
+      klasör grubu), SwiftUI App, macOS 26.0 hedefi, sandbox + ad-hoc imza,
+      GRDB 7.11.1 çözüldü. `AppPaths`, `Log` (OSLog + dosya köprüsü),
+      asset kataloğunda BRAND paleti, `NavigationSplitView` + `.inspector`
+      boş pencere. Uygulama açılıyor, günlük yazıyor, hiçbir şey kaydetmiyor.
+    - Bekleyen: **Faz 0** — gerçek (TTS olmayan) toplantı sesiyle doğruluk kapısı;
+      kullanıcının kendi kaydını gerektirir, kod tarafından yapılamaz.
+      Ardından **Faz 2 — Ses Yakalama** (bkz. ROADMAP.md)
+
+### Proje Düzeni (Faz 1'de kuruldu)
+```
+ora.xcodeproj          — senkronize klasör grubu: ora/ altına eklenen dosya
+                         otomatik derlemeye girer, pbxproj elle düzenlenmez
+Config/Info.plist      — izin metinleri (INFOPLIST_FILE ile bağlı)
+Config/ora.entitlements— sandbox + audio-input; ağ girişi YOK (kural #3'ün garantisi)
+ora/oraApp.swift       — @main + AppDelegate (dizin hazırlığı, açık mod sabiti)
+ora/Core/              — AppPaths, Log
+ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
+                         MeetingSidebar, MeetingDetail, ChatInspector, EmptyState
+ora/Resources/Assets.xcassets/Colors — BRAND paletinin tek kaynağı
+```
+Renkler asset kataloğundadır; `Color.oraPaper` gibi semboller derleme zamanında
+üretilir. Elle `Color("oraPaper")` yazma — yanlış isim derlenmez olsun.

@@ -32,16 +32,31 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
 
 ---
 
-## Faz 1 — İskelet
-- [ ] Xcode projesi, SwiftUI App, macOS 26 hedefi, Apple Silicon
-- [ ] Info.plist izin metinleri (Türkçe), entitlements, sandbox
-- [ ] SPM: GRDB.swift
-- [ ] `AppPaths` — Application Support altında recordings/ logs/ ora.sqlite
-- [ ] `Log` — OSLog + `{base}/logs/ora.log` dosya köprüsü
-- [ ] BRAND.md renklerini `Color+Ora.swift` içinde asset katalog + token olarak tanımla
-- [ ] Boş 3 sütunlu pencere ayakta
+## Faz 1 — İskelet ✅
+- [x] Xcode projesi, SwiftUI App, macOS 26 hedefi, Apple Silicon
+- [x] Info.plist izin metinleri (Türkçe), entitlements, sandbox
+- [x] SPM: GRDB.swift (7.11.1 çözüldü, henüz kullanılmıyor — Faz 5)
+- [x] `AppPaths` — Application Support altında recordings/ logs/ ora.sqlite
+- [x] `Log` — OSLog + `{base}/logs/ora.log` dosya köprüsü
+- [x] BRAND.md renklerini asset kataloğunda tanımla; token'lar derleme zamanında
+      üretilir (`ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS`),
+      `Color+Ora.swift` palet belgesi + `OraStyle` (gölge/köşe/geçiş) tutar
+- [x] Boş 3 sütunlu pencere ayakta (`NavigationSplitView` + `.inspector`)
 
 *Çıktı:* açılan, hiçbir şey yapmayan ama doğru görünen uygulama
+
+**Faz 1'de kapatılmayan, bilinçli bırakılanlar:**
+- **Tipografi paketlenmedi.** BRAND.md Inter + Source Serif 4 istiyor; eski projede
+  yalnızca `woff2` var (`../Ora/src/renderer/assets/fonts/`), masaüstü ttf/otf yok.
+  İskelet sistem fontuyla duruyor. Font paketlemesi UI'ın gerçek metin taşıdığı
+  Faz 5'te yapılır
+- **Uygulama ikonu yok** — Faz 7
+- **Karanlık mod paleti yok.** BRAND.md tek bir açık palet tanımlıyor, bu yüzden
+  uygulama `NSAppearance(named: .aqua)` ile açık moda sabitlendi. Karanlık mod
+  istenirse önce BRAND.md'ye ikinci bir palet yazılmalı
+- **Araç çubuğu native malzemede** (DESIGN.md §5), kenar çubuğu `.oraChrome`
+  (BRAND.md + DESIGN.md §4). DESIGN.md §4 ile §5 bu noktada çelişiyor;
+  çoğunluk kararı uygulandı, seam görünür durumda — karar netleşince düzeltilir
 
 ---
 
@@ -170,5 +185,6 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
 ## Kapsam Dışı — bilerek yapılmayacaklar
 - Windows / Linux desteği
 - Bulut senkronizasyonu, hesap sistemi, telemetri
-- Gerçek zamanlı canlı transkripsiyon (kural #1'i ihlal eder)
+- Kayıt sırasında LLM çalıştırmak (kural #1). Canlı transkripsiyon
+  kapsam **içindedir** — bkz. RESEARCH.md §6
 - Video kaydı — yalnızca ses
