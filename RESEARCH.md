@@ -565,3 +565,51 @@ onarım sonrası: 2 ch · 16000 Hz · 5.59 sn, ch0 tepe 2.253 — dosya çalına
 Ses artımlı yazıldığı için içerik sağlam kalıyor; yalnızca son flush'tan sonraki
 başlık alanları onarılıyor. SIGKILL'de kaybedilen, henüz flush edilmemiş
 son ~1 saniyedir.
+
+
+---
+
+## 14. Faz 3 ölçümleri — transkripsiyon uygulamada
+
+### 14.1 `AnalyzerInput` damgası: sessiz bir tuzak
+İlk uygulama, her buffer'ı kaydın mutlak zamanıyla damgalıyordu:
+`CMTime(seconds: t, preferredTimescale: 48_000)`. Sonuç:
+```
+Canlı  : SFSpeechErrorDomain 2 "Audio input timestamp overlaps or precedes prior audio input"
+Tam geçiş: Foundation._GenericObjCError 0   ← kullanıcıya ulaşan hata buydu
+```
+Dört strateji aynı ses üzerinde, bilerek bozulmuş damgalarla denendi
+(her 5. parçada 40 ms geri kayma, her 9. parçada buffer düşmesi):
+
+| Strateji | Sonuç |
+|---|---|
+| Ham mutlak saniye damgası | ❌ `SFSpeechErrorDomain 2` |
+| Saniye cinsinden monotonluk kelepçesi | ❌ `SFSpeechErrorDomain 2` — **kelepçe yetmiyor** |
+| **Analiz oranında tam frame sayısı** (`CMTime(value:timescale:)`) | ✅ hata yok |
+| Damga hiç vermemek | ✅ hata yok |
+
+**Sonuç:** `CMTime(seconds:preferredTimescale:)` yuvarlaması ardışık buffer'ları
+mikrosaniye mertebesinde çakıştırıyor ve motor bunu reddediyor. Damga
+**tam frame sayısından** kurulmalı. Uygulamadaki karar:
+- **Tam geçiş**: damga verilmez — dosya akışı zaten kesintisiz
+- **Canlı**: damga tam frame sayısıyla verilir ve monoton kelepçelenir
+  (buffer düşerse ileri sıçranır, geriye asla gidilmez)
+
+*probe:* `probes/live_timestamps.swift`
+
+### 14.2 ora'nın kendi kaydı üzerinde tam geçiş — **gerçek ses, TTS değil**
+Uygulamanın ürettiği 31,8 saniyelik stereo WAV, kanal kanal çözüldü:
+```
+ch0 mic    2 segment · 0.46 sn  (≈69x gerçek zamanlı)
+   [10.86→17.04] güven 0.86  "Ses ses deneme 1.02 test ne haber nasılsın"
+   [23.52→31.84] güven 0.76  "transkript yok kayıt sırasında canlı transkript
+                              burada akar ama sanki akmıyor gibi ne dedin o işe"
+ch1 sistem 1 segment · 0.37 sn
+   [ 0.00→ 3.12] güven 0.62  "Evet"
+```
+Bu, §2'deki TTS testinden farklı olarak **gerçek insan sesidir** — Faz 0'ın
+istediği kanıtın ilk parçası. Diakritikler doğru, noktalama yok (§2 doğrulandı),
+kelime düzeyi güven skoru geliyor. Örnek kısa ve okunan metin olduğu için
+Faz 0 kapanmış sayılmaz; gerçek bir toplantı hâlâ gerekli.
+
+*probe:* `probes/transcribe_stereo.swift`

@@ -10,13 +10,17 @@ struct MeetingDetail: View {
         var id: String { rawValue }
     }
 
-    let meetingID: Meeting.ID?
+    let recorder: RecordingController
 
-    @State private var tab: Tab = .summary
+    @State private var tab: Tab = .transcript
+
+    private var hasContent: Bool {
+        !recorder.displayedSegments.isEmpty || recorder.isTranscribing
+    }
 
     var body: some View {
         Group {
-            if meetingID == nil {
+            if !hasContent {
                 EmptyState(
                     icon: "text.bubble",
                     title: "Toplantı seçilmedi",
@@ -32,24 +36,61 @@ struct MeetingDetail: View {
                     .frame(maxWidth: 320)
                     .padding(16)
 
+                    if recorder.isTranscribing {
+                        TranscriptionProgressBar(stage: recorder.transcriptionStage)
+                    }
+
                     Divider().overlay(Color.oraBorder)
 
-                    ScrollView {
-                        switch tab {
-                        case .summary:
-                            EmptyState(icon: "sparkles",
-                                       title: "Özet hazır değil",
-                                       detail: "Özetleme kayıt bittikten sonra çalışır.")
-                        case .transcript:
-                            EmptyState(icon: "text.alignleft",
-                                       title: "Transkript yok",
-                                       detail: "Kayıt sırasında canlı transkript burada akar.")
-                        }
+                    switch tab {
+                    case .summary:
+                        EmptyState(icon: "sparkles",
+                                   title: "Özet hazır değil",
+                                   detail: "Özetleme Faz 4'te devreye girecek.")
+                    case .transcript:
+                        TranscriptView(segments: recorder.displayedSegments)
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.oraPaper)
+    }
+}
+
+/// İşlem sürerken sessiz bekleme yok — her aşama Türkçe yazar.
+struct TranscriptionProgressBar: View {
+
+    let stage: RecordingController.Stage
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ProgressView(value: fraction)
+                .progressViewStyle(.linear)
+                .tint(Color.oraBlue)
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraInkMuted)
+                .fixedSize()
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 12)
+    }
+
+    private var fraction: Double {
+        switch stage {
+        case .downloadingLanguage(let value), .transcribing(let value): value
+        case .preparingLanguage: 0
+        case .idle, .done: 1
+        }
+    }
+
+    private var label: String {
+        switch stage {
+        case .preparingLanguage:            "Dil hazırlanıyor…"
+        case .downloadingLanguage(let v):   "Dil paketi indiriliyor · \(Int(v * 100))%"
+        case .transcribing(let v):          "Yazıya dökülüyor · \(Int(v * 100))%"
+        case .idle, .done:                  ""
+        }
     }
 }

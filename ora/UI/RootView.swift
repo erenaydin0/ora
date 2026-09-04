@@ -16,7 +16,7 @@ struct RootView: View {
             if recorder.isRecording {
                 RecordingView(recorder: recorder)
             } else {
-                MeetingDetail(meetingID: selection)
+                MeetingDetail(recorder: recorder)
             }
         }
         .inspector(isPresented: $isChatShown) {
@@ -26,6 +26,17 @@ struct RootView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 RecordButton(recorder: recorder)
+            }
+            ToolbarItem {
+                Picker("Dil", selection: Binding(get: { recorder.language },
+                                                 set: { recorder.language = $0 })) {
+                    ForEach(TranscriptionLanguage.allCases) { language in
+                        Text(language.turkishName).tag(language)
+                    }
+                }
+                .pickerStyle(.menu)
+                .disabled(recorder.isRecording)
+                .help("Transkripsiyon dili")
             }
             ToolbarItem {
                 Button {
@@ -90,46 +101,50 @@ private struct RecordButton: View {
     }
 }
 
-/// Kayıt sürerken orta panel (DESIGN.md §4 "Canlı mod").
-/// Canlı transkript akışı Faz 3'te bu ekrana bağlanır.
+/// Kayıt sürerken orta panel — canlı mod (DESIGN.md §4).
+/// Üstte durum, altta akan canlı transkript.
 private struct RecordingView: View {
 
     let recorder: RecordingController
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "waveform")
-                .font(.system(size: 28, weight: .light))
-                .foregroundStyle(Color.oraRed)
-
-            Text("Kayıt sürüyor")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Color.oraInk)
-
-            Text(recorder.elapsedText)
-                .font(.system(size: 32, weight: .light, design: .monospaced))
-                .foregroundStyle(Color.oraInk)
-                .contentTransition(.numericText())
-
-            if let reason = recorder.micOnlyReason {
-                VStack(spacing: 4) {
-                    Text(reason)
-                        .font(.system(size: 13, weight: .medium))
+        VStack(spacing: 0) {
+            VStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "record.circle")
+                        .foregroundStyle(Color.oraRed)
+                    Text("Kayıt sürüyor")
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Color.oraInk)
-                    Text("Kayıt yalnızca mikrofonunuzla sürüyor. Karşı tarafın sesi kaydedilmiyor.")
-                        .font(.system(size: 12))
+                    Text(recorder.elapsedText)
+                        .font(.system(size: 14, design: .monospaced))
                         .foregroundStyle(Color.oraInkMuted)
-                        .multilineTextAlignment(.center)
+                        .contentTransition(.numericText())
+                    Spacer()
+                    Button("Durdur") { Task { await recorder.stop() } }
+                        .foregroundStyle(Color.oraRed)
                 }
-                .padding(12)
-                .oraCard()
-                .frame(maxWidth: 380)
-            }
 
-            Button("Kaydı durdur") {
-                Task { await recorder.stop() }
+                if let reason = recorder.micOnlyReason {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(Color.oraInkMuted)
+                        Text("\(reason) — kayıt yalnızca mikrofonunuzla sürüyor.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.oraInkMuted)
+                        Spacer()
+                    }
+                    .padding(10)
+                    .oraCard()
+                }
             }
-            .foregroundStyle(Color.oraRed)
+            .padding(20)
+
+            Divider().overlay(Color.oraBorder)
+
+            TranscriptView(segments: recorder.liveSegments,
+                           volatileText: recorder.volatileText,
+                           notice: recorder.liveNotice)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.oraPaper)

@@ -87,21 +87,34 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
 
 ---
 
-## Faz 3 — Transkripsiyon (canlı + kayıt sonrası)
-- [ ] `SpeechAnalyzer` + `DictationTranscriber(tr-TR)` sarmalayıcı
-- [ ] Kanal ayırma: stereo WAV'dan ch0 ve ch1'i ayrı `AVAudioFile` olarak besle
-- [ ] mic kanalı → speaker "Ben"; sistem kanalı → "Katılımcı"
-- [ ] Kelime düzeyi zaman damgası + güven skorunu `AttributedString` run'larından çıkar
-- [ ] Segmentleri ortak zaman eksenine göre sırala, `transcripts`'e yaz
-- [ ] `AssetInventory` ile locale kurulu değilse indir + ilerleme göster
-- [ ] Sessiz kanalı atla
-- [ ] Dil algılama: Türkçe/İngilizce seçimi (ayar + otomatik)
-- [ ] **Canlı mod**: `liveBuffers`'ı tüket, `.volatileResults` ile akan metin göster.
-      En iyi çaba — hata/gecikme kaydı etkilemez, kullanıcıya durum bildirilir
-- [ ] Canlı çıktı ile kayıt sonrası tam geçiş çeliştiğinde **tam geçiş kazanır**
+## Faz 3 — Transkripsiyon ✅ (canlı + kayıt sonrası)
+- [x] `SpeechAnalyzer` + `DictationTranscriber(tr-TR)` sarmalayıcı
+- [x] Kanal ayırma: stereo WAV'dan ch0 ve ch1 ayrı mono akış olarak beslenir
+- [x] mic kanalı → speaker "Ben"; sistem kanalı → "Katılımcı"
+- [x] Kelime düzeyi zaman damgası + güven skoru `AttributedString` run'larından
+- [x] Segmentler ortak zaman eksenine göre sıralanır (`transcripts` tablosu Faz 5'te;
+      şimdilik bellekte)
+- [x] `AssetInventory` ile locale kurulu değilse indir + ilerleme göster + `reserve`
+- [x] Sessiz kanalı atla (tepe genlik < 0.005)
+- [x] Dil seçimi: Türkçe / İngilizce / **Otomatik**. Apple'da konuşulan dili tanıyan
+      API yok; otomatik seçim ilk ~40 sn'yi kurulu adaylarla çözüp ortalama güven
+      skorunu karşılaştırır
+- [x] **Canlı mod**: `liveBuffers` tüketilir, `.volatileResults` ile akan metin;
+      kesinleşmemiş metin `.oraInkMuted`, kesinleşen `.oraInk`
+- [x] Canlı transkript hata verirse sessizce durur, kullanıcıya not düşer,
+      **kayıt etkilenmez** — gerçek bir hatada doğrulandı (RESEARCH.md §14.1)
+- [x] Canlı çıktı ile tam geçiş çeliştiğinde **tam geçiş kazanır** (canlı segmentler
+      tam geçiş bitince silinir)
 
 *Çıktı:* Kayıt sırasında akan canlı transkript + kayıt sonrası nihai transkript.
-*Efor:* 3-4 gün
+**Ölçümler: RESEARCH.md §14.**
+
+**Faz 3'te bilinçli bırakılanlar:**
+- Segmentler DB'ye **yazılmıyor** — `transcripts` tablosu Faz 5'te gelince bağlanacak
+- Vocabulary (`ContentHint.customizedLanguage`) parametre olarak geçiyor ama
+  kullanılmıyor — Faz 6
+- Canlı modun uygulama içi doğrulaması yapılmadı (her derlemede TCC istemi çıkıyor);
+  damga düzeltmesi bilerek bozulmuş damgalarla probe üzerinde doğrulandı
 
 ---
 

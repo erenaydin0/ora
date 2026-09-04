@@ -136,6 +136,17 @@ Bu sıra asla değişmez:
   arka ucu budur; ayrı bir düzeltme katmanı yazma.
 - Dil seçimi: `DictationTranscriber.installedLocales` ile kurulu mu bak,
   değilse `AssetInventory` üzerinden indir. `maximumReservedLocales` = 5.
+- **`AnalyzerInput` damgası tam frame sayısından kurulur.** Ölçüldü
+  (RESEARCH.md §14.1): `CMTime(seconds:preferredTimescale:)` yuvarlaması
+  ardışık buffer'ları çakıştırıyor ve motor `SFSpeechErrorDomain 2` veriyor —
+  saniye cinsinden monotonluk kelepçesi bunu **çözmüyor**.
+  - Kayıt sonrası tam geçişte damga **verilmez** (dosya akışı kesintisiz).
+  - Canlı modda `CMTime(value: frameCount, timescale: Int32(analysisFormat.sampleRate))`
+    kullanılır ve monoton kelepçelenir; buffer düşerse ileri sıçranır.
+- Konuşulan dili tanıyan bir Apple API'si **yok**. "Otomatik dil", sesin ilk
+  ~40 saniyesini kurulu adaylarla ayrı ayrı çözüp ortalama güven skorunu
+  karşılaştırarak seçer. Aday havuzu yalnızca **kurulu** dillerdir; seçim için
+  dil paketi indirilmez.
 
 ## Foundation Models Kuralları — ölçülmüş davranış
 - Kullanmadan önce **her zaman** `SystemLanguageModel.default.availability`
@@ -354,9 +365,17 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       (CoreAudio süreç tap'i → özel toplama cihazı → IOProc), host time ile
       hizalanmış artımlı stereo WAV, yalnız-mikrofon düşüşü, çökme kurtarma,
       `liveBuffers` akışı. Gerçek kayıtla doğrulandı — RESEARCH.md §13.
-    - Bekleyen: **Faz 0** — gerçek (TTS olmayan) toplantı sesiyle doğruluk kapısı;
-      kullanıcının kendi kaydını gerektirir, kod tarafından yapılamaz.
-      Ardından **Faz 3 — Transkripsiyon** (bkz. ROADMAP.md)
+      **Faz 3 — Transkripsiyon** tamam: `SpeechAnalyzer` + `DictationTranscriber`,
+      kanal başına ayrı geçiş, kelime zamanı + güven skoru, `AssetInventory` ile
+      dil paketi indirme, sessiz kanal atlama, güven skoruna dayalı otomatik dil
+      seçimi, canlı mod (`.volatileResults`). Ölçümler RESEARCH.md §14.
+    - Bekleyen: **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
+      (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa; gerçek bir
+      toplantı hâlâ gerekli. Ardından **Faz 4 — Foundation Models**
+    - **Bilinen geliştirme engeli:** makinede kod imzalama kimliği yok
+      (`security find-identity` → 0). Ad-hoc imza her derlemede değiştiği için
+      TCC uygulamayı yeni sanıyor ve mikrofon izni **her derlemede** yeniden
+      soruluyor. Faz 7'de gerçek imza bunu bitirir.
 
 ### Proje Düzeni (Faz 1'de kuruldu)
 ```
@@ -369,9 +388,11 @@ ora/Core/              — AppPaths, Log, OraError
 ora/Capture/           — AudioCapture (orkestra), MicrophoneCapture,
                          SystemAudioTap, StereoRecordingWriter, AudioClock,
                          RecordingRecovery, MeetingApps, Channel
+ora/Transcribe/        — SpeechTranscription (tam geçiş), LiveTranscription,
+                         TranscriptionLocale (dil + otomatik seçim), Segment
 ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          RecordingController, MeetingSidebar, MeetingDetail,
-                         ChatInspector, EmptyState
+                         TranscriptView, ChatInspector, EmptyState
 ora/Resources/Assets.xcassets/Colors — BRAND paletinin tek kaynağı
 ```
 Renkler asset kataloğundadır; `Color.oraPaper` gibi semboller derleme zamanında
