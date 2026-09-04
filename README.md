@@ -47,44 +47,37 @@ xcodebuild -project ora.xcodeproj -scheme ora -configuration Debug build
 ./scripts/build-release.sh          # arşiv → .app → .dmg
 ```
 
-### Kendinden imzalı sertifika (önerilir)
+### İmzalama durumu
 
-Kimlik olmadan uygulama **ad-hoc** imzalanır ve imza her derlemede değişir;
-TCC uygulamayı her seferinde yeni sanır ve **mikrofon iznini yeniden sorar**.
-Sabit bir kimlik bunu bitirir:
+Uygulama şu an **ad-hoc** imzalanıyor (`ORA_SIGN_IDENTITY = "-"`). Bunun iki
+bilinen sonucu var:
 
-1. **Anahtar Zinciri Erişimi**'ni aç → menüden *Sertifika Yardımcısı →
-   Sertifika Oluştur…*
-2. Ad: `ora Development` · Kimlik Türü: **Kendinden İmzalı Kök**
-3. **"Varsayılanları geçersiz kılmama izin ver" kutusunu İŞARETLE.**
-   Bu kutu işaretlenmezse Sertifika Türü sorulmaz ve sertifika **S/MIME
-   (e-posta)** olarak üretilir; `security find-identity -p codesigning`
-   onu görmez, derleme "No certificate matching" der.
-4. Sertifika Türü: **Kod İmzalama** → sonraki adımları varsayılanla geç → Oluştur
-5. Sertifikayı çift tıkla → *Güven* → *Kod İmzalama*: **Her Zaman Güven**
-6. Doğrula — kimlik listede görünmeli:
+- İmza her derlemede değiştiği için TCC uygulamayı yeni sanar ve **mikrofon
+  iznini yeniden sorar**.
+- Dock ve Cmd+Tab uygulama ikonu yerine boş yer tutucu gösterebilir
+  (bkz. RESEARCH.md §20).
 
-```bash
-security find-identity -v -p codesigning
+**Kendinden imzalı sertifika bu sorunları çözmez.** Denendi ve ölçüldü:
+sertifika kod imzalama için geçerli ve güvenilir olsa bile
+(`security verify-cert -p codeSign` başarılı, `codesign --verify` başarılı),
+Gatekeeper değerlendirmesi reddediyor:
+
+```
+spctl -a -vvv ora.app  →  rejected  (origin=ora Development)
 ```
 
-7. Derlerken kimliği ver:
+Sonuç: uygulama **hiç açılmıyor**, "ora bir sorundan dolayı açılamıyor" hatası
+veriyor. Ad-hoc imza en azından yerel olarak çalışıyor, bu yüzden varsayılan o.
+
+Kalıcı çözüm **Apple Developer Program üyeliği ve `Developer ID Application`
+sertifikasıdır**. `scripts/build-release.sh` böyle bir kimlik ve `ora-notary`
+anahtarlık profili bulursa imzalamayı ve notarizasyonu kendiliğinden yapar;
+ek kod gerekmez. Kimliğiniz olduğunda:
 
 ```bash
-xcodebuild -project ora.xcodeproj -scheme ora -configuration Debug ORA_SIGN_IDENTITY="ora Development" build
+xcodebuild -project ora.xcodeproj -scheme ora -configuration Debug \
+  ORA_SIGN_IDENTITY="Developer ID Application: Adınız (TEAMID)" build
 ```
-
-Kalıcı olsun istersen `ORA_SIGN_IDENTITY` proje ayarını Xcode'da bir kez
-`ora Development` yap. Proje **manuel imzalama** kullanır
-(`CODE_SIGN_STYLE = Manual`); otomatik imzalama kimlik `-` olmadığı anda
-Apple geliştirici takımı ister ve kendinden imzalı sertifikayla çalışmaz.
-
-Yanlış türde bir sertifika ürettiysen Anahtar Zinciri'nde sil ve 3. adımı
-atlamadan yeniden oluştur. Bu sertifika **dağıtım için yetmez** — başka bir Mac'te
-Gatekeeper yine engeller. Dağıtım Apple Developer Program üyeliği ve
-`Developer ID Application` sertifikası ister; `scripts/build-release.sh`
-kimlik ve `ora-notary` anahtarlık profili varsa imzalama ile notarizasyonu
-kendiliğinden yapar.
 
 ## Durum
 **Faz 1 tamam** — Xcode projesi ayakta, uygulama açılıyor: izin metinleri, sandbox,

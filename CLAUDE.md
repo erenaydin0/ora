@@ -430,10 +430,11 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       3. Gerçek bir Teams/Zoom toplantısıyla algılama→kayıt akışı denenmedi.
     - **Sparkle (otomatik güncelleme) kullanıcı kararıyla eklenmedi.** Tek
       bağımlılık GRDB olarak kalıyor.
-    - **Bilinen geliştirme engeli:** makinede kod imzalama kimliği yok
-      (`security find-identity` → 0). Ad-hoc imza her derlemede değiştiği için
-      TCC uygulamayı yeni sanıyor ve mikrofon izni **her derlemede** yeniden
-      soruluyor. Faz 7'de gerçek imza bunu bitirir.
+    - **Bilinen geliştirme engeli:** uygulama ad-hoc imzalı. İmza her derlemede
+      değiştiği için TCC mikrofon iznini **her derlemede** yeniden soruyor ve
+      Dock/Cmd+Tab ikonu yer tutucu gösteriyor (RESEARCH.md §20).
+      **Kendinden imzalı sertifika çözüm değil** — Gatekeeper reddediyor ve
+      uygulama hiç açılmıyor (§21). Çözüm Apple Developer Program üyeliğidir.
 
 ### Proje Düzeni (Faz 1'de kuruldu)
 ```

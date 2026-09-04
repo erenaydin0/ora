@@ -812,8 +812,53 @@ bunu böyle üretir.
 
 **Teşhis yöntemi:** ikonun paket içinde doğru olması yetmiyor; macOS'un onu nasıl
 çözdüğüne bakmak gerekiyor —
-`NSWorkspace.shared.icon(forFile: "…/ora.app")` çıktısını PNG olarak yazdır.
-Ayrıca ikon değişince LaunchServices önbelleği tazelenmeli:
+`NSWorkspace.shared.icon(forFile:)` ve `NSRunningApplication.icon` çıktısını PNG
+olarak yazdır. İkon değişince LaunchServices önbelleği de tazelenmeli
+(`lsregister` PATH'te değildir, tam yol gerekir):
 ```bash
-touch ora.app && lsregister -f ora.app && killall Dock
+LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+touch ora.app && "$LSREG" -f ora.app && killall Dock
 ```
+
+### Çözülmemiş: Cmd+Tab ve Dock hâlâ yer tutucu gösteriyor
+Sanat eseri düzeltildikten sonra **her ölçülebilir katman doğru** hâle geldi:
+- paket içindeki `AppIcon.icns` ✓
+- `Assets.car` içindeki 10 rendition (16…1024 px, `AssetType: Icon Image`) ✓
+- `NSWorkspace.icon(forFile:)` ✓
+- `NSRunningApplication.icon` (Cmd+Tab'ın kullandığı API) ✓
+- `Info.plist`: `CFBundleIconFile` + `CFBundleIconName` — Notes.app ve Claude.app
+  ile **birebir aynı yapı** ✓
+
+Buna rağmen Cmd+Tab boş yer tutucu gösteriyor. Elenen nedenler:
+ikon önbelleği (`iconservices.store` silindi, `iconservicesagent` ve Dock
+yeniden başlatıldı), DerivedData yolu (uygulama `/tmp` altından da denendi),
+bozuk asset kataloğu (`assetutil` çıktısı sağlıklı).
+
+Geriye kalan tek yapısal fark: uygulama **ad-hoc imzalı**. Kendinden imzalı bir
+sertifikayla denendi ama o yol kapalı (§21). Gerçek bir `Developer ID` kimliğiyle
+tekrar denenmeli.
+
+
+---
+
+## 21. Kendinden imzalı sertifika Gatekeeper'ı geçmiyor
+
+Ad-hoc imzanın her derlemede değişmesi hem TCC izinlerini sıfırlıyor hem de
+ikon sorununun tek şüphelisi durumunda. Kendinden imzalı bir kod imzalama
+sertifikası denendi:
+
+```
+security verify-cert -p codeSign   → certificate verification successful
+codesign --verify --deep --strict  → valid on disk, satisfies its Designated Requirement
+spctl -a -vvv ora.app              → rejected  (origin=ora Development)
+```
+
+İmza geçerli ve sertifika güvenilir olmasına rağmen Gatekeeper değerlendirmesi
+reddediyor ve uygulama **hiç açılmıyor** ("ora bir sorundan dolayı açılamıyor").
+Karantina özniteliği yok; sebep Gatekeeper'ın yalnızca Developer ID / App Store
+kimliklerini kabul etmesi.
+
+**Sonuç:** kendinden imzalı sertifika bu projede kullanılamaz. Ad-hoc imza yerel
+olarak çalıştığı için varsayılan odur. Sabit kimlik gerektiren her şey
+(TCC izinlerinin kalıcılığı, muhtemelen Dock ikonu) Apple Developer Program
+üyeliğini bekliyor.
