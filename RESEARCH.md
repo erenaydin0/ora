@@ -613,3 +613,60 @@ kelime düzeyi güven skoru geliyor. Örnek kısa ve okunan metin olduğu için
 Faz 0 kapanmış sayılmaz; gerçek bir toplantı hâlâ gerekli.
 
 *probe:* `probes/transcribe_stereo.swift`
+
+
+---
+
+## 15. Faz 4 ölçümleri — noktalama ve özetleme uygulamada
+
+### 15.1 Konuşmacı öneki noktalama isteminde guardrail tetikliyor
+Noktalama adımı ilk denemede `guardrailViolation` ("Response may contain
+sensitive or unsafe content") ile patladı. Tek değişkeni izole eden ölçüm,
+aynı istem 8'er kez koşularak:
+
+| Girdi biçimi | Sonuç |
+|---|---|
+| `1. toplantıya başlamadan önce…` (öneksiz) | **8/8 başarılı** |
+| `1. Ben: toplantıya başlamadan önce…` (konuşmacı önekli) | 2/8 başarılı · **6 guardrail** |
+
+Özetleme isteminde aynı önek **sorun çıkarmıyor** (önekli 8/8, öneksiz 8/8);
+sorun noktalama istemine özgü.
+
+**Uygulamadaki karar:** noktalama istemine konuşmacı öneki **eklenmez**
+(noktalama için gereksiz zaten), özetleme isteminde **korunur** (kimin neyi
+üstlendiğini bilmek için gerekli). Ayrıca guardrail'e takılırsa daha yalın bir
+istemle bir kez daha denenir.
+
+*probe:* `probes/guardrail.swift`, `probes/guardrail_rate.swift`,
+`probes/guardrail_summary.swift`
+
+### 15.2 Map-reduce — 60 dakikalık toplantı mertebesi
+```
+transkript : 50.231 karakter ≈ 12.557 token  (bağlam penceresinin 3 katı)
+parça      : 6 · en büyük 9.999 karakter
+map süresi : 47.9 sn   (parça başına özet + @Generable konu başlığı)
+toplam     : 55.3 sn   guardrail: 0
+```
+`RESEARCH.md §3`'teki "~5 parça ≈ 30 saniye" tahmini iyimserdi; gerçek ölçüm
+parça başına konu başlığı üretimi de dahil **~55 saniye**. Yine de kabul edilebilir.
+
+Çıktı kalitesi:
+```
+AKSİYONLAR:
+  • Ayşe   → Entegrasyon testlerinin kalanını cuma gününe bitiriyor   [Cuma]
+  • Ben    → Müşteri entegrasyon dokümanı taslağını tamamlayacak      [Salı]
+  • Kerem  → Veri tabanı göçü bakım penceresini üstlenecek            [Cumartesi]
+  • Mehmet → Bütçe onayını iletecek                                   [Perşembe]
+```
+Kişi adları map aşamasında korunuyor ve `sonTarih` doluyor — önceki ora'da
+NULL kalan alan bu. İstemde "'Ben' bu kaydı tutan kişidir" cümlesi olmadan
+`kisi` alanı hep "belirtilmedi" geliyordu.
+
+**Gözlenen kusur:** model bazı karar ve aksiyonları iki kez üretiyor.
+Uygulamada normalize edilmiş karşılaştırmayla eleniyor.
+
+**Konu başlıkları `@Generable` şema ile alınmalı.** Düz metin istendiğinde model
+numaralı bir liste ve açıklama döküyor; `KonuBasligi` şemasıyla tek satır,
+2-5 kelimelik başlık geliyor.
+
+*probe:* `probes/mapreduce60.swift`

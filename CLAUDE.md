@@ -169,6 +169,20 @@ Bu sıra asla değişmez:
   "Sen bir toplantı asistanısın. Toplantı Türkçe ise yanıtını Türkçe ver."
 - Her map-reduce parçası için **yeni `LanguageModelSession`** aç; oturumu
   tekrar kullanırsan geçmiş bağlamı yiyip 4096'yı taşırır.
+- **Noktalama istemine konuşmacı öneki ("Ben:", "Katılımcı:") EKLEME.**
+  Ölçüldü (RESEARCH.md §15.1): önekli istem 8 denemenin 6'sında
+  `guardrailViolation` veriyor, öneksiz 8/8 geçiyor. Özetleme isteminde önek
+  sorun çıkarmıyor ve **korunmalı** — kimin neyi üstlendiğini oradan çıkarıyor.
+- `guardrailViolation` gerçek ve tekrarlayan bir durumdur; her LLM çağrısı
+  başarısızlığa dayanıklı olmalı. Noktalama başarısız olursa **orijinal metin
+  korunur** — model kelime değiştirirse o satır reddedilir (normalize edilmiş
+  karşılaştırma). Noktalama bir iyileştirmedir, kelime kaybetme pahasına yapılmaz.
+- Özetleme isteminde **"'Ben' bu kaydı tutan kişidir"** cümlesi bulunmalı;
+  yoksa `kisi` alanı hep "belirtilmedi" geliyor.
+- Konu başlıkları `@Generable` şema ile alınır; düz metin istenirse model
+  numaralı liste ve açıklama döküyor.
+- Model karar/aksiyonları tekrarlayabiliyor — çıktı normalize edilmiş
+  karşılaştırmayla tekilleştirilir.
 
 ## Toplantı Algılama Kuralları — ölçülmüş davranış
 - **`ps aux` polling'i yok.** Sinyal CoreAudio olay dinleyicileridir:
@@ -369,9 +383,13 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       kanal başına ayrı geçiş, kelime zamanı + güven skoru, `AssetInventory` ile
       dil paketi indirme, sessiz kanal atlama, güven skoruna dayalı otomatik dil
       seçimi, canlı mod (`.volatileResults`). Ölçümler RESEARCH.md §14.
+      **Faz 4 — Foundation Models** tamam: `availability` kapısı, zorunlu
+      noktalama adımı (kelime koruma güvenceli), map-reduce özetleme
+      (`@Generable Ozet`), konu başlıkları, hesaplanmış sağlık metrikleri.
+      50.000 karakterlik transkript 6 parçada ~55 sn (RESEARCH.md §15).
     - Bekleyen: **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
       (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa; gerçek bir
-      toplantı hâlâ gerekli. Ardından **Faz 4 — Foundation Models**
+      toplantı hâlâ gerekli. Ardından **Faz 5 — Depolama, Arama, UI**
     - **Bilinen geliştirme engeli:** makinede kod imzalama kimliği yok
       (`security find-identity` → 0). Ad-hoc imza her derlemede değiştiği için
       TCC uygulamayı yeni sanıyor ve mikrofon izni **her derlemede** yeniden
@@ -384,15 +402,17 @@ ora.xcodeproj          — senkronize klasör grubu: ora/ altına eklenen dosya
 Config/Info.plist      — izin metinleri (INFOPLIST_FILE ile bağlı)
 Config/ora.entitlements— sandbox + audio-input; ağ girişi YOK (kural #3'ün garantisi)
 ora/oraApp.swift       — @main + AppDelegate (dizin hazırlığı, açık mod sabiti)
-ora/Core/              — AppPaths, Log, OraError
+ora/Core/              — AppPaths, Log, OraError, MeetingMetrics
 ora/Capture/           — AudioCapture (orkestra), MicrophoneCapture,
                          SystemAudioTap, StereoRecordingWriter, AudioClock,
                          RecordingRecovery, MeetingApps, Channel
 ora/Transcribe/        — SpeechTranscription (tam geçiş), LiveTranscription,
                          TranscriptionLocale (dil + otomatik seçim), Segment
+ora/Intelligence/      — FoundationIntelligence (noktalama + map-reduce özet),
+                         Ozet (@Generable şemalar), TranscriptChunker, Intelligent
 ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          RecordingController, MeetingSidebar, MeetingDetail,
-                         TranscriptView, ChatInspector, EmptyState
+                         TranscriptView, SummaryView, ChatInspector, EmptyState
 ora/Resources/Assets.xcassets/Colors — BRAND paletinin tek kaynağı
 ```
 Renkler asset kataloğundadır; `Color.oraPaper` gibi semboller derleme zamanında

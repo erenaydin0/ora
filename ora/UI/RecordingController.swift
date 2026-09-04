@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import AVFoundation
 
 /// Canlı buffer'ları o an açık olan `LiveTranscription`'a yönlendiren yönlendirici.
 ///
@@ -36,14 +37,26 @@ final class RecordingController {
     /// Canlı transkript durduysa nedeni.
     private(set) var liveNotice: String?
 
+    /// Özet, kararlar, aksiyonlar. Model kullanılamıyorsa `nil` kalır —
+    /// transkript yine de gösterilir (CLAUDE.md "Hata Yönetimi").
+    private(set) var summary: Ozet?
+    private(set) var topics: [TopicSegment] = []
+    private(set) var metrics: MeetingMetrics?
+    /// Özetleme neden yapılamadı — kullanıcıya Türkçe anlatılır.
+    private(set) var summaryNotice: String?
+
     private(set) var transcriptionStage: Stage = .idle
     enum Stage: Equatable {
         case idle
         case preparingLanguage
         case downloadingLanguage(Double)
         case transcribing(Double)
+        case punctuating(Double)
+        case summarizing(Double)
         case done
     }
+
+    var modelAvailability: ModelAvailability { intelligence.availability }
 
     /// Kullanıcının dil tercihi.
     var language: TranscriptionLanguage {
@@ -54,6 +67,7 @@ final class RecordingController {
 
     private let capture: any AudioCapturing
     private let transcription: any Transcribing
+    private let intelligence: any Intelligent
     private let route = LiveRoute()
     private var live: LiveTranscription?
     private var liveUpdatesTask: Task<Void, Never>?
@@ -63,9 +77,11 @@ final class RecordingController {
     private static let languageKey = "transcriptionLanguage"
 
     init(capture: any AudioCapturing = AudioCapture(),
-         transcription: any Transcribing = SpeechTranscription()) {
+         transcription: any Transcribing = SpeechTranscription(),
+         intelligence: any Intelligent = FoundationIntelligence()) {
         self.capture = capture
         self.transcription = transcription
+        self.intelligence = intelligence
         self.language = UserDefaults.standard.string(forKey: Self.languageKey)
             .flatMap(TranscriptionLanguage.init(rawValue:)) ?? .turkish
 
@@ -122,6 +138,10 @@ final class RecordingController {
         liveSegments = []
         volatileText = [:]
         liveNotice = nil
+        summary = nil
+        topics = []
+        metrics = nil
+        summaryNotice = nil
         transcriptionStage = .idle
 
         do {
@@ -226,9 +246,9 @@ final class RecordingController {
             // Tam geçiş nihai gerçektir; canlı ön izlemenin yerini alır.
             transcript = segments
             liveSegments = []
-            transcriptionStage = .done
             Log.info(.transcribe, "Tam geçiş bitti — \(segments.count) segment, "
                      + "\(locale.identifier)")
+            await runIntelligence(url: url, segments: segments)
         } catch let error as OraError {
             transcriptionStage = .idle
             self.error = error
@@ -236,6 +256,60 @@ final class RecordingController {
             transcriptionStage = .idle
             self.error = .transcriptionFailed(underlying: error)
         }
+    }
+
+    // MARK: - Noktalama ve özetleme (hat adımları 4-5)
+
+    /// İşlem hattı sırası sabittir: noktalama → özetleme → metrikler.
+    /// Model kullanılamıyorsa transkript yine gösterilir, yalnızca özet düşer.
+    private func runIntelligence(url: URL, segments: [Segment]) async {
+        let duration = Self.duration(of: url)
+        metrics = MeetingMetrics.compute(segments: segments, duration: duration)
+
+        let availability = intelligence.availability
+        guard availability.isAvailable else {
+            summaryNotice = availability.turkishMessage + ". " + availability.turkishDetail
+            transcriptionStage = .done
+            Log.warning(.intelligence, "Özetleme atlandı: \(availability.turkishMessage)")
+            return
+        }
+
+        // 4 — Noktalama restorasyonu (zorunlu adım)
+        transcriptionStage = .punctuating(0)
+        do {
+            let punctuated = try await intelligence.restorePunctuation(segments) { [weak self] value in
+                Task { @MainActor in self?.transcriptionStage = .punctuating(value) }
+            }
+            transcript = punctuated
+            metrics = MeetingMetrics.compute(segments: punctuated, duration: duration)
+        } catch {
+            // Noktalama bir iyileştirmedir; başarısız olursa hat durmaz.
+            Log.warning(.intelligence, "Noktalama atlandı: \(error.localizedDescription)")
+        }
+
+        // 5 — Map-reduce özetleme
+        transcriptionStage = .summarizing(0)
+        do {
+            let (ozet, konular) = try await intelligence.summarize(transcript) { [weak self] value in
+                Task { @MainActor in self?.transcriptionStage = .summarizing(value) }
+            }
+            summary = ozet
+            topics = konular
+            Log.info(.intelligence, "Özet hazır — \(ozet.kararlar.count) karar, "
+                     + "\(ozet.aksiyonlar.count) aksiyon, \(konular.count) konu")
+        } catch let error as OraError {
+            summaryNotice = error.turkishMessage + ". " + error.turkishDetail
+            Log.error(.intelligence, "Özetleme başarısız", error)
+        } catch {
+            summaryNotice = "Özet oluşturulamadı. Transkript korundu."
+            Log.error(.intelligence, "Özetleme başarısız", error)
+        }
+        transcriptionStage = .done
+    }
+
+    private static func duration(of url: URL) -> TimeInterval {
+        guard let file = try? AVAudioFile(forReading: url) else { return 0 }
+        return Double(file.length) / file.processingFormat.sampleRate
     }
 
     // MARK: - Çökme kurtarma

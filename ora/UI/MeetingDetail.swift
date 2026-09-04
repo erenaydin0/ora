@@ -12,10 +12,11 @@ struct MeetingDetail: View {
 
     let recorder: RecordingController
 
-    @State private var tab: Tab = .transcript
+    @State private var tab: Tab = .summary
 
     private var hasContent: Bool {
         !recorder.displayedSegments.isEmpty || recorder.isTranscribing
+            || recorder.summary != nil
     }
 
     var body: some View {
@@ -44,9 +45,10 @@ struct MeetingDetail: View {
 
                     switch tab {
                     case .summary:
-                        EmptyState(icon: "sparkles",
-                                   title: "Özet hazır değil",
-                                   detail: "Özetleme Faz 4'te devreye girecek.")
+                        SummaryView(summary: recorder.summary,
+                                    topics: recorder.topics,
+                                    metrics: recorder.metrics,
+                                    notice: recorder.summaryNotice)
                     case .transcript:
                         TranscriptView(segments: recorder.displayedSegments)
                     }
@@ -79,7 +81,8 @@ struct TranscriptionProgressBar: View {
 
     private var fraction: Double {
         switch stage {
-        case .downloadingLanguage(let value), .transcribing(let value): value
+        case .downloadingLanguage(let value), .transcribing(let value),
+             .punctuating(let value), .summarizing(let value): value
         case .preparingLanguage: 0
         case .idle, .done: 1
         }
@@ -90,6 +93,8 @@ struct TranscriptionProgressBar: View {
         case .preparingLanguage:            "Dil hazırlanıyor…"
         case .downloadingLanguage(let v):   "Dil paketi indiriliyor · \(Int(v * 100))%"
         case .transcribing(let v):          "Yazıya dökülüyor · \(Int(v * 100))%"
+        case .punctuating(let v):           "Noktalama ekleniyor · \(Int(v * 100))%"
+        case .summarizing(let v):           "Özetleniyor · \(Int(v * 100))%"
         case .idle, .done:                  ""
         }
     }

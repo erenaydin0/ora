@@ -97,9 +97,11 @@ protocol Transcribing {
 ```swift
 protocol Intelligent {
     var availability: ModelAvailability { get }
-    func restorePunctuation(_ segments: [Segment]) async throws -> [Segment]
-    func summarize(_ segments: [Segment]) async throws -> Ozet
-    func answer(question: String, over segments: [Segment]) async throws -> String
+    func restorePunctuation(_ segments: [Segment],
+                            progress: @Sendable (Double) -> Void) async throws -> [Segment]
+    func summarize(_ segments: [Segment],
+                   progress: @Sendable (Double) -> Void) async throws -> (Ozet, [TopicSegment])
+    // answer(question:over:) Faz 6'da (toplantı sohbeti) eklenecek
 }
 ```
 - **Her çağrıdan önce `availability` kontrol edilir.** `.unavailable` ise
@@ -107,6 +109,10 @@ protocol Intelligent {
 - Bağlam 4096 token → tüm uzun girdiler map-reduce edilir (~10.000 karakter/parça)
 - Her parça için **yeni `LanguageModelSession`**; oturum tekrar kullanılmaz
 - Çıktı `@Generable` şemalarla alınır; elle JSON ayrıştırma yasaktır
+- **Her LLM çağrısı başarısızlığa dayanıklıdır.** `guardrailViolation` gerçek ve
+  tekrarlayan bir durumdur (RESEARCH.md §15.1). Noktalama başarısız olursa
+  orijinal metin korunur; bir parçanın özeti başarısız olursa ham metnin başı
+  birleştirmeye girer — hiçbir bölüm sessizce kaybolmaz
 - Sağlık metrikleri (konuşma payı, ölü hava) burada değil, Pipeline'da
   zaman damgalarından **hesaplanır** — LLM'e sayı sordurma
 

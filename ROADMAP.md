@@ -118,17 +118,29 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
 
 ---
 
-## Faz 4 — Foundation Models
-- [ ] `availability` kapısı + Türkçe onboarding ekranı (Apple Intelligence kapalıysa)
-- [ ] **Noktalama restorasyonu** adımı (Türkçe çıktı noktalamasız geliyor)
-- [ ] Map-reduce özetleyici: ~10.000 karakterlik parçalar, parça başına yeni oturum
-- [ ] `@Generable` şemalar: `Ozet` (genelBakis, kararlar, aksiyonlar[kisi/gorev/sonTarih])
-- [ ] Konu segmentleri (`topic_segments`)
-- [ ] Sağlık metrikleri: konuşma payı, ölü hava yüzdesi — bunlar **hesaplanır**,
-      LLM'e sorulmaz (zaman damgaları elimizde)
-- [ ] Model kullanılamıyorsa transkript yine gösterilir, yalnız özet devre dışı
+## Faz 4 — Foundation Models ✅
+- [x] `availability` kapısı; kullanılamama nedeni Türkçe olarak Özet sekmesinde
+      yazılır ve Ayarlar'a yönlendirir
+- [x] **Noktalama restorasyonu** adımı. Model kelime değiştirirse o satır
+      **reddedilir** ve orijinal korunur; guardrail'e takılırsa yalın istemle
+      bir kez daha denenir
+- [x] Map-reduce özetleyici: ~10.000 karakterlik parçalar, parça başına yeni oturum,
+      kısmi özetler uzun kalırsa ek indirgeme turu
+- [x] `@Generable` şemalar: `Ozet` (genelBakis, kararlar, aksiyonlar[kisi/gorev/sonTarih])
+- [x] Konu segmentleri — başlık `@Generable KonuBasligi` ile, zaman aralığı
+      parçanın segmentlerinden (LLM'e sorulmaz)
+- [x] Sağlık metrikleri: konuşma payı, ölü hava — zaman damgalarından **hesaplanır**;
+      üst üste binen aralıklar bir kez sayılır
+- [x] Model kullanılamıyorsa transkript yine gösterilir, yalnız özet devre dışı
 
-*Çıktı:* Türkçe özet + aksiyon maddeleri (son tarihli). *Efor:* 3 gün
+*Çıktı:* Türkçe özet + aksiyon maddeleri (son tarihli). **Ölçümler: RESEARCH.md §15.**
+
+**Faz 4'te bilinçli bırakılanlar:**
+- Ayrı bir onboarding **ekranı** yazılmadı; Apple Intelligence kapalıysa neden ve
+  ne yapılacağı Özet sekmesinde Türkçe bir not olarak çıkıyor. Tam onboarding akışı
+  Faz 7'de (ilk açılış) yapılacak
+- Özet DB'ye yazılmıyor (`summaries`, `action_items`, `topic_segments` tabloları Faz 5)
+- Toplantı sohbeti (`answer`) protokole eklenmedi — Faz 6
 
 ---
 
