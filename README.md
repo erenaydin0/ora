@@ -10,6 +10,7 @@ bağımlılığı ve indirilen model **yoktur** — transkripsiyon ve özetleme
 işletim sisteminin kendi cihaz üstü modelleriyle yapılır.
 
 **Gereksinim:** macOS 26+, Apple Silicon, Apple Intelligence açık.
+**Boyut:** 7,7 MB uygulama, 3,7 MB .dmg — indirilen model yok.
 Windows kapsam dışıdır.
 
 ## Dosyalar — okuma sırası
@@ -38,6 +39,37 @@ Windows kapsam dışıdır.
 - Low Power Mode kaldırıldı — kayıt sonrası iş 30-60 dakikadan ~2 dakikaya indi
 - Siri'ye transkripsiyon/özetleme yaptıran API **yok** — bu yol kapalı
 - Tek gerçek gerileme: **diarization yok**; stereo kanal ayrımı çoğu ihtiyacı karşılıyor
+
+## Geliştirme
+
+```bash
+xcodebuild -project ora.xcodeproj -scheme ora -configuration Debug build
+./scripts/build-release.sh          # arşiv → .app → .dmg
+```
+
+### Kendinden imzalı sertifika (önerilir)
+
+Kimlik olmadan uygulama **ad-hoc** imzalanır ve imza her derlemede değişir;
+TCC uygulamayı her seferinde yeni sanır ve **mikrofon iznini yeniden sorar**.
+Sabit bir kimlik bunu bitirir:
+
+1. **Anahtar Zinciri Erişimi**'ni aç → menüden *Sertifika Yardımcısı →
+   Sertifika Oluştur…*
+2. Ad: `ora Development` · Kimlik Türü: **Kendinden İmzalı Kök** ·
+   Sertifika Türü: **Kod İmzalama** → Oluştur
+3. Sertifikayı çift tıkla → *Güven* → *Kod İmzalama*: **Her Zaman Güven**
+4. Derlerken kimliği ver:
+
+```bash
+xcodebuild -project ora.xcodeproj -scheme ora -configuration Debug ORA_SIGN_IDENTITY="ora Development" build
+```
+
+Kalıcı olsun istersen `ORA_SIGN_IDENTITY` proje ayarını Xcode'da bir kez
+`ora Development` yap. Bu sertifika **dağıtım için yetmez** — başka bir Mac'te
+Gatekeeper yine engeller. Dağıtım Apple Developer Program üyeliği ve
+`Developer ID Application` sertifikası ister; `scripts/build-release.sh`
+kimlik ve `ora-notary` anahtarlık profili varsa imzalama ile notarizasyonu
+kendiliğinden yapar.
 
 ## Durum
 **Faz 1 tamam** — Xcode projesi ayakta, uygulama açılıyor: izin metinleri, sandbox,

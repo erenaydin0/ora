@@ -5,6 +5,7 @@ struct RootView: View {
 
     let recorder: RecordingController
     @State private var isChatShown = false
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
         NavigationSplitView {
@@ -86,6 +87,10 @@ struct RootView: View {
             Button("Tamam", role: .cancel) { recorder.error = nil }
         } message: {
             Text(recorder.error?.turkishDetail ?? "")
+        }
+        .sheet(isPresented: Binding(get: { !hasCompletedOnboarding },
+                                    set: { if !$0 { hasCompletedOnboarding = true } })) {
+            OnboardingView(recorder: recorder) { hasCompletedOnboarding = true }
         }
         .sheet(item: Binding(get: { recorder.interrupted.first },
                              set: { _ in })) { recording in

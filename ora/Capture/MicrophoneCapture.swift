@@ -10,6 +10,11 @@ final class MicrophoneCapture: @unchecked Sendable {
     private var resampler: MonoResampler?
     private var isRunning = false
 
+    /// İzin daha önce verilmiş mi? İstem **çıkarmaz**.
+    static func isAuthorized() async -> Bool {
+        AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+    }
+
     /// Mikrofon izni. Reddedilirse kayıt başlamaz — sistem sesi tek başına
     /// bir toplantı kaydı sayılmaz.
     static func requestAccess() async -> Bool {

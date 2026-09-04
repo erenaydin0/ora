@@ -179,7 +179,7 @@ Türkçe'de kabaca **4 karakter ≈ 1 token**.
 
 | | Eski ora (Electron+Python) | Yeni ora (native) |
 |---|---|---|
-| Kurulum boyutu | ~1.5 GB + 2.5 GB model indirmesi | ~15 MB, model indirmesi yok |
+| Kurulum boyutu | ~1.5 GB + 2.5 GB model indirmesi | **7,7 MB uygulama · 3,7 MB .dmg** (ölçüldü, §18) |
 | Çalışma zamanı bağımlılığı | Python 3.11 + PyTorch + Node | yok |
 | 23 sn Türkçe ses | ~10-20 sn (CPU float32) | **0.43 sn** |
 | Özetleme | Qwen3.5 4B, 2.5 GB GGUF | Apple 3B, 0 MB (OS'a ait) |
@@ -745,3 +745,26 @@ SQL düzeyinde doğrulandı:
   ürettiğinde `pending`e **düşmüyor** — onay geri alınmıyor.
 - Reddedilen kelime 30 günlük soğuma boyunca listede görünmüyor ve
   transkripsiyona verilmiyor.
+
+
+---
+
+## 18. Faz 7 ölçümleri — paketleme
+
+Release arşivi bu makinede alındı:
+```
+ora.app : 7,7 MB      (GRDB dahil, gömülü çalışma zamanı yok)
+ora.dmg : 3,7 MB      (UDZO sıkıştırma)
+```
+§4'teki "~15 MB" tahmini yüksekti; gerçek boyut yarısından az. Karşılaştırma:
+eski ora ~1,5 GB bağımlılık **artı** ~2,5 GB model indirmesi istiyordu ve
+`.dmg` paketleme gömülü Python yüzünden hiç çalışmamıştı.
+
+Arşiv **standart bir Xcode arşividir** — gömülecek çalışma zamanı olmadığı için
+özel bir adım yok. `scripts/build-release.sh` arşivi alır, `.app`'i çıkarır,
+`.dmg` üretir; `Developer ID Application` kimliği ve `ora-notary` anahtarlık
+profili varsa imzalar ve notarize eder, yoksa uyarıp geçer.
+
+**Bu makinede kod imzalama kimliği yok** (`security find-identity` → 0 kimlik),
+bu yüzden imzalama ve notarizasyon adımları **çalıştırılamadı**. Üretilen `.dmg`
+ad-hoc imzalıdır ve başka bir Mac'te Gatekeeper tarafından engellenir.

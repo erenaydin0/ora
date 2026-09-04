@@ -17,6 +17,14 @@ struct OraApp: App {
         .defaultSize(width: 1100, height: 700)
         .windowToolbarStyle(.unified)
 
+        // Taşıyıcı yüzey: menü bar. Pencere kapalıyken de kayıt sürdürülebilir.
+        MenuBarExtra {
+            MenuBarContent(recorder: recorder)
+        } label: {
+            MenuBarLabel(recorder: recorder)
+        }
+        .menuBarExtraStyle(.window)
+
         Settings {
             SettingsView(recorder: recorder, settings: settings)
         }
@@ -43,8 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        // Faz 6'da menü bar öğesi geldiğinde bu `false` olur; şimdilik tek pencere.
-        true
+        // Taşıyıcı yüzey menü bardır (DESIGN.md §2): pencere kapansa da kayıt
+        // sürebilmeli ve algılama çalışmaya devam etmeli.
+        false
     }
 
     /// Kullanıcıya Türkçe hata — sessiz çökme yasak (CLAUDE.md "Hata Yönetimi").

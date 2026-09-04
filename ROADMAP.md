@@ -213,18 +213,41 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
   arayüzdeki şeritle aynı işi yapıyor ama bildirim yüzeyi sınanmadı
 - Menü bar öğesi ve çentik HUD — Faz 7 (DESIGN.md §2-3)
 
-## Faz 7 — Paketleme
-- [ ] Uygulama ikonu, menü bar öğesi, kayıt sırasında kırmızı nokta
-- [ ] Code signing + notarization + .dmg
-- [ ] İlk açılış onboarding: izinler, Apple Intelligence kontrolü, dil seçimi
-- [ ] Otomatik güncelleme (Sparkle — tek ek bağımlılık, onay gerektirir)
+## Faz 7 — Paketleme ✅
+- [x] Uygulama ikonu — BRAND paletiyle çizilir (`scripts/make-icon.swift`):
+      Paper Cream zemin, Core Blue "o" halkası, iki Slate Black çubuk. Gradyan yok
+- [x] Menü bar öğesi (`MenuBarExtra`) — **taşıyıcı yüzey**. Popover'da geçen süre,
+      iki kanalın seviye göstergesi, canlı transkriptin son satırı, Durdur,
+      sıradaki toplantı, "Pencereyi aç"
+- [x] Kayıt sırasında `.oraRed` nokta (nabız `.accessibilityReduceMotion`'a saygılı)
+- [x] Son pencere kapanınca uygulama kapanmaz — menü bar taşıyıcı olduğu için
+      kayıt ve algılama sürer
+- [x] İlk açılış onboarding: mikrofon izni, sistem sesi açıklaması,
+      Apple Intelligence durumu, dil seçimi
+- [x] `.dmg` üretimi — `scripts/build-release.sh`. **Ölçüldü:** 7,7 MB uygulama,
+      3,7 MB .dmg (RESEARCH.md §18)
+- [x] `ORA_SIGN_IDENTITY` derleme ayarı — kendinden imzalı sertifikayla sabit
+      kimlik, TCC izinlerinin her derlemede sıfırlanmasını bitirir (README)
+- [ ] **Code signing + notarization çalıştırılamadı** — bu makinede kod imzalama
+      kimliği yok. Betik kimlik ve `ora-notary` profili varsa kendiliğinden
+      imzalar ve notarize eder; ek kod gerekmiyor, Apple Developer üyeliği gerekiyor
+- [ ] **Otomatik güncelleme (Sparkle) — kullanıcı kararıyla eklenmedi.**
+      GRDB dışında ikinci bir bağımlılık olurdu ve notarize edilmiş bir dağıtım
+      kanalı olmadan güncelleme sunucusu zaten kurulamaz. Dağıtım başlayınca
+      yeniden değerlendirilir
 
-> Eski ora'nın Faz 9'da tıkandığı yer buydu (gömülü Python). Yeni mimaride
-> gömülecek çalışma zamanı olmadığı için bu faz standart Xcode arşividir.
+> Eski ora'nın Faz 9'da tıkandığı yer gömülü Python'du. Yeni mimaride gömülecek
+> çalışma zamanı olmadığı için bu faz standart bir Xcode arşivi oldu ve ilk
+> denemede `.dmg` üretti.
 
-*Efor:* 2-3 gün
-
----
+**Faz 7'de bilinçli bırakılanlar:**
+- **Çentik HUD** (DESIGN.md §3) yazılmadı. DESIGN onu "ek katman, taşıyıcı değil"
+  diye tanımlıyor ve taşıyıcı yüzey olan menü bar hazır. Geometri RESEARCH.md
+  §10'da ölçülü duruyor; istenirse eklenir
+- Global kısayol (⌘⇧R) bağlanmadı
+- Menü bar popover'ı ve onboarding arayüzde görüldü; **kayıt sırasındaki**
+  menü bar davranışı (kırmızı nokta, seviye çubukları, akan satır) gerçek bir
+  kayıtla sınanmadı
 
 ## Kapsam Dışı — bilerek yapılmayacaklar
 - Windows / Linux desteği

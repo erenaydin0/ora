@@ -412,9 +412,17 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       şeridi, otomatik durdurma önerisi, toplantı sohbeti, otomatik başlık,
       güç/termal ertelemesi, EventKit takvim entegrasyonu (opt-in).
       Ölçümler RESEARCH.md §17.
-    - Bekleyen: **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
-      (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa; gerçek bir
-      toplantı hâlâ gerekli. Ardından **Faz 7 — Paketleme**
+      **Faz 7 — Paketleme** tamam: uygulama ikonu, `MenuBarExtra` (taşıyıcı yüzey),
+      kayıt sırasında kırmızı nokta ve kanal seviyeleri, ilk açılış onboarding'i,
+      `scripts/build-release.sh` ile 3,7 MB .dmg (RESEARCH.md §18).
+    - Bekleyen:
+      1. **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
+         (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
+      2. **İmzalama ve notarizasyon** — makinede kod imzalama kimliği yok;
+         Apple Developer üyeliği gerekiyor. Betik hazır, ek kod gerekmiyor.
+      3. Gerçek bir Teams/Zoom toplantısıyla algılama→kayıt akışı denenmedi.
+    - **Sparkle (otomatik güncelleme) kullanıcı kararıyla eklenmedi.** Tek
+      bağımlılık GRDB olarak kalıyor.
     - **Bilinen geliştirme engeli:** makinede kod imzalama kimliği yok
       (`security find-identity` → 0). Ad-hoc imza her derlemede değiştiği için
       TCC uygulamayı yeni sanıyor ve mikrofon izni **her derlemede** yeniden
@@ -441,10 +449,13 @@ ora/Intelligence/      — FoundationIntelligence (noktalama + map-reduce özet)
 ora/Store/             — OraDatabase (şema + migration), MeetingStore (tek kapı),
                          Records (GRDB kayıtları), VocabularyStore
 ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
+                         MenuBarView (taşıyıcı yüzey), OnboardingView,
                          RecordingController, MeetingSidebar, MeetingDetail,
                          TranscriptView, SummaryView, MeetingExport, SettingsView,
                          MeetingNotifications, ChatInspector, EmptyState
-ora/Resources/Assets.xcassets/Colors — BRAND paletinin tek kaynağı
+ora/Resources/Assets.xcassets/Colors    — BRAND paletinin tek kaynağı
+ora/Resources/Assets.xcassets/AppIcon   — scripts/make-icon.swift üretir
+scripts/               — make-icon.swift (ikon), build-release.sh (arşiv → .dmg)
 ```
 Renkler asset kataloğundadır; `Color.oraPaper` gibi semboller derleme zamanında
 üretilir. Elle `Color("oraPaper")` yazma — yanlış isim derlenmez olsun.

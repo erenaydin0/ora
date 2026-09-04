@@ -56,6 +56,13 @@ final class RecordingController {
     private(set) var calendarParticipants: [String] = []
     /// Menü barda gösterilecek sıradaki toplantı.
     private(set) var upcomingEvent: MeetingEvent?
+    /// Kanal başına anlık ses seviyesi (0…1).
+    private(set) var channelLevels: [Int: Float] = [:]
+    /// Canlı transkriptin son satırı — menü bar popover'ında akar.
+    var lastLiveLine: String? {
+        volatileText.values.first(where: { !$0.isEmpty })
+            ?? liveSegments.last?.text
+    }
 
     private(set) var transcriptionStage: Stage = .idle
     enum Stage: Equatable {
@@ -92,6 +99,7 @@ final class RecordingController {
     private var observation: Task<Void, Never>?
     private var feedTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
+    private var levelTask: Task<Void, Never>?
     /// Şu anda kaydedilen toplantının `meetings.id` değeri.
     private var activeMeetingID: Int64?
     /// Kaydın takvimden eşleşen etkinliği (varsa).
@@ -435,12 +443,16 @@ final class RecordingController {
         }
         activeEvent = event
         detector.recordingStarted(bundleID: signal?.bundleID ?? preferredApp)
+        startLevelUpdates()
         await refresh()
         await startLive()
     }
 
     func stop() async {
         guard isRecording, let meetingID = activeMeetingID else { return }
+        levelTask?.cancel()
+        levelTask = nil
+        channelLevels = [:]
         await stopLive()
         do {
             let url = try await capture.stop()
@@ -457,6 +469,19 @@ final class RecordingController {
         activeEvent = nil
         detector.recordingStopped()
         await refresh()
+    }
+
+    /// Seviye göstergesi 100 ms'de bir tazelenir — ses yoluna dokunmaz,
+    /// yalnızca son tepe değerini okur.
+    private func startLevelUpdates() {
+        levelTask?.cancel()
+        levelTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self, self.isRecording else { return }
+                self.channelLevels = self.capture.levels
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
     }
 
     private func clearDisplayed() {

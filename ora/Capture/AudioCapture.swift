@@ -45,6 +45,8 @@ final class AudioCapture: AudioCapturing, @unchecked Sendable {
     private var micOnlyReason: String?
     private var tapIsActive = false
     private var scopeChecked = false
+    /// Kanal başına son tepe genlik — menü bar seviye göstergesi için.
+    private var peaks: [Int: Float] = [:]
     private let timerQueue = DispatchQueue(label: "ora.capture.flush", qos: .utility)
 
     private let stateContinuation: AsyncStream<CaptureState>.Continuation
@@ -172,7 +174,21 @@ final class AudioCapture: AudioCapturing, @unchecked Sendable {
         let position = aligner.position(hostTime: hostTime, start: start,
                                         frames: frames.count, channel: channel)
         writer.append(channel, frames: frames, at: position)
+
+        var peak: Float = 0
+        for sample in frames { peak = max(peak, abs(sample)) }
+        lock.withLock { peaks[channel.rawValue] = max(peaks[channel.rawValue] ?? 0, peak) }
         yieldLive(channel, frames, position)
+    }
+
+    /// Kanal başına anlık seviye (0…1). Okundukça sönümlenir; gösterge
+    /// sessizlikte takılı kalmaz.
+    var levels: [Int: Float] {
+        lock.withLock {
+            let current = peaks
+            for key in peaks.keys { peaks[key] = (peaks[key] ?? 0) * 0.6 }
+            return current
+        }
     }
 
     /// Canlı transkripsiyon tüketicisi (Faz 3). Tüketici yoksa veya geri kaldıysa
