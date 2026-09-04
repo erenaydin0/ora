@@ -170,44 +170,48 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
 
 ---
 
-## Faz 6 — Akıllı Katman
-- [ ] Vocabulary: `ContentHint.customizedLanguage` + `SFSpeechLanguageModel.Configuration`
-      ile özel sözlük; `corrections` tablosundan beslenir, `pending` → kullanıcı onayı
-- [ ] Toplantı sohbeti (transkript üzerinde soru-cevap, map-reduce ile)
-- [ ] Düşük güç / termal ertelemesi: `isLowPowerModeEnabled` + `thermalState`
-      kontrolü ve kullanıcıya sorma (iki satır — ayrı alt sistem yok)
-- [ ] **Toplantı algılama** — CoreAudio olay dinleyicileri (`isRunningInput`),
+## Faz 6 — Akıllı Katman ✅
+- [x] Vocabulary: `ContentHint.customizedLanguage` + `SFSpeechLanguageModel.Configuration`;
+      `corrections` tablosundan beslenir, `pending` → kullanıcı onayı.
+      **Ölçüldü:** `weight 1.0` + `count 30` ile terim tutma 2/5 → 4/5 (RESEARCH.md §17.1)
+- [x] Toplantı sohbeti (transkript üzerinde soru-cevap, map-reduce ile;
+      ilgisiz parçalar "YOK" ile elenir, `chat_history` tablosuna yazılır)
+- [x] Düşük güç / termal ertelemesi: `isLowPowerModeEnabled` + `thermalState`;
+      ertelenirse Özet sekmesinde "Şimdi özetle" düğmesi çıkar
+- [x] **Toplantı algılama** — CoreAudio olay dinleyicileri (`isRunningInput`),
       `ps aux` polling yok. Dışlama listesi, 10 sn titreşim engelleyici,
-      uygulama başına 30 dk soğuma. Detay: CLAUDE.md "Toplantı Algılama Kuralları"
-- [ ] Otomatik durdurma: mikrofon 30 sn bırakıldıysa bitirmeyi öner
-- [ ] Uygulama başına "her zaman kaydet" tercihi
-- [ ] **Otomatik başlık transkriptten** Foundation Models ile üretilir
-      (pencere başlığı okuma yok — ekran kaydı izni ister)
-### Takvim entegrasyonu (EventKit) — Faz 6'nın en yüksek kazançlı parçası
-- [ ] Ayarlarda opt-in anahtarı + **hangi takvimler** çoklu seçimi
+      uygulama başına 30 dk soğuma, süreç listesi değişince yeniden bağlanma
+- [x] Otomatik durdurma: mikrofon 30 sn bırakıldıysa arayüzde şeritle önerilir
+- [x] Uygulama başına "her zaman kaydet" tercihi (Ayarlar'dan da yönetilir)
+- [x] **Otomatik başlık transkriptten** Foundation Models ile üretilir
+      (pencere başlığı okunmaz)
+### Takvim entegrasyonu (EventKit) ✅
+- [x] Ayarlarda opt-in anahtarı + **hangi takvimler** çoklu seçimi
       (varsayılan: kapalı, hiçbir takvim seçili değil)
-- [ ] `requestFullAccessToEvents` + Türkçe izin metni ("yazmaz, veri çıkmaz")
-- [ ] `event(overlapping:)` — mikrofon sinyali ile ±10 dk toleransla eşleştir
-- [ ] Katılımcı filtresi: `participantType == .person` **ve**
-      `status != .declined` (oda/kaynak elenir)
-- [ ] `meeting_participants` join tablosu + `participants.email` (dedupe için,
-      arayüzde gösterilmez) + `meetings.calendar_event_id`
-- [ ] **Katılımcı adlarını `ContentHint.customizedLanguage`'a besle** — özel
-      isim tanıma doğruluğunu doğrudan artırır. Faz 0'daki sözlük testiyle
-      aynı mekanizma
-- [ ] Başlık önceliği: takvim adı → LLM'in ürettiği başlık → tarih/saat
-- [ ] `event.URL` / `notes`'tan toplantı uygulamasını çıkar → Capture'a hangi
-      bundle'ın tap'leneceğini söyle (saklanmaz)
-- [ ] `EKEventStoreChangedNotification` dinleyicisi (polling yok)
-- [ ] Yaklaşan toplantı göstergesi (menü bar popover'ında "14:00 Sprint Planlama")
-- [ ] Etkinlik bazlı otomatik kayıt — **opt-in**, etkinlik veya takvim başına
-- [ ] **Konuşmacı ayrıştırma (diarization)** — sistem kanalı içinde kişi ayrımı.
-      Apple API'si yok; seçenekler FALLBACK.md §3'te. Bu madde isteğe bağlıdır;
-      kanal düzeyi ayrım çoğu senaryoyu zaten karşılıyor
+- [x] `requestFullAccessToEvents` + Türkçe izin metni ("yazmaz, veri çıkmaz")
+- [x] Mikrofon sinyali ile ±10 dk toleransla eşleştirme
+- [x] Katılımcı filtresi: `participantType == .person` **ve** `status != .declined`
+- [x] `meeting_participants` join tablosu + `meetings.calendar_event_id`
+- [x] **Katılımcı adları sözlüğe besleniyor** (`source = 'calendar'`, doğrudan `active`)
+- [x] Başlık önceliği: takvim adı → LLM'in ürettiği başlık → tarih/saat
+- [x] `event.URL` / `notes`'tan toplantı uygulaması çıkarılıp Capture'a veriliyor
+      (saklanmaz); tarayıcı linkleri global tap'e düşer
+- [x] `EKEventStoreChangedNotification` dinleyicisi (polling yok)
+- [x] Yaklaşan toplantı verisi hazır (`upcomingEvent`) — menü bar popover'ı Faz 7
+- [ ] Etkinlik bazlı otomatik kayıt — **Faz 7'ye bırakıldı**; uygulama başına
+      "her zaman kaydet" bugünkü ihtiyacı karşılıyor
+- [ ] **Konuşmacı ayrıştırma (diarization)** — ROADMAP'te zaten *isteğe bağlı*
+      işaretliydi. Apple API'si yok; kanal düzeyi ayrım senaryoların çoğunu
+      karşılıyor. Yapılmadı, FALLBACK.md §3 açık duruyor
 
-*Efor:* 7-9 gün (takvim dahil)
-
----
+**Faz 6'da bilinçli bırakılanlar / doğrulanmayanlar:**
+- **Gerçek bir toplantıyla uçtan uca algılama denenmedi.** CoreAudio dinleyici
+  mekanizması RESEARCH.md §9'da, uygulamada da açılışta doğrulandı
+  ("27 süreç izleniyor"), ama Teams/Zoom toplantısıyla öneri→kayıt akışı
+  koşturulmadı
+- Bildirim izni bu makinede verilmedi; eylemli bildirimin butonları
+  arayüzdeki şeritle aynı işi yapıyor ama bildirim yüzeyi sınanmadı
+- Menü bar öğesi ve çentik HUD — Faz 7 (DESIGN.md §2-3)
 
 ## Faz 7 — Paketleme
 - [ ] Uygulama ikonu, menü bar öğesi, kayıt sırasında kırmızı nokta

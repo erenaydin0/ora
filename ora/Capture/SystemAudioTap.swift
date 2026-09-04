@@ -44,8 +44,13 @@ final class SystemAudioTap: @unchecked Sendable {
     ///
     /// Yerel bir toplantı uygulaması çalışıyorsa yalnızca o yakalanır; yoksa
     /// (tarayıcı toplantıları dahil) kendimiz hariç global tap'e düşülür.
-    func start(sink: @escaping Sink) throws {
-        let targets = MeetingApps.tapTargets()
+    /// - Parameter preferredApp: takvimden bilinen toplantı uygulaması.
+    ///   Tarayıcılar hedef olamaz (RESEARCH.md §13.3).
+    func start(preferredApp: String? = nil, sink: @escaping Sink) throws {
+        var targets = MeetingApps.tapTargets()
+        if let preferredApp, MeetingApps.native.contains(preferredApp) {
+            targets = [preferredApp]
+        }
         try start(scope: targets.isEmpty ? .globalExcludingSelf : .apps(targets), sink: sink)
     }
 

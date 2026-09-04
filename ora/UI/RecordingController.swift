@@ -41,6 +41,22 @@ final class RecordingController {
     /// Veritabanı açılamadıysa kullanıcıya söylenecek not.
     private(set) var storageNotice: String?
 
+    /// Algılamadan gelen öneri; kullanıcı karar verene kadar durur.
+    var pendingSignal: MeetingSignal? { detector.pendingSignal }
+    /// Toplantı uygulaması mikrofonu 30 sn'den uzun bıraktı.
+    var suggestsStop: Bool { detector.suggestsStop }
+    /// Güç/termal nedeniyle özetleme ertelendiyse nedeni.
+    private(set) var deferReason: PowerState.DeferReason?
+    /// Sohbet geçmişi ve durumu.
+    private(set) var chatTurns: [MeetingStore.ChatTurn] = []
+    private(set) var isAnswering = false
+    /// Sözlük onayı bekleyen kelimeler dahil tüm sözlük.
+    private(set) var vocabulary: [VocabularyStore.Word] = []
+    /// Takvimden gelen katılımcılar (Özet kartında gösterilir).
+    private(set) var calendarParticipants: [String] = []
+    /// Menü barda gösterilecek sıradaki toplantı.
+    private(set) var upcomingEvent: MeetingEvent?
+
     private(set) var transcriptionStage: Stage = .idle
     enum Stage: Equatable {
         case idle
@@ -64,6 +80,11 @@ final class RecordingController {
     private let transcription: any Transcribing
     private let intelligence: any Intelligent
     private let store: MeetingStore
+    private let vocabularyStore: VocabularyStore
+    let detector: MeetingDetector
+    let calendar: CalendarReader
+    private let notifications = MeetingNotifications()
+    private let settings: OraSettings
 
     private let route = LiveRoute()
     private var live: LiveTranscription?
@@ -73,16 +94,22 @@ final class RecordingController {
     private var refreshTask: Task<Void, Never>?
     /// Şu anda kaydedilen toplantının `meetings.id` değeri.
     private var activeMeetingID: Int64?
+    /// Kaydın takvimden eşleşen etkinliği (varsa).
+    private var activeEvent: MeetingEvent?
 
     private static let languageKey = "transcriptionLanguage"
 
     init(capture: any AudioCapturing = AudioCapture(),
          transcription: any Transcribing = SpeechTranscription(),
          intelligence: any Intelligent = FoundationIntelligence(),
-         database: OraDatabase? = nil) {
+         database: OraDatabase? = nil,
+         settings: OraSettings = .shared) {
         self.capture = capture
         self.transcription = transcription
         self.intelligence = intelligence
+        self.settings = settings
+        self.detector = MeetingDetector(settings: settings)
+        self.calendar = CalendarReader(settings: settings)
 
         // Veritabanı açılamazsa uygulama işlevsiz kalmaz: bellek içi bir
         // veritabanıyla sürer ve kullanıcıya Türkçe not düşülür.
@@ -100,6 +127,7 @@ final class RecordingController {
             }
         }
         self.store = MeetingStore(database: resolved)
+        self.vocabularyStore = VocabularyStore(database: resolved)
         self.storageNotice = notice
         self.language = UserDefaults.standard.string(forKey: Self.languageKey)
             .flatMap(TranscriptionLanguage.init(rawValue:)) ?? .turkish
@@ -115,6 +143,120 @@ final class RecordingController {
             for await buffer in capture.liveBuffers {
                 await route.current?.feed(buffer)
             }
+        }
+        wireDetection()
+    }
+
+    // MARK: - Toplantı algılama
+
+    private func wireDetection() {
+        detector.onAutoStart = { [weak self] signal in
+            Task { @MainActor in await self?.start(signal: signal) }
+        }
+        notifications.onRecord = { [weak self] bundleID in
+            Task { @MainActor in
+                guard let self, let signal = self.detector.pendingSignal,
+                      signal.bundleID == bundleID else { return }
+                self.detector.dismissSuggestion()
+                await self.start(signal: signal)
+            }
+        }
+        notifications.onDismiss = { [weak self] _ in
+            self?.detector.dismissSuggestion()
+        }
+        notifications.onAlways = { [weak self] bundleID in
+            guard let self else { return }
+            self.settings.alwaysRecordBundleIDs.insert(bundleID)
+            Task { @MainActor in
+                guard let signal = self.detector.pendingSignal,
+                      signal.bundleID == bundleID else { return }
+                self.detector.dismissSuggestion()
+                await self.start(signal: signal)
+            }
+        }
+    }
+
+    /// Uygulama açılışında bir kez.
+    ///
+    /// Algılama **bildirim iznini beklemez**: bildirim izni istemi kullanıcı
+    /// yanıtlayana kadar askıda kalır ve beklenirse algılama hiç başlamaz.
+    /// İzin verilmese bile öneri arayüzde görünür.
+    func startServices() async {
+        detector.start()
+        observeSignals()
+        await refreshVocabulary()
+        await refreshUpcoming()
+        Task { await notifications.prepare() }
+    }
+
+    private func observeSignals() {
+        Task { [weak self] in
+            // Öneri geldiğinde bildirim gönder; sinyal `@Observable` olduğu için
+            // burada kısa aralıklı bir kontrol yeterli ve ucuzdur.
+            var lastNotified: String?
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self else { return }
+                if let signal = self.detector.pendingSignal, signal.bundleID != lastNotified {
+                    lastNotified = signal.bundleID
+                    let event = self.settings.calendarEnabled
+                        ? self.calendar.event(overlapping: Date()) : nil
+                    await self.notifications.suggestRecording(signal, event: event)
+                } else if self.detector.pendingSignal == nil {
+                    lastNotified = nil
+                }
+            }
+        }
+    }
+
+    /// Arayüzdeki öneri şeridinden kayıt başlatma.
+    func startFromSuggestion() async {
+        guard let signal = detector.pendingSignal else { return }
+        detector.dismissSuggestion()
+        await start(signal: signal)
+    }
+
+    func refreshUpcoming() async {
+        upcomingEvent = settings.calendarEnabled ? calendar.upcoming().first : nil
+    }
+
+    // MARK: - Sözlük
+
+    func refreshVocabulary() async {
+        vocabulary = (try? await vocabularyStore.all()) ?? []
+    }
+
+    func approveWord(_ id: Int64) async {
+        try? await vocabularyStore.approve(id)
+        await refreshVocabulary()
+    }
+
+    func rejectWord(_ id: Int64) async {
+        try? await vocabularyStore.reject(id)
+        await refreshVocabulary()
+    }
+
+    func addWord(_ word: String) async {
+        try? await vocabularyStore.add(word)
+        await refreshVocabulary()
+    }
+
+    // MARK: - Toplantı sohbeti
+
+    func ask(_ question: String) async {
+        guard let meetingID = selection, !transcript.isEmpty, !isAnswering else { return }
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        isAnswering = true
+        defer { isAnswering = false }
+        do {
+            let answer = try await intelligence.answer(question: trimmed, over: transcript)
+            try? await store.appendChat(meetingID, question: trimmed, answer: answer)
+            chatTurns = (try? await store.chatHistory(meetingID)) ?? []
+        } catch let error as OraError {
+            self.error = error
+        } catch {
+            self.error = .modelUnavailable(reason: error.localizedDescription)
         }
     }
 
@@ -194,6 +336,8 @@ final class RecordingController {
             metrics = loaded.metrics
             summaryNotice = nil
             transcriptionStage = loaded.segments.isEmpty ? .idle : .done
+            chatTurns = (try? await store.chatHistory(meetingID)) ?? []
+            calendarParticipants = (try? await store.calendarParticipants(meetingID)) ?? []
         } catch {
             Log.error(.store, "Toplantı yüklenemedi: \(meetingID)", error)
             self.error = .audioWriteFailed(underlying: error)
@@ -224,6 +368,11 @@ final class RecordingController {
         do {
             try await store.applyCorrection(meetingID: meetingID, original: segment,
                                             corrected: text)
+            // Düzeltmede beliren yeni özel isimler sözlüğe **aday** olur;
+            // kullanıcı onaylamadan transkripsiyona verilmez.
+            try? await vocabularyStore.proposeFromCorrection(mistake: segment.text,
+                                                             correct: text)
+            await refreshVocabulary()
             await load(meetingID)
         } catch {
             Log.error(.store, "Düzeltme kaydedilemedi", error)
@@ -236,7 +385,11 @@ final class RecordingController {
         if isRecording { await stop() } else { await start() }
     }
 
-    func start() async {
+    func start() async { await start(signal: nil) }
+
+    /// - Parameter signal: algılamadan geldiyse hangi uygulamanın tap'leneceğini
+    ///   ve takvimde hangi etkinliğe denk geldiğini belirlemekte kullanılır.
+    func start(signal: MeetingSignal?) async {
         guard !isRecording else { return }
         clearDisplayed()
 
@@ -250,8 +403,25 @@ final class RecordingController {
         activeMeetingID = meetingID
         selection = meetingID
 
+        // Takvim açıksa o ana denk gelen etkinlik aranır (±10 dk tolerans).
+        // Etkinlik başlığı ve katılımcılar buradan gelir; toplantı linki
+        // yalnızca hangi uygulamanın tap'leneceğini söylemek için okunur.
+        var event: MeetingEvent?
+        if settings.calendarEnabled {
+            event = calendar.event(overlapping: Date())
+            if let event {
+                try? await store.linkCalendarEvent(meetingID, event: event)
+                // Katılımcı adları sözlüğe beslenir — özel isim tanımanın en
+                // zayıf noktasıdır, takvimin en somut teknik kazancı budur.
+                try? await vocabularyStore.addCalendarNames(event.attendees)
+                await refreshVocabulary()
+            }
+        }
+        let preferredApp = event?.meetingApp
+            ?? signal.flatMap { MeetingApps.native.contains($0.bundleID) ? $0.bundleID : nil }
+
         do {
-            try await capture.start(meetingID: meetingID)
+            try await capture.start(meetingID: meetingID, preferredApp: preferredApp)
         } catch let error as OraError {
             try? await store.delete(meetingID)
             activeMeetingID = nil
@@ -263,6 +433,8 @@ final class RecordingController {
             self.error = .audioWriteFailed(underlying: error)
             return
         }
+        activeEvent = event
+        detector.recordingStarted(bundleID: signal?.bundleID ?? preferredApp)
         await refresh()
         await startLive()
     }
@@ -282,6 +454,8 @@ final class RecordingController {
             self.error = .audioWriteFailed(underlying: error)
         }
         activeMeetingID = nil
+        activeEvent = nil
+        detector.recordingStopped()
         await refresh()
     }
 
@@ -294,6 +468,9 @@ final class RecordingController {
         topics = []
         metrics = nil
         summaryNotice = nil
+        deferReason = nil
+        chatTurns = []
+        calendarParticipants = []
         transcriptionStage = .idle
     }
 
@@ -301,10 +478,11 @@ final class RecordingController {
 
     private func startLive() async {
         let locale = language.locale ?? Locale(identifier: "tr-TR")
+        let words = (try? await vocabularyStore.activeWords()) ?? []
         let live = LiveTranscription()
         self.live = live
         route.set(live)
-        await live.start(locale: locale)
+        await live.start(locale: locale, vocabulary: words)
 
         if await live.isPaused {
             liveNotice = await live.pauseReason
@@ -353,14 +531,14 @@ final class RecordingController {
         }
 
         do {
-            let module = SpeechTranscription.makeTranscriber(locale: locale, vocabulary: [],
-                                                             live: false)
+            let module = SpeechTranscription.makeTranscriber(locale: locale, live: false)
             try await TranscriptionLocale.ensureInstalled(locale, module: module) { [weak self] value in
                 Task { @MainActor in self?.transcriptionStage = .downloadingLanguage(value) }
             }
             transcriptionStage = .transcribing(0)
+            let words = (try? await vocabularyStore.activeWords()) ?? []
             let segments = try await transcription.transcribe(
-                url: url, locale: locale, vocabulary: []
+                url: url, locale: locale, vocabulary: words
             ) { [weak self] value in
                 Task { @MainActor in self?.transcriptionStage = .transcribing(value) }
             }
@@ -382,6 +560,19 @@ final class RecordingController {
     private func runIntelligence(meetingID: Int64, segments: [Segment],
                                  duration: TimeInterval) async {
         metrics = MeetingMetrics.compute(segments: segments, duration: duration)
+
+        // Kayıt bitince işlem hemen başlar. **Tek istisna:** düşük güç modu veya
+        // termal baskı — o zaman otomatik başlatılmaz, kullanıcıya sorulur.
+        if let reason = PowerState.deferReason() {
+            deferReason = reason
+            summaryNotice = reason.turkishMessage + ". " + reason.turkishDetail
+            try? await store.saveSummary(meetingID, ozet: nil, topics: [], metrics: metrics)
+            try? await store.markReady(meetingID)
+            transcriptionStage = .done
+            Log.info(.pipeline, "Özetleme ertelendi: \(reason.turkishMessage)")
+            return
+        }
+        deferReason = nil
 
         let availability = intelligence.availability
         guard availability.isAvailable else {
@@ -424,10 +615,31 @@ final class RecordingController {
             Log.error(.intelligence, "Özetleme başarısız", error)
         }
 
+        // Başlık önceliği: takvim etkinlik adı → Foundation Models'ın ürettiği
+        // başlık → tarih/saat. Pencere başlığı **okunmaz**.
+        if activeEvent == nil, let title = await intelligence.generateTitle(from: transcript) {
+            try? await store.updateTitle(meetingID, title: title)
+        }
+
         // 6 — SQLite güncelle
         try? await store.saveSummary(meetingID, ozet: summary, topics: topics, metrics: metrics)
         try? await store.markReady(meetingID)
         transcriptionStage = .done
+        await refresh()
+
+        // 7 — Kullanıcıya bildir
+        if let title = meetings.first(where: { $0.id == meetingID })?.title {
+            await notifications.summaryReady(title: title)
+        }
+    }
+
+    /// Ertelenen özetlemeyi kullanıcı elle başlatır.
+    func summarizeNow() async {
+        guard let meetingID = selection, !transcript.isEmpty else { return }
+        deferReason = nil
+        summaryNotice = nil
+        let duration = metrics?.totalDuration ?? 0
+        await runIntelligence(meetingID: meetingID, segments: transcript, duration: duration)
     }
 
     private static func duration(of url: URL) -> TimeInterval {

@@ -134,6 +134,10 @@ Bu sıra asla değişmez:
 - Özel sözlük (vocabulary) `ContentHint.customizedLanguage(modelConfiguration:)`
   + `SFSpeechLanguageModel.Configuration` ile verilir. Vocabulary özelliğinin
   arka ucu budur; ayrı bir düzeltme katmanı yazma.
+- **Sözlük sabitleri ölçümle seçildi (RESEARCH.md §17.1): `count = 30`,
+  `weight = 1.0`.** Terim tutma 2/5'ten 4/5'e çıkıyor. `count`'u yükseltmek
+  (200) sonucu **kötüleştiriyor**. Bu iki sayıyı değiştirmeden önce
+  `probes/vocabulary.swift`'i yeniden koştur.
 - Dil seçimi: `DictationTranscriber.installedLocales` ile kurulu mu bak,
   değilse `AssetInventory` üzerinden indir. `maximumReservedLocales` = 5.
 - **`AnalyzerInput` damgası tam frame sayısından kurulur.** Ölçüldü
@@ -207,6 +211,10 @@ Bu sıra asla değişmez:
   (varsayılan 30 dk).
 - **İzinsiz otomatik kayıt yok.** Algılama yalnızca *önerir*. Kullanıcı bir
   uygulama için "her zaman kaydet" derse o uygulamada otomatik başlar.
+- **Algılama bildirim iznini beklemez.** Ölçüldü (RESEARCH.md §17.2):
+  `requestAuthorization` istemi kullanıcı yanıtlayana kadar askıda kalıyor;
+  beklenirse algılama hiç başlamıyor. Bildirim gönderilemediğinde öneri
+  arayüzdeki şeritte gösterilir — tek yüzeye bağlı kalınmaz.
 - **Otomatik durdurma:** toplantı uygulaması mikrofonu 30 sn'den uzun bıraktıysa
   kaydı bitirmeyi öner (30 sn eşiği sessize alma senaryosunu yaşatır).
 - **Tarayıcı toplantıları** (Chrome'da Google Meet): bundle ID tarayıcıdır,
@@ -399,9 +407,14 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       **Faz 5 — Depolama, Arama, UI** tamam: GRDB şeması + migration'lar,
       FTS5 + trigger'lar, toplantı listesi ve arama, düzeltme, silme,
       Markdown/PDF/e-posta dışa aktarımı (RESEARCH.md §16).
+      **Faz 6 — Akıllı Katman** tamam: özel sözlük (ölçülmüş `weight 1.0`),
+      CoreAudio olay tabanlı toplantı algılama, eylemli bildirimler + arayüz
+      şeridi, otomatik durdurma önerisi, toplantı sohbeti, otomatik başlık,
+      güç/termal ertelemesi, EventKit takvim entegrasyonu (opt-in).
+      Ölçümler RESEARCH.md §17.
     - Bekleyen: **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
       (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa; gerçek bir
-      toplantı hâlâ gerekli. Ardından **Faz 6 — Akıllı Katman**
+      toplantı hâlâ gerekli. Ardından **Faz 7 — Paketleme**
     - **Bilinen geliştirme engeli:** makinede kod imzalama kimliği yok
       (`security find-identity` → 0). Ad-hoc imza her derlemede değiştiği için
       TCC uygulamayı yeni sanıyor ve mikrofon izni **her derlemede** yeniden
@@ -414,7 +427,10 @@ ora.xcodeproj          — senkronize klasör grubu: ora/ altına eklenen dosya
 Config/Info.plist      — izin metinleri (INFOPLIST_FILE ile bağlı)
 Config/ora.entitlements— sandbox + audio-input; ağ girişi YOK (kural #3'ün garantisi)
 ora/oraApp.swift       — @main + AppDelegate (dizin hazırlığı, açık mod sabiti)
-ora/Core/              — AppPaths, Log, OraError, MeetingMetrics
+ora/Core/              — AppPaths, Log, OraError, MeetingMetrics, OraSettings,
+                         PowerState
+ora/Detect/            — MeetingDetector (CoreAudio olay dinleyicileri)
+ora/Calendar/          — CalendarReader (EventKit, opt-in)
 ora/Capture/           — AudioCapture (orkestra), MicrophoneCapture,
                          SystemAudioTap, StereoRecordingWriter, AudioClock,
                          RecordingRecovery, MeetingApps, Channel
@@ -423,11 +439,11 @@ ora/Transcribe/        — SpeechTranscription (tam geçiş), LiveTranscription,
 ora/Intelligence/      — FoundationIntelligence (noktalama + map-reduce özet),
                          Ozet (@Generable şemalar), TranscriptChunker, Intelligent
 ora/Store/             — OraDatabase (şema + migration), MeetingStore (tek kapı),
-                         Records (GRDB kayıtları)
+                         Records (GRDB kayıtları), VocabularyStore
 ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          RecordingController, MeetingSidebar, MeetingDetail,
-                         TranscriptView, SummaryView, MeetingExport,
-                         ChatInspector, EmptyState
+                         TranscriptView, SummaryView, MeetingExport, SettingsView,
+                         MeetingNotifications, ChatInspector, EmptyState
 ora/Resources/Assets.xcassets/Colors — BRAND paletinin tek kaynağı
 ```
 Renkler asset kataloğundadır; `Color.oraPaper` gibi semboller derleme zamanında

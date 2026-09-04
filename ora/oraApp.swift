@@ -5,15 +5,21 @@ import AppKit
 struct OraApp: App {
 
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    @State private var recorder = RecordingController()
+    @State private var settings = OraSettings.shared
 
     var body: some Scene {
         Window("ora", id: "main") {
-            RootView()
+            RootView(recorder: recorder)
                 .frame(minWidth: 900, minHeight: 560)
                 .background(Color.oraPaper)
         }
         .defaultSize(width: 1100, height: 700)
         .windowToolbarStyle(.unified)
+
+        Settings {
+            SettingsView(recorder: recorder, settings: settings)
+        }
     }
 }
 

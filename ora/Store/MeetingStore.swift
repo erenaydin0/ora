@@ -251,3 +251,83 @@ struct MeetingStore: Sendable {
         return trimmed
     }
 }
+
+// MARK: - Takvim bağı ve katılımcılar
+
+extension MeetingStore {
+
+    /// Takvim etkinliğini toplantıya bağlar.
+    ///
+    /// DB'ye **yalnızca gerekli olan** yazılır: etkinlik kimliği, başlık,
+    /// katılımcı adları. `notes`, `location` ve etkinlik gövdesi kopyalanmaz —
+    /// orası kullanıcının takviminde kalır.
+    func linkCalendarEvent(_ meetingID: Int64, event: MeetingEvent) async throws {
+        try await database.write { db in
+            try db.execute(sql: """
+                UPDATE meetings SET calendar_event_id = ?, title = ? WHERE id = ?
+                """, arguments: [event.eventID, event.title, meetingID])
+
+            for name in event.attendees {
+                let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                try db.execute(sql: """
+                    INSERT INTO participants (name, meeting_count, last_seen)
+                    VALUES (?, 0, datetime('now'))
+                    ON CONFLICT(name) DO UPDATE SET last_seen = datetime('now')
+                    """, arguments: [trimmed])
+                guard let participantID = try Int64.fetchOne(
+                    db, sql: "SELECT id FROM participants WHERE name = ?", arguments: [trimmed])
+                else { continue }
+                let role = (event.organizer == trimmed) ? "organizer" : "attendee"
+                try db.execute(sql: """
+                    INSERT OR IGNORE INTO meeting_participants
+                        (meeting_id, participant_id, source, role)
+                    VALUES (?, ?, 'calendar', ?)
+                    """, arguments: [meetingID, participantID, role])
+                try db.execute(sql: """
+                    UPDATE participants SET meeting_count =
+                        (SELECT COUNT(*) FROM meeting_participants WHERE participant_id = ?)
+                    WHERE id = ?
+                    """, arguments: [participantID, participantID])
+            }
+        }
+    }
+
+    /// Bir toplantının takvimden gelen katılımcıları.
+    func calendarParticipants(_ meetingID: Int64) async throws -> [String] {
+        try await database.read { db in
+            try String.fetchAll(db, sql: """
+                SELECT p.name FROM participants p
+                JOIN meeting_participants mp ON mp.participant_id = p.id
+                WHERE mp.meeting_id = ? AND mp.source = 'calendar'
+                ORDER BY p.name
+                """, arguments: [meetingID])
+        }
+    }
+
+    // MARK: - Toplantı sohbeti
+
+    func appendChat(_ meetingID: Int64, question: String, answer: String) async throws {
+        try await database.write { db in
+            try db.execute(sql: """
+                INSERT INTO chat_history (meeting_id, question, answer, timestamp)
+                VALUES (?, ?, ?, datetime('now'))
+                """, arguments: [meetingID, question, answer])
+        }
+    }
+
+    struct ChatTurn: Identifiable, Hashable, FetchableRecord, Decodable, Sendable {
+        var id: Int64
+        var question: String
+        var answer: String
+    }
+
+    func chatHistory(_ meetingID: Int64) async throws -> [ChatTurn] {
+        try await database.read { db in
+            try ChatTurn.fetchAll(db, sql: """
+                SELECT id, question, answer FROM chat_history
+                WHERE meeting_id = ? ORDER BY id
+                """, arguments: [meetingID])
+        }
+    }
+}

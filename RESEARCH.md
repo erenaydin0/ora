@@ -696,3 +696,52 @@ Silinen toplantının metni FTS'te **0 eşleşme** veriyor (trigger indeksi temi
 kalan kayıt hâlâ aranabiliyor. `corrections` satırı korunuyor ve `meeting_id`
 NULL oluyor (`ON DELETE SET NULL`) — kullanıcının düzeltme bilgisi toplantı
 silinince kaybolmuyor, Faz 6'da sözlüğü besleyecek.
+
+
+---
+
+## 17. Faz 6 ölçümleri — özel sözlük, algılama, bildirim
+
+### 17.1 Özel sözlük Türkçe'de ne kadar işe yarıyor?
+`ContentHint.customizedLanguage` gerçekten ölçüldü. Aynı ses, aynı beş terim,
+farklı yapılandırmalarla:
+
+| Yapılandırma | Datassist | Kerem Yücesoy | Alens | Bordro Farkları | CosmicDoc |
+|---|---|---|---|---|---|
+| sözlüksüz | ✗ | ✓ | ✗ | ✓ | ✗ |
+| count 30 · varsayılan ağırlık | ✓ | ✓ | ✗ | ✓ | ✗ |
+| count 30 · weight 0.5 | ✓ | ✓ | ✗ | ✓ | ✗ |
+| **count 30 · weight 1.0** | **✓** | **✓** | **✓** | **✓** | ✗ |
+| count 200 · weight 1.0 | ✓ | ✓ | ✗ | ✓ | ✗ |
+
+**Sonuç:** terim tutma 2/5 → **4/5**. `weight: 1.0` belirleyici; `count`'u
+30'dan 200'e çıkarmak sonucu **kötüleştiriyor** (aşırı ağırlıklandırma çevredeki
+kelimeleri bozuyor). Uygulamadaki sabitler bu ölçümle seçildi:
+`CustomVocabulary.phraseCount = 30`, `weight = 1.0`.
+
+`CosmicDoc` hiçbir yapılandırmada tutmadı — bitişik yazılmış İngilizce kökenli
+bir bileşik, Türkçe akustik modelin en zorlandığı biçim. Sözlük bir iyileştirmedir,
+garanti değil.
+
+Derleme maliyeti ihmal edilebilir: `export` 1,5 ms / 1 KB, `prepare` ~0,4 sn.
+
+*probe:* `probes/vocabulary.swift`
+
+### 17.2 Bildirim izni algılamayı **bloke etmemeli**
+İlk uygulama `startServices()` içinde önce `UNUserNotificationCenter
+.requestAuthorization` çağırıyordu. İstem kullanıcı yanıtlayana kadar askıda
+kaldığı için **toplantı algılama hiç başlamadı**. İzin verilmediğinde ise:
+```
+[UYARI] [ui] Bildirim izni alınamadı: Notifications are not allowed for this application
+[BİLGİ] [pipeline] Toplantı algılama açıldı — 27 süreç izleniyor
+```
+Sıra düzeltildikten sonra algılama izinden bağımsız çalışıyor. Bildirim
+gönderilemediğinde öneri **arayüzdeki şeritte** görünür — tek yüzeye bağlı
+kalınmaz.
+
+### 17.3 Sözlük durum makinesi
+SQL düzeyinde doğrulandı:
+- Kullanıcının onayladığı (`active`) bir kelime, aynı düzeltme tekrar aday
+  ürettiğinde `pending`e **düşmüyor** — onay geri alınmıyor.
+- Reddedilen kelime 30 günlük soğuma boyunca listede görünmüyor ve
+  transkripsiyona verilmiyor.

@@ -43,7 +43,9 @@ struct LiveBuffer: @unchecked Sendable {
 }
 
 protocol AudioCapturing: Sendable {
-    func start(meetingID: Int64) async throws
+    /// - Parameter preferredApp: takvim etkinliğinden çıkarılan toplantı
+    ///   uygulaması. Verilirse tap yalnızca onu hedefler.
+    func start(meetingID: Int64, preferredApp: String?) async throws
     /// Stereo WAV yolunu döndürür.
     func stop() async throws -> URL
     var state: AsyncStream<CaptureState> { get }

@@ -48,7 +48,11 @@ struct MeetingDetail: View {
                         SummaryView(summary: recorder.summary,
                                     topics: recorder.topics,
                                     metrics: recorder.metrics,
-                                    notice: recorder.summaryNotice)
+                                    notice: recorder.summaryNotice,
+                                    calendarParticipants: recorder.calendarParticipants,
+                                    onSummarizeNow: recorder.deferReason == nil ? nil : {
+                                        Task { await recorder.summarizeNow() }
+                                    })
                     case .transcript:
                         TranscriptView(segments: recorder.displayedSegments,
                                        onCorrect: recorder.canCorrect

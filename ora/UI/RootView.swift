@@ -3,7 +3,7 @@ import SwiftUI
 /// Ana pencere: `NavigationSplitView` (kenar çubuğu + içerik) + katlanabilir `.inspector`.
 struct RootView: View {
 
-    @State private var recorder = RecordingController()
+    let recorder: RecordingController
     @State private var isChatShown = false
 
     var body: some View {
@@ -18,7 +18,7 @@ struct RootView: View {
             }
         }
         .inspector(isPresented: $isChatShown) {
-            ChatInspector(isDisabledDuringRecording: recorder.isRecording)
+            ChatInspector(recorder: recorder, isDisabledDuringRecording: recorder.isRecording)
                 .inspectorColumnWidth(min: 280, ideal: 320, max: 420)
         }
         .toolbar {
@@ -65,7 +65,21 @@ struct RootView: View {
             }
         }
         .navigationTitle("ora")
-        .task { recorder.scanForInterruptedRecordings() }
+        .task {
+            recorder.scanForInterruptedRecordings()
+            await recorder.startServices()
+        }
+        .safeAreaInset(edge: .top) {
+            VStack(spacing: 0) {
+                // Bildirim izni verilmemiş olabilir; öneri o zaman burada görünür.
+                if let signal = recorder.pendingSignal, !recorder.isRecording {
+                    StartSuggestionBanner(signal: signal, recorder: recorder)
+                }
+                if recorder.suggestsStop {
+                    StopSuggestionBanner(recorder: recorder)
+                }
+            }
+        }
         .alert(recorder.error?.turkishMessage ?? "",
                isPresented: Binding(get: { recorder.error != nil },
                                     set: { if !$0 { recorder.error = nil } })) {
@@ -206,7 +220,57 @@ private struct InterruptedRecordingSheet: View {
     }
 }
 
+/// Toplantı algılandı önerisi. Bildirim gönderilemiyorsa tek yüzey budur.
+private struct StartSuggestionBanner: View {
+    let signal: MeetingSignal
+    let recorder: RecordingController
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: signal.isLowConfidence ? "questionmark.circle" : "waveform.badge.mic")
+                .foregroundStyle(Color.oraInkMuted)
+            Text(signal.turkishTitle)
+                .font(.system(size: 13))
+                .foregroundStyle(Color.oraInk)
+            Spacer()
+            Button("Şimdi değil") { recorder.detector.dismissSuggestion() }
+            Button("Bu uygulamayı hep kaydet") {
+                OraSettings.shared.alwaysRecordBundleIDs.insert(signal.bundleID)
+                Task { await recorder.startFromSuggestion() }
+            }
+            Button("Kaydet") { Task { await recorder.startFromSuggestion() } }
+                .keyboardShortcut(.defaultAction)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color.oraChrome)
+        .overlay(alignment: .bottom) { Divider().overlay(Color.oraBorder) }
+    }
+}
+
+/// Toplantı uygulaması mikrofonu 30 sn'den uzun bıraktı — bitirmeyi öner.
+private struct StopSuggestionBanner: View {
+    let recorder: RecordingController
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "mic.slash")
+                .foregroundStyle(Color.oraInkMuted)
+            Text("Toplantı uygulaması mikrofonu bıraktı. Kaydı bitirmek ister misiniz?")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.oraInk)
+            Spacer()
+            Button("Kaydı bitir") { Task { await recorder.stop() } }
+                .foregroundStyle(Color.oraRed)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color.oraChrome)
+        .overlay(alignment: .bottom) { Divider().overlay(Color.oraBorder) }
+    }
+}
+
 #Preview {
-    RootView()
+    RootView(recorder: RecordingController())
         .frame(width: 1100, height: 700)
 }

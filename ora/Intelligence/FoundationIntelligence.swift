@@ -184,6 +184,94 @@ struct FoundationIntelligence: Intelligent {
         }
     }
 
+    // MARK: - Toplantı sohbeti
+
+    func answer(question: String, over segments: [Segment]) async throws -> String {
+        guard availability.isAvailable else {
+            throw OraError.modelUnavailable(reason: availability.turkishMessage)
+        }
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        guard !segments.isEmpty else {
+            throw OraError.modelUnavailable(reason: "Bu toplantının transkripti yok")
+        }
+
+        let chunks = TranscriptChunker.chunks(of: segments,
+                                              limit: TranscriptChunker.summaryLimit)
+
+        // MAP — her parçaya soru ayrı sorulur; ilgisiz parçalar elenir.
+        var findings: [String] = []
+        for chunk in chunks {
+            let session = LanguageModelSession(instructions: Self.instructions)
+            let text = TranscriptChunker.render(chunk)
+            do {
+                let response = try await session.respond(to: """
+                    Aşağıdaki toplantı bölümünde şu sorunun yanıtı var mı?
+                    Soru: \(trimmed)
+
+                    Varsa kısaca yaz. Yoksa yalnızca "YOK" yaz. Uydurma.
+
+                    \(text)
+                    """)
+                let finding = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !finding.isEmpty, !finding.uppercased(with: Locale(identifier: "tr_TR"))
+                    .hasPrefix("YOK") {
+                    findings.append(finding)
+                }
+            } catch {
+                Log.warning(.intelligence, "Sohbet parçası atlandı: \(error.localizedDescription)")
+            }
+        }
+
+        guard !findings.isEmpty else {
+            return "Bu soruya toplantı transkriptinde bir yanıt bulamadım."
+        }
+        if findings.count == 1 { return findings[0] }
+
+        // REDUCE — bulgular tek yanıta indirgenir.
+        let session = LanguageModelSession(instructions: Self.instructions)
+        do {
+            let response = try await session.respond(to: """
+                Soru: \(trimmed)
+
+                Toplantının farklı bölümlerinden şu bulgular çıktı. Bunları
+                birleştirerek soruyu Türkçe ve kısaca yanıtla. Bulgularda olmayan
+                bir şey ekleme.
+
+                \(findings.joined(separator: "\n---\n"))
+                """)
+            return response.content
+        } catch {
+            return findings.joined(separator: "\n\n")
+        }
+    }
+
+    // MARK: - Otomatik başlık
+
+    func generateTitle(from segments: [Segment]) async -> String? {
+        guard availability.isAvailable, !segments.isEmpty else { return nil }
+        // Başlık için toplantının başı yeter; tamamını göndermek gereksiz.
+        let opening = TranscriptChunker.chunks(of: segments,
+                                               limit: TranscriptChunker.summaryLimit).first ?? segments
+        let session = LanguageModelSession(instructions: Self.instructions)
+        do {
+            let response = try await session.respond(
+                to: """
+                Bu toplantıya 3-6 kelimelik Türkçe bir başlık ver. Tarih yazma,
+                tırnak kullanma, "toplantı" kelimesini gereksizce tekrarlama.
+
+                \(TranscriptChunker.render(opening))
+                """,
+                generating: KonuBasligi.self)
+            let title = response.content.baslik
+                .trimmingCharacters(in: CharacterSet(charactersIn: " \"'.\n"))
+            return title.isEmpty ? nil : title
+        } catch {
+            Log.warning(.intelligence, "Başlık üretilemedi: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     private func partialSummary(of text: String) async -> String {
         let session = LanguageModelSession(instructions: Self.instructions)
         do {

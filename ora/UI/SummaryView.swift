@@ -8,6 +8,10 @@ struct SummaryView: View {
     let topics: [TopicSegment]
     let metrics: MeetingMetrics?
     let notice: String?
+    /// Takvimden gelen katılımcılar. Takvim kapalıysa boş ve **yer tutmaz**.
+    var calendarParticipants: [String] = []
+    /// Güç/termal nedeniyle ertelendiyse kullanıcı elle başlatabilir.
+    var onSummarizeNow: (() -> Void)?
 
     var body: some View {
         if summary == nil && notice == nil && metrics == nil {
@@ -18,7 +22,7 @@ struct SummaryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     if let notice {
-                        Notice(text: notice)
+                        Notice(text: notice, action: onSummarizeNow)
                     }
                     if let summary {
                         Section("Genel bakış") {
@@ -46,7 +50,10 @@ struct SummaryView: View {
                         }
                     }
                     if let metrics {
-                        Section("Toplantı") { MetricsCard(metrics: metrics) }
+                        Section("Toplantı") {
+                            MetricsCard(metrics: metrics,
+                                        calendarParticipants: calendarParticipants)
+                        }
                     }
                     if !topics.isEmpty {
                         Section("Konular") {
@@ -127,16 +134,37 @@ private struct ActionRow: View {
 /// Konuşma payı ve ölü hava — zaman damgalarından hesaplanır.
 private struct MetricsCard: View {
     let metrics: MeetingMetrics
+    var calendarParticipants: [String] = []
 
     var body: some View {
-        HStack(alignment: .top, spacing: 24) {
-            ForEach(Channel.allCases, id: \.rawValue) { channel in
-                Stat(label: channel.speaker,
-                     value: percent(metrics.talkShare[channel.rawValue] ?? 0))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 24) {
+                ForEach(Channel.allCases, id: \.rawValue) { channel in
+                    Stat(label: channel.speaker,
+                         value: percent(metrics.talkShare[channel.rawValue] ?? 0))
+                }
+                Stat(label: "Ölü hava", value: percent(metrics.deadAirPercentage))
+                Stat(label: "Süre", value: durationText)
+                Spacer()
             }
-            Stat(label: "Ölü hava", value: percent(metrics.deadAirPercentage))
-            Stat(label: "Süre", value: durationText)
-            Spacer()
+            // Davetli ve konuşan ayrımı toplantının kimin için yapıldığını söyler.
+            if !calendarParticipants.isEmpty {
+                Divider().overlay(Color.oraBorder)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.oraInkMuted)
+                        Text("davetli \(calendarParticipants.count)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.oraInkMuted)
+                    }
+                    Text(calendarParticipants.joined(separator: ", "))
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.oraInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -169,6 +197,8 @@ private struct MetricsCard: View {
 /// Özet neden yok — sessiz başarısızlık yok.
 private struct Notice: View {
     let text: String
+    var action: (() -> Void)?
+
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: "info.circle")
@@ -178,6 +208,9 @@ private struct Notice: View {
                 .foregroundStyle(Color.oraInkMuted)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
+            if let action {
+                Button("Şimdi özetle", action: action)
+            }
         }
         .padding(12)
         .oraCard()

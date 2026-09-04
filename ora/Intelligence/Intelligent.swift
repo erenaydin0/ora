@@ -52,4 +52,11 @@ protocol Intelligent: Sendable {
     /// Map-reduce özetleme. Transkript asla kırpılmaz.
     func summarize(_ segments: [Segment],
                    progress: @Sendable @escaping (Double) -> Void) async throws -> (Ozet, [TopicSegment])
+
+    /// Toplantı sohbeti: transkript üzerinde soru-cevap, map-reduce ile.
+    func answer(question: String, over segments: [Segment]) async throws -> String
+
+    /// Transkriptten başlık üretir. Pencere başlığı **okunmaz** — sandbox'lı
+    /// uygulamada ekran kaydı izni ister (RESEARCH.md §11).
+    func generateTitle(from segments: [Segment]) async -> String?
 }

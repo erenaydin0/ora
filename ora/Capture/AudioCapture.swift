@@ -62,7 +62,7 @@ final class AudioCapture: AudioCapturing, @unchecked Sendable {
 
     // MARK: - Başlat
 
-    func start(meetingID: Int64) async throws {
+    func start(meetingID: Int64, preferredApp: String? = nil) async throws {
         guard await MicrophoneCapture.requestAccess() else {
             let error = OraError.permissionDenied(.microphone)
             stateContinuation.yield(.failed(error))
@@ -105,7 +105,7 @@ final class AudioCapture: AudioCapturing, @unchecked Sendable {
 
         // Sistem sesi en iyi çabadır: alınamazsa kayıt yalnız mikrofonla sürer.
         do {
-            try tap.start { [weak self] frames, hostTime in
+            try tap.start(preferredApp: preferredApp) { [weak self] frames, hostTime in
                 self?.receive(.system, frames, hostTime, systemAligner)
             }
             lock.withLock { tapIsActive = true; scopeChecked = false }
