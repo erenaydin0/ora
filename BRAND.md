@@ -20,16 +20,23 @@ Lucide yerine SF Symbols.
 | Metin & tipografi | Slate Black | `#333333` | `.oraInk` |
 | İkincil metin | — | `#888888` | `.oraInkMuted` |
 | Vurgu | Core Blue | `#1A56A3` | `.oraBlue` |
-| Seçili arka plan | Baby Blue | `#CDE3F7` | `.oraBlueSoft` |
+| Vurgu / seçili zemin | Soft Apricot | `#F7C79A` | `.oraAccentSoft` |
 | Kayıt durumu | Active Red | `#E53935` | `.oraRed` |
 | Kart / panel içi | Pure White | `#FFFFFF` | `.oraSurface` |
 | Kenarlık | Soft Border | `#E8E8E8` | `.oraBorder` |
 
-**Uygulamanın vurgu rengi (`AccentColor`) `.oraBlueSoft`'tur.** macOS'un
-varsayılan sistem mavisi kullanılmaz: liste seçimi, anahtarlar ve varsayılan
-butonlar bu yumuşak maviyi alır. Doygun bir mavide seçili satırdaki metin ve
-kayıt noktası birbirine giriyordu; açık zeminde AppKit etiket rengini
-kendiliğinden koyuya çeviriyor ve her şey okunur kalıyor.
+**Uygulamanın vurgu rengi (`AccentColor`) `.oraAccentSoft`'tur.** macOS'un
+varsayılan sistem mavisi hiçbir yerde kullanılmaz: liste seçimi, anahtarlar,
+sekme seçimi ve varsayılan butonlar bu yumuşak turuncuyu alır. Açık zeminde
+AppKit etiket rengini kendiliğinden koyuya çevirdiği için her şey okunur kalır.
+
+İki uyarı:
+- **Doygunluk kasıtlı olarak yüksektir.** macOS kenar çubuğu seçimini
+  soldurarak çizer; `#F5D0AE` gibi daha açık bir ton ekranda bej görünüyordu.
+- **Active Red'e yaklaşmamalı.** `#E53935` yalnızca kayıt içindir; vurgu
+  turuncusu ondan açıkça ayırt edilebilir kalmalı, aksi hâlde kayıt göstergesinin
+  anlamı sulanır.
+
 Core Blue (`.oraBlue`) vurgu değil **içerik** rengidir: bağlantı metni, aksiyon
 sahibi adı, ilerleme göstergesi.
 
@@ -71,7 +78,7 @@ kendiliğinden uyar. Marka kimliğini renk, boşluk ve ton taşır; font değil.
 ## Bileşen Renk Kuralları
 - Birincil buton: `.oraBlue` zemin, beyaz metin
 - İkincil buton: `.oraSurface` zemin, `.oraInk` metin, `.oraBorder` kenarlık
-- Aktif / seçili: `.oraBlueSoft` zemin, `.oraInk` metin — sistem seçimi de
+- Aktif / seçili: `.oraAccentSoft` zemin, `.oraInk` metin — sistem seçimi de
   bu rengi kullanır (uygulama vurgu rengi olarak tanımlıdır)
 - Yıkıcı eylem: `.oraRed`
 - Kayıt butonu **yalnızca**: `.oraRed`, aktifken nabız animasyonu
