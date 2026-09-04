@@ -46,12 +46,17 @@ struct RootView: View {
                 .help("Dışa aktar")
             }
             ToolbarItem {
-                Button {
-                    withAnimation(OraStyle.transition) { isChatShown.toggle() }
-                } label: {
-                    Label("Sohbet", systemImage: "bubble.left.and.text.bubble.right")
+                // Toggle + .button stili: açıkken düğme native "basılı" görünümde
+                // kalır, panelin açık olduğu düğmeden anlaşılır.
+                Toggle(isOn: $isChatShown) {
+                    Label("Sohbet", systemImage: isChatShown
+                          ? "bubble.left.and.text.bubble.right.fill"
+                          : "bubble.left.and.text.bubble.right")
                 }
-                .help("Sohbet panelini aç/kapat")
+                .toggleStyle(.button)
+                .help(isChatShown ? "Sohbet panelini kapat" : "Sohbet panelini aç")
+                .accessibilityLabel("Sohbet paneli")
+                .accessibilityValue(isChatShown ? "açık" : "kapalı")
             }
         }
         // Başlıkta düz metin yok; kimlik ikon ve menü bardan geliyor.

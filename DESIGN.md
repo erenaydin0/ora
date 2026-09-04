@@ -118,6 +118,13 @@ katlama animasyonu, araç çubuğu düğmesi ve durum hatırlama getiriyor.
 └──────────────┴────────────────────────────┴───────────────┘
 ```
 
+Sohbet panelinin ayrı bir başlık şeridi **yoktur** — panelin kimliği araç
+çubuğundaki düğmeden ve içeriğinden bellidir, başka hiçbir panelde böyle bir
+etiket yok. Düğme `Toggle(.button)` stilindedir: panel açıkken basılı kalır,
+açık olduğu düğmeden anlaşılır. Boş durum panelin **tamamına** göre ortalanır
+(yazma alanı yüksekliği kadar yukarı kaymaz) ki kenar çubuğu ve orta paneldeki
+boş durumlarla aynı hizada dursun.
+
 **Sohbet paneli neden `.inspector`:** eski tasarımda 320px kalıcı olarak
 ayrılmıştı. Sohbet ara sıra kullanılan bir araç; transkript ise sürekli okunan
 metin. `.inspector` varsayılan kapalı gelir, açıldığında okunan metni daraltır

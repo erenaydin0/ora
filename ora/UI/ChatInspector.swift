@@ -10,6 +10,8 @@ struct ChatInspector: View {
     @State private var question = ""
     @FocusState private var isInputFocused: Bool
 
+    private var isEmpty: Bool { recorder.chatTurns.isEmpty && !recorder.isAnswering }
+
     private var canAsk: Bool {
         !isDisabledDuringRecording && !recorder.transcript.isEmpty
             && !recorder.isAnswering && recorder.modelAvailability.isAvailable
@@ -24,104 +26,78 @@ struct ChatInspector: View {
     ]
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-
-            Divider().overlay(Color.oraBorder)
-
-            ScrollViewReader { proxy in
-                ScrollView {
-                    if recorder.chatTurns.isEmpty && !recorder.isAnswering {
-                        emptyState
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 24)
-                    } else {
-                        LazyVStack(alignment: .leading, spacing: 18) {
-                            ForEach(recorder.chatTurns) { turn in
-                                TurnView(question: turn.question, answer: turn.answer)
-                            }
-                            if recorder.isAnswering {
-                                TurnView(question: pendingQuestion, answer: nil)
-                            }
-                            Color.clear.frame(height: 1).id("son")
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 16)
-                    }
-                }
-                .onChange(of: recorder.chatTurns.count) { _, _ in
-                    withAnimation(OraStyle.transition) { proxy.scrollTo("son", anchor: .bottom) }
-                }
-                .onChange(of: recorder.isAnswering) { _, _ in
-                    withAnimation(OraStyle.transition) { proxy.scrollTo("son", anchor: .bottom) }
-                }
+        // Boş durum panelin **tamamına** göre ortalanır — yazma alanı yüksekliği
+        // kadar yukarı kaymasın, kenar çubuğu ve orta paneldeki boş durumlarla
+        // aynı hizada dursun.
+        ZStack(alignment: .bottom) {
+            if isEmpty {
+                EmptyState(icon: emptyIcon, title: emptyTitle, detail: emptyDetail)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                conversation
             }
 
-            composer
+            VStack(spacing: 10) {
+                if isEmpty, canAsk { starterButtons }
+                composer
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.oraPaper)
     }
 
     // MARK: - Parçalar
 
-    private var header: some View {
-        HStack(spacing: 6) {
-            Text("SOHBET")
-                .font(.system(size: 11, weight: .medium))
-                .kerning(0.7)
-                .foregroundStyle(Color.oraInkMuted)
-            Spacer()
-            if !recorder.chatTurns.isEmpty {
-                Text("\(recorder.chatTurns.count) soru")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.oraInkMuted)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-    }
-
     @State private var pendingQuestion = ""
 
+    /// Sohbeti olan panel: soru-cevap listesi.
     @ViewBuilder
-    private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: emptyIcon)
-                .font(.system(size: 22, weight: .light))
-                .foregroundStyle(Color.oraInkMuted)
-            Text(emptyTitle)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color.oraInk)
-                .multilineTextAlignment(.center)
-            Text(emptyDetail)
-                .font(.system(size: 12))
-                .foregroundStyle(Color.oraInkMuted)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if canAsk {
-                VStack(spacing: 6) {
-                    ForEach(starters, id: \.self) { starter in
-                        Button {
-                            pendingQuestion = starter
-                            Task { await recorder.ask(starter) }
-                        } label: {
-                            Text(starter)
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color.oraBlue)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 7)
-                                .background(Color.oraBlueSoft)
-                                .clipShape(RoundedRectangle(cornerRadius: OraStyle.cornerRadius))
-                        }
-                        .buttonStyle(.plain)
+    private var conversation: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 18) {
+                    ForEach(recorder.chatTurns) { turn in
+                        TurnView(question: turn.question, answer: turn.answer)
                     }
+                    if recorder.isAnswering {
+                        TurnView(question: pendingQuestion, answer: nil)
+                    }
+                    // Yazma alanının altında kalmasın.
+                    Color.clear.frame(height: 64).id("son")
                 }
-                .padding(.top, 4)
+                .padding(.horizontal, 14)
+                .padding(.top, 16)
+            }
+            .onChange(of: recorder.chatTurns.count) { _, _ in
+                withAnimation(OraStyle.transition) { proxy.scrollTo("son", anchor: .bottom) }
+            }
+            .onChange(of: recorder.isAnswering) { _, _ in
+                withAnimation(OraStyle.transition) { proxy.scrollTo("son", anchor: .bottom) }
             }
         }
-        .padding(.horizontal, 20)
+    }
+
+    /// Ne sorabileceğini bilmeden boş bir kutuya bakmasın diye başlangıç soruları.
+    private var starterButtons: some View {
+        VStack(spacing: 6) {
+            ForEach(starters, id: \.self) { starter in
+                Button {
+                    pendingQuestion = starter
+                    Task { await recorder.ask(starter) }
+                } label: {
+                    Text(starter)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.oraBlue)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Color.oraBlueSoft)
+                        .clipShape(RoundedRectangle(cornerRadius: OraStyle.cornerRadius))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
     }
 
     private var emptyIcon: String {
@@ -154,7 +130,7 @@ struct ChatInspector: View {
 
     private var composer: some View {
         VStack(spacing: 0) {
-            Divider().overlay(Color.oraBorder)
+            if !isEmpty { Divider().overlay(Color.oraBorder) }
             HStack(alignment: .bottom, spacing: 8) {
                 TextField("Soru sorun", text: $question, axis: .vertical)
                     .textFieldStyle(.plain)
