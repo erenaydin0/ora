@@ -185,7 +185,9 @@ private struct Bullet: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("•").foregroundStyle(Color.oraInkMuted)
-            Text(text)
+            // Eski satırlarda model artığı olabilir; yazım tarafı artık
+            // temizliyor, gösterim tarafı geçmişi kurtarıyor.
+            Text(MeetingStore.cleaned(text))
                 .font(.system(size: 14))
                 .lineSpacing(OraStyle.bodyLineSpacing - 1)
                 .foregroundStyle(Color.oraInk)
@@ -219,7 +221,7 @@ private struct TopicBlock: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
-                Text(topic.title)
+                Text(MeetingStore.cleaned(topic.title))
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Color.oraInk)
                     .fixedSize(horizontal: false, vertical: true)
@@ -310,14 +312,14 @@ private struct ActionRow: View {
                                               : "Tamamlandı olarak işaretle")
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(action.task)
+                Text(MeetingStore.cleaned(action.task))
                     .font(.system(size: 14))
                     .lineSpacing(OraStyle.bodyLineSpacing - 1)
                     .foregroundStyle(action.isDone ? Color.oraInkMuted : Color.oraInk)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
-                if let context = action.context, !context.isEmpty {
-                    Text(context)
+                if let context = action.context, !MeetingStore.isUnspecified(context) {
+                    Text(MeetingStore.cleaned(context))
                         .font(.system(size: 12))
                         .lineSpacing(OraStyle.bodyLineSpacing - 2)
                         .foregroundStyle(Color.oraInkMuted)

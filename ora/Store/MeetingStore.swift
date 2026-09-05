@@ -78,12 +78,16 @@ struct MeetingStore: Sendable {
             try db.execute(sql: "DELETE FROM topic_segments WHERE meeting_id = ?", arguments: [meetingID])
 
             let encoder = JSONEncoder()
+            // Model çıktısının uçlarındaki artıklar **yazılmadan** kesilir;
+            // yoksa her okuyan yerde tekrar temizlemek gerekiyor.
             var summary = SummaryRecord(
                 id: nil, meetingId: meetingID,
-                overview: try ozet.map { String(data: try encoder.encode($0.genelBakis),
-                                                encoding: .utf8) } ?? nil,
-                decisions: try ozet.map { String(data: try encoder.encode($0.kararlar),
-                                                 encoding: .utf8) } ?? nil,
+                overview: try ozet.map {
+                    String(data: try encoder.encode($0.genelBakis.map(Self.cleaned)),
+                           encoding: .utf8) } ?? nil,
+                decisions: try ozet.map {
+                    String(data: try encoder.encode($0.kararlar.map(Self.cleaned)),
+                           encoding: .utf8) } ?? nil,
                 createdAt: Date())
             try summary.insert(db)
 
@@ -98,8 +102,9 @@ struct MeetingStore: Sendable {
             }
             for topic in topics {
                 var record = TopicSegmentRecord(
-                    id: nil, meetingId: meetingID, title: topic.title,
-                    bullets: String(data: try encoder.encode(topic.bullets), encoding: .utf8),
+                    id: nil, meetingId: meetingID, title: Self.cleaned(topic.title),
+                    bullets: String(data: try encoder.encode(topic.bullets.map(Self.cleaned)),
+                                    encoding: .utf8),
                     startTime: topic.start, endTime: topic.end)
                 try record.insert(db)
             }
