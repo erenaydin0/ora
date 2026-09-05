@@ -142,8 +142,12 @@ struct FoundationIntelligence: Intelligent {
 
     func summarize(_ segments: [Segment],
                    context: SummaryContext,
+                   variation: Bool = false,
                    progress: @Sendable @escaping (Double) -> Void) async throws
         -> SummaryResult {
+        // Yeniden üretimde örnekleme serbestleşir; aynı istem aynı özeti
+        // vermesin. Varsayılan geçiş dokunulmadan kalır.
+        let options = Self.options(variation: variation)
         guard availability.isAvailable else {
             throw OraError.modelUnavailable(reason: availability.turkishMessage)
         }
@@ -167,7 +171,8 @@ struct FoundationIntelligence: Intelligent {
         var skipped = 0
         for (index, chunk) in chunks.enumerated() {
             if let parca = await chunkTopics(of: TranscriptChunker.render(chunk),
-                                             target: target, context: context),
+                                             target: target, context: context,
+                                             options: options),
                let first = chunk.first, let last = chunk.last {
                 // `@Guide(.maximumCount:)` derleme zamanı sabiti; istemdeki
                 // "en fazla N konu" ölçümde tutmadı (23 bölüm çıktı, hedef 5-7).
@@ -223,7 +228,8 @@ struct FoundationIntelligence: Intelligent {
 
                 \(combined)
                 """,
-                generating: ToplantiOzeti.self)
+                generating: ToplantiOzeti.self,
+                options: options)
             progress(0.85)
             let ozet = Ozet(genelBakis: response.content.genelBakis,
                             kararlar: response.content.kararlar,
@@ -251,7 +257,8 @@ struct FoundationIntelligence: Intelligent {
 
     /// Bir parçayı konularına ayırır. Başarısız olursa **bir kez** daha denenir.
     private func chunkTopics(of text: String, target: Int,
-                             context: SummaryContext) async -> ParcaOzeti? {
+                             context: SummaryContext,
+                             options: GenerationOptions) async -> ParcaOzeti? {
         let prompt = """
             Split this meeting excerpt into its topics. Produce at most
             \(target) topics. For each topic write a 2-6 word Turkish heading
@@ -286,7 +293,8 @@ struct FoundationIntelligence: Intelligent {
             let session = LanguageModelSession(instructions: Self.instructions)
             do {
                 return try await session.respond(to: prompt,
-                                                 generating: ParcaOzeti.self).content
+                                                 generating: ParcaOzeti.self,
+                                                 options: options).content
             } catch {
                 Log.warning(.intelligence, "Konu ayrıştırma denemesi \(attempt) "
                             + "başarısız: \(error.localizedDescription)")
@@ -312,6 +320,15 @@ struct FoundationIntelligence: Intelligent {
         // anlatılıyor, yapılacak bir şey değil. Fiil listesi yetmedi (ölçüm:
         // "yazdı", "etti" listede yoktu); ek kalıbının kendisi aranır.
         return Self.pastEndings.contains { last.hasSuffix($0) }
+    }
+
+    /// Yeniden üretimde örnekleme ayarı. Varsayılan geçişte hiçbir seçenek
+    /// verilmez — ölçümler (RESEARCH.md §23-24) onunla alındı.
+    static func options(variation: Bool) -> GenerationOptions {
+        variation
+            ? GenerationOptions(sampling: .random(probabilityThreshold: 0.95),
+                                temperature: 0.9)
+            : GenerationOptions()
     }
 
     /// Türkçe belirli geçmiş 3. tekil eki. Diakritikler `words(of:)` içinde

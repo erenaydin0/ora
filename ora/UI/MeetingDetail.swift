@@ -25,6 +25,8 @@ struct MeetingDetail: View {
     /// Özet maddesi → transkript eşleştirmesi. Transkript başına **bir kez**
     /// kurulur; her satır için yeniden hesaplamak listeyi yavaşlatırdı.
     @State private var index = TranscriptIndex([])
+    /// Yeniden özetleme onayı — yalnızca işaretlenmiş aksiyon varsa sorulur.
+    @State private var confirmingResummarize = false
 
     /// Gösterilecek bir toplantı içeriği var mı — seçim yokken de kayıt sonrası
     /// akış bu yoldan görünür.
@@ -98,7 +100,16 @@ struct MeetingDetail: View {
                             },
                             canOpenText: index.isEmpty ? nil : { index.match($0) != nil },
                             onRetry: recorder.canRetry
-                                ? { Task { await recorder.retryProcessing() } } : nil)
+                                ? { Task { await recorder.retryProcessing() } } : nil,
+                            onResummarize: recorder.canResummarize ? {
+                                // İşaretli aksiyon varsa yeniden üretim onu
+                                // sıfırlar; sormadan yapılmaz.
+                                if recorder.hasCompletedActions {
+                                    confirmingResummarize = true
+                                } else {
+                                    Task { await recorder.resummarize() }
+                                }
+                            } : nil)
                     }
                 case .transcript:
                     TranscriptView(
@@ -146,6 +157,17 @@ struct MeetingDetail: View {
         .onChange(of: recorder.audioURL) { _, url in playback.load(url) }
         .onChange(of: recorder.displayedSegments) { _, segments in
             index = TranscriptIndex(segments)
+        }
+        .alert("Özeti yeniden oluştur", isPresented: $confirmingResummarize) {
+            Button("Vazgeç", role: .cancel) { confirmingResummarize = false }
+            Button("Yeniden oluştur") {
+                confirmingResummarize = false
+                Task { await recorder.resummarize() }
+            }
+        } message: {
+            Text("Yeni özet mevcut özetin yerine geçer ve aksiyonlar yeniden "
+                 + "üretilir; tamamlandı işaretleriniz silinir. "
+                 + "Transkript ve ses değişmez.")
         }
         .onDisappear { playback.pause() }
     }

@@ -213,6 +213,13 @@ Bu sıra asla değişmez:
 - **Daha güçlü bir cihaz üstü model yok** (§24.1). `.contentTagging` daha büyük
   bir model değil, aynı modelin başka kullanım biçimi. Tek kaldıraç
   `SystemLanguageModel.Adapter` — cihazda kalan, eğitilmiş bir LoRA katmanı.
+- **Kullanıcı özeti beğenmezse yeniden ürettirebilir.** Aynı istem çoğu zaman
+  aynı özeti verdiği için yeniden üretimde örnekleme serbestleştirilir
+  (`GenerationOptions(sampling: .random(probabilityThreshold: 0.95),
+  temperature: 0.9)`). **İlk geçiş varsayılan örneklemeyle kalır** — §23-24
+  ölçümleri onunla alındı, değiştirilirse ölçümler geçersizleşir.
+  Yeniden üretim aksiyonları da yeniden yazar; işaretli aksiyon varsa
+  kullanıcıya sorulur.
 - Her map-reduce parçası için **yeni `LanguageModelSession`** aç; oturumu
   tekrar kullanırsan geçmiş bağlamı yiyip 4096'yı taşırır.
 - **Noktalama istemine konuşmacı öneki ("Ben:", "Katılımcı:") EKLEME.**

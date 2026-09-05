@@ -754,7 +754,8 @@ final class RecordingController {
     }
 
     private func runIntelligence(meetingID: Int64, segments: [Segment],
-                                 duration: TimeInterval) async {
+                                 duration: TimeInterval,
+                                 variation: Bool = false) async {
         // Kayıt bitince işlem hemen başlar. **Tek istisna:** düşük güç modu veya
         // termal baskı — o zaman otomatik başlatılmaz, kullanıcıya sorulur.
         if let reason = PowerState.deferReason() {
@@ -798,8 +799,8 @@ final class RecordingController {
                 participants: calendarParticipants + [settings.userDisplayName]
                     .compactMap { $0.isEmpty ? nil : $0 },
                 userName: settings.userDisplayName.isEmpty ? nil : settings.userDisplayName)
-            let result = try await intelligence.summarize(transcript,
-                                                          context: context) { [weak self] value in
+            let result = try await intelligence.summarize(
+                transcript, context: context, variation: variation) { [weak self] value in
                 Task { @MainActor in self?.transcriptionStage = .summarizing(value) }
             }
             summary = result.ozet
@@ -868,6 +869,31 @@ final class RecordingController {
         await runIntelligence(meetingID: meetingID, segments: transcript,
                               duration: TimeInterval(selectedMeeting?.duration ?? 0))
     }
+
+    /// Var olan özeti beğenmediyse kullanıcı yeniden ürettirir.
+    ///
+    /// Aynı istemle koşmak çoğu zaman aynı özeti verir; bu yüzden örnekleme
+    /// serbestleştirilir (`variation`). Aksiyonlar yeniden üretildiği için
+    /// **işaretlenmiş olanların durumu sıfırlanır** — arayüz bunu soruyor.
+    func resummarize() async {
+        guard canResummarize, let meetingID = selection else { return }
+        Log.info(.intelligence, "Özet yeniden üretiliyor — toplantı \(meetingID)")
+        deferReason = nil
+        summaryNotice = nil
+        await runIntelligence(meetingID: meetingID, segments: transcript,
+                              duration: TimeInterval(selectedMeeting?.duration ?? 0),
+                              variation: true)
+    }
+
+    /// Özet var ve yeniden üretilebilir durumda mı?
+    var canResummarize: Bool {
+        summary != nil && !isRecording && !isTranscribing && !transcript.isEmpty
+            && modelAvailability.isAvailable
+    }
+
+    /// Tamamlandı işaretli aksiyon var mı — yeniden üretim bunları sıfırlar,
+    /// o yüzden önce sorulur.
+    var hasCompletedActions: Bool { actions.contains { $0.isDone } }
 
     private static func duration(of url: URL) -> TimeInterval {
         guard let file = try? AVAudioFile(forReading: url) else { return 0 }

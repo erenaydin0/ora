@@ -192,6 +192,11 @@ olabilir — ve kart aksiyonlarla konuların arasında okuma akışını kesiyor
   altında ikinci bir renk olarak kalıyordu. Ok tuşlarıyla gezinme elle kurulur.
 - Takvim kapalıyken bu yüzeylerin hiçbiri **yer tutmaz**; boş kart gösterme
 
+### Notun sonundaki tek eylem
+Özetin **altında** "Özeti yeniden oluştur" durur: kullanıcı önce okur, sonra
+beğenmediğine karar verir. Tepede şerit ya da araç çubuğu düğmesi bu sırayı
+bozardı. İşaretlenmiş aksiyon varsa önce sorulur — yeniden üretim onları siler.
+
 ### Yüzen yüzeyler
 Sürekli görünmesi gereken ama sayfanın parçası olmayan iki araç **yüzer**:
 - **Oynatıcı** — panelin altında ortada duran kart. Kenardan kenara şerit

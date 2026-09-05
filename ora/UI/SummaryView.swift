@@ -29,6 +29,9 @@ struct SummaryView: View {
     var canOpenText: ((String) -> Bool)?
     /// Ses diskte ama transkript yok — ham sesten yeniden işle.
     var onRetry: (() -> Void)?
+    /// Özeti beğenmediyse kullanıcı yeniden ürettirir. Notun **sonunda** durur:
+    /// önce okunur, sonra karar verilir (tepede şerit yok — DESIGN.md §4).
+    var onResummarize: (() -> Void)?
 
     @State private var actionsExpanded = true
 
@@ -110,6 +113,9 @@ struct SummaryView: View {
                             }
                         }
                     }
+                    if let onResummarize {
+                        ResummarizeRow(action: onResummarize)
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
@@ -160,6 +166,37 @@ struct SummaryView: View {
                 content()
             }
         }
+    }
+}
+
+/// Notun sonundaki tek eylem: özeti yeniden ürettir.
+///
+/// Notun **altında** durur; kullanıcı önce okur, sonra beğenmediğine karar
+/// verir. Tepede bir şerit ya da araç çubuğu düğmesi bu sırayı bozardı.
+private struct ResummarizeRow: View {
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button(action: action) {
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.trianglehead.2.clockwise")
+                        .font(.system(size: 10))
+                    Text("Özeti yeniden oluştur")
+                        .font(.system(size: 12))
+                }
+                .foregroundStyle(isHovered ? Color.oraCarmine : Color.oraInkMuted)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering in
+                withAnimation(OraStyle.transition) { isHovered = hovering }
+            }
+            .help("Aynı transkriptten yeni bir özet üretir")
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 4)
     }
 }
 

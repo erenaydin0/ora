@@ -62,8 +62,15 @@ protocol Intelligent: Sendable {
     ///
     /// `context` toplantı tarihini ve sorumlu kişi için kapalı isim listesini
     /// taşır; ikisi de isteğe bağlıdır (takvim kapalıysa liste boştur).
+    ///
+    /// `variation` kullanıcı özeti beğenmeyip **yeniden ürettiğinde** açılır:
+    /// örnekleme daha serbest yapılır, yoksa aynı istem büyük olasılıkla aynı
+    /// özeti verir ve düğme bozukmuş gibi görünür. İlk geçiş her zaman
+    /// varsayılan örneklemeyle çalışır — RESEARCH.md §23-24 ölçümleri onunla
+    /// alındı.
     func summarize(_ segments: [Segment],
                    context: SummaryContext,
+                   variation: Bool,
                    progress: @Sendable @escaping (Double) -> Void) async throws
         -> SummaryResult
 
