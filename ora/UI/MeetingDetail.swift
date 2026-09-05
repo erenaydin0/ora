@@ -8,6 +8,15 @@ struct MeetingDetail: View {
         case summary = "Özet"
         case transcript = "Transkript"
         var id: String { rawValue }
+
+        /// Dar pencerede sekme etiketleri yerine simge kullanılır — iki kelime
+        /// 165 pt yer kaplıyor ve o yer başlıktan çalınıyor.
+        var icon: String {
+            switch self {
+            case .summary:    "list.bullet.rectangle"
+            case .transcript: "text.alignleft"
+            }
+        }
     }
 
     let recorder: RecordingController
@@ -192,6 +201,12 @@ private struct MeetingHeader: View {
     var canFind = false
     var find: () -> Void = {}
 
+    /// Başlığın gerçekten kullanabileceği genişlik. Sekme seçici sabit
+    /// genişlikte olduğu için dar pencerede başlığa yer kalmıyordu; ölçülen
+    /// genişliğe göre seçici simgeye iner.
+    @State private var width: CGFloat = 0
+    private var isCompact: Bool { width > 0 && width < 520 }
+
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 3) {
@@ -202,18 +217,19 @@ private struct MeetingHeader: View {
                     .truncationMode(.tail)
                     .textSelection(.enabled)
                 if meeting != nil {
-                    HStack(spacing: 6) {
-                        Chip(icon: "calendar", text: meeting?.dateLabel ?? "")
-                        if let duration = meeting?.duration, duration > 0 {
-                            Chip(icon: "clock", text: meeting?.durationLabel ?? "")
-                        }
-                        if let statusNote {
-                            Chip(icon: "exclamationmark.circle", text: statusNote)
-                        }
+                    // Dar pencerede çipler sıkışıp harf harf alt alta iniyordu.
+                    // `ViewThatFits` sığanı seçer: önce hepsi, sonra tarih +
+                    // durum, en dar hâlde yalnızca tarih. Çipler `fixedSize`
+                    // olduğu için hiçbiri ezilmez.
+                    ViewThatFits(in: .horizontal) {
+                        chips(showsDuration: true, showsStatus: true)
+                        chips(showsDuration: false, showsStatus: true)
+                        chips(showsDuration: false, showsStatus: false)
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
 
             if canFind {
                 Button(action: find) {
@@ -229,17 +245,40 @@ private struct MeetingHeader: View {
                 .accessibilityLabel("Transkriptte ara")
             }
 
-            Picker("", selection: $tab) {
-                ForEach(MeetingDetail.Tab.allCases) { Text($0.rawValue).tag($0) }
+            // Geniş pencerede sistem sekmesi; dar pencerede simge sekmesi.
+            // Sistem `Picker`'ı `Label`'ı simgeye indirmiyor (etiketi de
+            // çiziyor), o yüzden dar hâl elle çizilir — 165 pt yerine ~70 pt.
+            if isCompact {
+                CompactTabs(tab: $tab)
+            } else {
+                Picker("", selection: $tab) {
+                    ForEach(MeetingDetail.Tab.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 190)
-            .fixedSize()
         }
         .padding(.horizontal, 20)
         .padding(.top, 14)
         .padding(.bottom, 12)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+    }
+
+    /// Başlığın altındaki çip satırı. Hangi çiplerin çizileceği
+    /// `ViewThatFits` tarafından seçilir.
+    @ViewBuilder
+    private func chips(showsDuration: Bool, showsStatus: Bool) -> some View {
+        HStack(spacing: 6) {
+            Chip(icon: "calendar", text: meeting?.dateLabel ?? "")
+            if showsDuration, let duration = meeting?.duration, duration > 0 {
+                Chip(icon: "clock", text: meeting?.durationLabel ?? "")
+            }
+            if showsStatus, let statusNote {
+                Chip(icon: "exclamationmark.circle", text: statusNote)
+            }
+        }
+        .fixedSize()
     }
 
     private var statusNote: String? {
@@ -248,6 +287,40 @@ private struct MeetingHeader: View {
         case MeetingRecord.Status.processing.rawValue: "işleniyor"
         default: nil
         }
+    }
+}
+
+/// Dar pencerede sekme: yalnızca simge. Seçili sekme, kenar çubuğu kartıyla
+/// aynı dili konuşur — dolu Carmine, kâğıt rengi simge.
+private struct CompactTabs: View {
+    @Binding var tab: MeetingDetail.Tab
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(MeetingDetail.Tab.allCases) { item in
+                Button { tab = item } label: {
+                    Image(systemName: item.icon)
+                        .font(.system(size: 11))
+                        .foregroundStyle(tab == item ? Color.oraPaper : Color.oraInk)
+                        .frame(width: 30, height: 20)
+                        .background {
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(tab == item ? Color.oraCarmine : Color.clear)
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(item.rawValue)
+                .accessibilityLabel(item.rawValue)
+                .accessibilityAddTraits(tab == item ? [.isSelected] : [])
+            }
+        }
+        .padding(2)
+        .background {
+            RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous)
+                .fill(Color.oraChrome)
+        }
+        .fixedSize()
     }
 }
 
@@ -262,8 +335,9 @@ private struct Chip: View {
             Image(systemName: icon)
                 .font(.system(size: 10))
                 .symbolRenderingMode(.monochrome)
-            Text(text).font(.system(size: 12))
+            Text(text).font(.system(size: 12)).lineLimit(1)
         }
+        .fixedSize()
         .foregroundStyle(Color.oraInkMuted)
         .padding(.horizontal, 8)
         .padding(.vertical, 3)

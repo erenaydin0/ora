@@ -1380,10 +1380,39 @@ Listenin `.sidebar` biçimi kendi başlık/satır girintisini uyguluyor ve
 | −12  | 12 pt | 21 pt | 31 pt |
 | −16  | **9 pt** | **17 pt** | 16 pt (başlık −7 pt ile) |
 
-Sonuç: `leading: -16`, `trailing: 0`, kart iç boşluğu 8 pt. Kartın solunda 9 pt,
-sağında 7 pt boşluk kalıyor. Bölüm başlığı (`BUGÜN`) kartın **metniyle** aynı
-hizada durması için `-7 pt` ile kaydırılıyor — listenin başlık girintisi
-satır girintisinden 7 pt fazla.
+Son değerler: `leading: -18`, `trailing: -7`, kart iç boşluğu 8 pt → kartın
+solunda ~8 pt, sağında ~7 pt boşluk. Bölüm başlığı (`BUGÜN`) kartın **metniyle**
+hizalı dursun diye `-6 pt` ile kaydırılıyor: listenin başlık girintisi satır
+girintisinden 6 pt fazla.
+
+**Sütun genişliği de ölçümle bulundu.** `navigationSplitViewColumnWidth`'in
+`ideal` değeri **uygulanmıyor**: macOS kenar çubuğu genişliğini
+`NSSplitView Subview Frames …` anahtarında saklıyor ve onu tercih ediyor
+(bu makinede 268 pt). Genişliği gerçekten değiştiren `max` — 240'a çekilince
+sütun 268 → ~246 pt'ye indi. Kayıtlı değeri silmek gerekiyorsa:
+`defaults delete <bundle> "NSSplitView Subview Frames main, SidebarNavigationSplitView"`.
+
+**Ders:** pikselleri renk eşiğiyle ölçen betikler yanıltabiliyor — kenar
+çubuğu yarı saydam olduğu için "kenar" sandığım sütun aslında başka bir
+geçişti. Kesin sonuç, kırpılmış ekran görüntüsüne büyütüp **bakmakla** alındı.
+
+### 26.3 Dar pencerede başlık şeridi
+
+Sohbet açıkken orta panel ~390 pt'ye inebiliyor. O genişlikte:
+- tarih/süre çipleri harf harf alt alta iniyordu (sıkıştırılabilir `Text`),
+- başlık "Üçünc…" diye kesiliyordu, çünkü sabit 190 pt'lik segment sekme
+  şeridin yarısını yiyordu.
+
+Düzeltme:
+- Çipler `fixedSize` + `ViewThatFits`: sığmazsa önce süre, sonra durum çipi
+  düşer; kalan çip **hiç ezilmez**.
+- Sekme şeridi `onGeometryChange` ile ölçülen genişliğe göre biçim değiştirir:
+  520 pt'nin altında etiket yerine simge (165 pt → ~70 pt). Sistem `Picker`'ı
+  `Label`'ı simgeye indirmiyor (`.labelStyle(.iconOnly)` etiketi yine
+  çiziyor), bu yüzden dar hâl elle çizilen iki düğmedir.
+
+Sonuç: aynı 390 pt'lik şeritte başlık "Üçünc…" yerine
+"Üçüncü Taraf Ücretlendir…" gösteriyor ve iki çip de okunuyor.
 
 ### 26.2 Sohbet paneli: `.inspector` yerine orta panelin içinde bölme
 

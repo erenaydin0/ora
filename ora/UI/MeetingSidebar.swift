@@ -29,7 +29,7 @@ struct MeetingSidebar: View {
                                isSelected: recorder.showsActionBoard) {
                     recorder.showsActionBoard = true
                 }
-                .listRowInsets(EdgeInsets(top: 2, leading: -16, bottom: 2, trailing: 0))
+                .listRowInsets(EdgeInsets(top: 2, leading: -18, bottom: 2, trailing: -7))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
             }
@@ -45,7 +45,7 @@ struct MeetingSidebar: View {
                                        snippet: recorder.searchSnippets[meeting.id])
                         }
                             .buttonStyle(.plain)
-                            .listRowInsets(EdgeInsets(top: 2, leading: -16, bottom: 2, trailing: 0))
+                            .listRowInsets(EdgeInsets(top: 2, leading: -18, bottom: 2, trailing: -7))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                             .contextMenu {
@@ -68,7 +68,7 @@ struct MeetingSidebar: View {
                         .font(.system(size: 11, weight: .semibold))
                         .kerning(0.5)
                         .foregroundStyle(Color.oraInkMuted)
-                        .padding(.leading, -7)
+                        .padding(.leading, -6)
                 }
             }
         }

@@ -192,6 +192,11 @@ olabilir — ve kart aksiyonlarla konuların arasında okuma akışını kesiyor
   altında ikinci bir renk olarak kalıyordu. Ok tuşlarıyla gezinme elle kurulur.
 - Takvim kapalıyken bu yüzeylerin hiçbiri **yer tutmaz**; boş kart gösterme
 
+### Başlık şeridi dar pencerede biçim değiştirir
+Sohbet açıkken orta panel 390 pt'ye inebilir. O genişlikte sekme şeridi
+etiketten **simgeye** düşer (165 → 70 pt) ve tarih/süre çipleri sığmazsa
+teker teker düşer — ama asla ezilmez. Ölçüler RESEARCH.md §26.3.
+
 ### Notun sonundaki tek eylem
 Özetin **altında** "Özeti yeniden oluştur" durur: kullanıcı önce okur, sonra
 beğenmediğine karar verir. Tepede şerit ya da araç çubuğu düğmesi bu sırayı

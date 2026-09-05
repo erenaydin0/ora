@@ -22,7 +22,7 @@ struct RootView: View {
     var body: some View {
         NavigationSplitView {
             MeetingSidebar(recorder: recorder)
-                .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 300)
+                .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 240)
         } detail: {
             // Sohbet **orta panelin içinde** bir bölmedir, `.inspector` değil.
             // Neden: `.inspector` üçüncü bir sütun açıyor ve orta sütun kendi
