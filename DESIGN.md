@@ -134,6 +134,20 @@ ama kalıcı vergi almaz.
 Eskisi Özet | Transkript | Konuşmacılar idi. Kanal ayrımı sayesinde konuşmacı
 sayısı pratikte iki ("Ben" / "Katılımcı") — bu bir sekmeyi hak etmiyor.
 
+### İşlem ve boş durumlar ekranın **ortasında** durur
+İlerleme çubuğu başlıkla içerik arasında yatay bir şerit çiziyordu: beklenen şey
+(özet) ortada "hazır değil" derken, o beklemenin göstergesi ilgisiz bir yerdeydi.
+Çubuk kaldırıldı. İşlem sürerken Özet sekmesinin **tamamı** `ProcessingState`
+olur: ortada küçük bir eğri animasyonu, altında yalnızca yüzde. Aşamanın Türkçe
+adı ekranda yazmaz; VoiceOver etiketine ve başlıktaki "işleniyor" çipine düşer.
+
+Transkript sekmesi bu sırada **canlı metni göstermeye devam eder** — akan metin
+zaten kendi ilerleme göstergesidir.
+
+Aynı gerekçeyle **"Yeniden dene" şeridi de kaldırıldı**: düğme artık boş durumun
+metninin altında, onunla birlikte ortalanır. Kullanıcının yapabileceği tek şey,
+durumu anlatan cümlenin yanında durmalı.
+
 ### Özet sekmesinin sırası
 ```
 Kişiler        takvim katılımcıları, baş harf daireleri (takvim kapalıysa yok)

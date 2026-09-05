@@ -51,18 +51,16 @@ struct MeetingDetail: View {
             // İkisini alt alta koymak başlığa gereksiz yükseklik veriyordu.
             MeetingHeader(meeting: meeting, tab: $tab)
 
-            if recorder.canRetry {
-                RetryNotice(recorder: recorder)
-            }
-
-            if recorder.isTranscribing {
-                TranscriptionProgressBar(stage: recorder.transcriptionStage)
-            }
-
             Divider().overlay(Color.oraBorder)
 
             switch tab {
             case .summary:
+                // İşlem sürerken Özet'te gösterilecek bir şey yok; beklenen şeyin
+                // yerinde beklemek doğrusu. Transkript sekmesi bu sırada canlı
+                // metni göstermeye devam eder.
+                if recorder.isTranscribing {
+                    ProcessingState(stage: recorder.transcriptionStage)
+                } else {
                 SummaryView(summary: recorder.summary,
                             topics: recorder.topics,
                             actions: recorder.actions,
@@ -77,10 +75,15 @@ struct MeetingDetail: View {
                             onOpenTopic: recorder.displayedSegments.isEmpty ? nil : { topic in
                                 jumpTarget = topic.start
                                 withAnimation(OraStyle.transition) { tab = .transcript }
-                            })
+                            },
+                            onRetry: recorder.canRetry
+                                ? { Task { await recorder.retryProcessing() } } : nil)
+                }
             case .transcript:
                 TranscriptView(segments: recorder.displayedSegments,
                                jumpTarget: $jumpTarget,
+                               onRetry: recorder.canRetry
+                                   ? { Task { await recorder.retryProcessing() } } : nil,
                                onCorrect: recorder.canCorrect
                                    ? { segment, text in
                                        Task { await recorder.correct(segment, to: text) }
@@ -88,29 +91,6 @@ struct MeetingDetail: View {
                                    : nil)
             }
         }
-    }
-}
-
-/// Ses diskte ama transkript yok — hata mesajının vaat ettiği tekrar denemenin
-/// gerçek yüzeyi. Sessizce yarım kalmış bir toplantı bırakılmaz.
-private struct RetryNotice: View {
-
-    let recorder: RecordingController
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "exclamationmark.arrow.circlepath")
-                .foregroundStyle(Color.oraInkMuted)
-            Text("Bu toplantı yazıya dökülmedi. Ham ses kaydı duruyor.")
-                .font(.system(size: 13))
-                .foregroundStyle(Color.oraInk)
-            Spacer()
-            Button("Yeniden dene") { Task { await recorder.retryProcessing() } }
-        }
-        .padding(10)
-        .oraCard()
-        .padding(.horizontal, 20)
-        .padding(.bottom, 12)
     }
 }
 
@@ -185,46 +165,5 @@ private struct Chip: View {
         .background(
             RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous)
                 .fill(Color.oraChrome))
-    }
-}
-
-
-/// İşlem sürerken sessiz bekleme yok — her aşama Türkçe yazar.
-struct TranscriptionProgressBar: View {
-
-    let stage: RecordingController.Stage
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ProgressView(value: fraction)
-                .progressViewStyle(.linear)
-                .tint(Color.oraCarmine)
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundStyle(Color.oraInkMuted)
-                .fixedSize()
-        }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 12)
-    }
-
-    private var fraction: Double {
-        switch stage {
-        case .downloadingLanguage(let value), .transcribing(let value),
-             .punctuating(let value), .summarizing(let value): value
-        case .preparingLanguage: 0
-        case .idle, .done: 1
-        }
-    }
-
-    private var label: String {
-        switch stage {
-        case .preparingLanguage:            "Dil hazırlanıyor…"
-        case .downloadingLanguage(let v):   "Dil paketi indiriliyor · \(Int(v * 100))%"
-        case .transcribing(let v):          "Yazıya dökülüyor · \(Int(v * 100))%"
-        case .punctuating(let v):           "Noktalama ekleniyor · \(Int(v * 100))%"
-        case .summarizing(let v):           "Özetleniyor · \(Int(v * 100))%"
-        case .idle, .done:                  ""
-        }
     }
 }

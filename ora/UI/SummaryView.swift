@@ -22,18 +22,34 @@ struct SummaryView: View {
     var onToggleAction: ((MeetingAction) -> Void)?
     /// Konu başlığından transkriptteki yerine atlama.
     var onOpenTopic: ((TopicSegment) -> Void)?
+    /// Ses diskte ama transkript yok — ham sesten yeniden işle.
+    var onRetry: (() -> Void)?
 
     @State private var actionsExpanded = true
 
-    private var isEmpty: Bool {
-        summary == nil && notice == nil && topics.isEmpty && actions.isEmpty
+    /// Gösterilecek gerçek içerik var mı? **Not sayılmaz** — bir not tek
+    /// başına kaldığında sayfanın tepesinde yalnız bir kart olarak durmasın,
+    /// ortadaki boş durumun açıklaması olsun.
+    private var hasContent: Bool {
+        summary != nil || !topics.isEmpty || !actions.isEmpty
+    }
+
+    /// Boş durumdaki tek düğme. Yeniden deneme özetlemeden önce gelir:
+    /// transkript yoksa özetlenecek bir şey de yoktur.
+    private var emptyAction: (title: String, run: () -> Void)? {
+        if let onRetry { return ("Yeniden dene", onRetry) }
+        if let onSummarizeNow { return ("Şimdi özetle", onSummarizeNow) }
+        return nil
     }
 
     var body: some View {
-        if isEmpty {
-            EmptyState(icon: "sparkles",
-                       title: "Özet hazır değil",
-                       detail: "Özetleme kayıt bittikten sonra çalışır.")
+        if !hasContent {
+            EmptyState(icon: onRetry == nil ? "sparkles" : "exclamationmark.arrow.circlepath",
+                       title: onRetry == nil ? "Özet hazır değil"
+                                             : "Bu toplantı yazıya dökülmedi",
+                       detail: emptyDetail,
+                       actionTitle: emptyAction?.title,
+                       action: emptyAction?.run)
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
@@ -91,6 +107,11 @@ struct SummaryView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+
+    private var emptyDetail: String {
+        if onRetry != nil { return "Ham ses kaydı duruyor." }
+        return notice ?? "Özetleme kayıt bittikten sonra çalışır."
     }
 
     /// Bölüm etiketi — BRAND.md tipografi tablosu: 13 medium, uppercase,

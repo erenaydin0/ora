@@ -374,6 +374,9 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
   "Konuşmacılar" sekmesi yoktur (DESIGN.md §4)
 - **Özet sırası: Kişiler → Aksiyonlar → Genel bakış → Kararlar → Konular.**
   Aksiyon önce gelir; kullanıcının toplantı notuna ilk sorusu "bana ne düştü"
+- **İlerleme çubuğu yoktur.** İşlem sürerken Özet sekmesinin tamamı ortalanmış
+  `ProcessingState` olur: `CurveLoader` + yalnızca yüzde. Boş durumların düğmesi
+  (Yeniden dene / Şimdi özetle) metnin altında ortalanır, tepede şerit yok
 - **Konuşma payı / ölü hava kartı yoktur.** Kanal başına iki kova kişi bilgisi
   taşımıyordu ve okuma akışını kesiyordu; `MeetingMetrics` kaldırıldı
 - Gradyan yok
@@ -516,7 +519,8 @@ ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          MenuBarView (taşıyıcı yüzey), OnboardingView,
                          RecordingController, MeetingSidebar, MeetingDetail,
                          TranscriptView, SummaryView, MeetingExport, SettingsView,
-                         MeetingNotifications, ChatInspector, EmptyState
+                         MeetingNotifications, ChatInspector,
+                         EmptyState (+ ProcessingState), CurveLoader, FlowLayout
 ora/Resources/Assets.xcassets/Colors    — BRAND paletinin tek kaynağı
 ora/Resources/Assets.xcassets/AppIcon   — scripts/make-icon.swift üretir
 scripts/               — make-icon.swift (ikon), build-release.sh (arşiv → .dmg)

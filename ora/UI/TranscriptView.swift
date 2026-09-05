@@ -11,6 +11,8 @@ struct TranscriptView: View {
     /// Özet'teki konu başlığından gelen atlama hedefi (saniye). Kaydırma
     /// yapıldıktan sonra `nil`'e çekilir ki aynı konuya tekrar basılabilsin.
     var jumpTarget: Binding<TimeInterval?> = .constant(nil)
+    /// Ses diskte ama transkript yok — boş durumdaki tek çıkış yolu.
+    var onRetry: (() -> Void)?
     /// Nil ise düzeltme kapalıdır (canlı modda düzeltme yapılmaz).
     var onCorrect: ((Segment, String) -> Void)?
 
@@ -19,9 +21,14 @@ struct TranscriptView: View {
 
     var body: some View {
         if segments.isEmpty && volatileText.isEmpty {
-            EmptyState(icon: "text.alignleft",
+            EmptyState(icon: onRetry == nil ? "text.alignleft"
+                                            : "exclamationmark.arrow.circlepath",
                        title: "Transkript yok",
-                       detail: "Kayıt sırasında canlı transkript burada akar.")
+                       detail: onRetry == nil
+                           ? "Kayıt sırasında canlı transkript burada akar."
+                           : "Ham ses kaydı duruyor.",
+                       actionTitle: onRetry == nil ? nil : "Yeniden dene",
+                       action: onRetry)
         } else {
             ScrollViewReader { proxy in
                 ScrollView {

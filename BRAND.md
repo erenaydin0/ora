@@ -95,7 +95,11 @@ kendiliğinden uyar. Marka kimliğini renk, boşluk ve işaret taşır; özel fo
 - Yıkıcı eylem: `.oraRed` (sistem destructive)
 - Kayıt: **yalnızca** `.oraRed`, aktifken nabız
 - Onay / hazır: `.oraCarmine` (kayıt kırmızısı değil)
-- İlerleme çubuğu: `.oraCarmine`
+- İşlem göstergesi: **ilerleme çubuğu yoktur.** Ekranın ortasında `CurveLoader`
+  (Lissajous 3:2 eğrisi üzerinde `.oraCarmine` parçacık) ve altında yalnızca
+  yüzde. Parçacığın izi geriye doğru sönerek çizilir — bu bir gradyan değil,
+  **hareketin izidir**; "gradyan yok" kuralının kapsamı dışındadır ve tek
+  istisnadır. `.accessibilityReduceMotion` açıkken eğri durur
 - Sol kenar çubuğu + araç çubuğu: **native malzeme**. `.oraChrome` marka
   yüzeylerinde: onboarding üst şeridi, öneri bantları, boş durum kartları
 - Ana panel + sohbet paneli + pencere zemini: `.oraPaper`
