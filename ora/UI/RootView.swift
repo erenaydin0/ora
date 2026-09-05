@@ -20,6 +20,8 @@ struct RootView: View {
         } detail: {
             if recorder.isRecording {
                 RecordingView(recorder: recorder)
+            } else if recorder.showsActionBoard {
+                ActionBoardView(recorder: recorder)
             } else {
                 MeetingDetail(recorder: recorder)
             }

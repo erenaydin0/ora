@@ -175,6 +175,30 @@ struct MeetingStore: Sendable {
         }
     }
 
+    /// Tüm toplantıların aksiyonları — kaynak toplantısıyla birlikte.
+    ///
+    /// Kullanıcının "bana ne düştü" sorusu toplantı açıldığında değil, sabah
+    /// uygulama açıldığında sorulur; o cevabın tek toplantıya bağlı olmaması
+    /// gerekiyor (COMPETITION.md §4.2).
+    func allActions() async throws -> [BoardAction] {
+        try await database.read { db in
+            try BoardAction.fetchAll(db, sql: """
+                SELECT a.id            AS id,
+                       a.meeting_id    AS meetingID,
+                       m.title         AS meetingTitle,
+                       m.date          AS meetingDate,
+                       a.person        AS person,
+                       a.task          AS task,
+                       a.context       AS context,
+                       a.deadline      AS deadline,
+                       a.status        AS status
+                FROM action_items a
+                JOIN meetings m ON m.id = a.meeting_id
+                ORDER BY m.date DESC, a.id
+                """)
+        }
+    }
+
     func load(_ meetingID: Int64) async throws -> LoadedMeeting? {
         try await database.read { db in
             guard let meeting = try MeetingRecord.fetchOne(db, sql:

@@ -27,12 +27,28 @@ final class RecordingController {
     /// Kenar çubuğu listesi ve seçim.
     private(set) var meetings: [MeetingListItem] = []
     var searchText = "" { didSet { scheduleRefresh() } }
-    var selection: Int64? { didSet { if selection != oldValue { loadSelected() } } }
+    var selection: Int64? {
+        didSet {
+            guard selection != oldValue else { return }
+            if selection != nil { showsActionBoard = false }
+            loadSelected()
+        }
+    }
 
     private(set) var transcript: [Segment] = []
     private(set) var liveSegments: [Segment] = []
     private(set) var volatileText: [Int: String] = [:]
     private(set) var liveNotice: String?
+
+    /// Tüm toplantıların aksiyonları — pano bunu gösterir. Toplantı seçiminden
+    /// bağımsızdır; liste her tazelemede yenilenir.
+    private(set) var boardActions: [BoardAction] = []
+    /// Kenar çubuğundaki sayı: açık aksiyon adedi.
+    var openActionCount: Int { boardActions.count { !$0.isDone } }
+    /// Aksiyon panosu açık mı — açıkken orta panel toplantı yerine panoyu gösterir.
+    var showsActionBoard = false { didSet { if showsActionBoard { selection = nil } } }
+    /// Kullanıcının kendi adı — "Bana düşenler" grubu buna bakar.
+    var userDisplayName: String { settings.userDisplayName }
 
     private(set) var summary: Ozet?
     private(set) var topics: [TopicSegment] = []
@@ -343,6 +359,13 @@ final class RecordingController {
         } catch {
             Log.error(.store, "Toplantı listesi okunamadı", error)
         }
+        boardActions = (try? await store.allActions()) ?? boardActions
+    }
+
+    /// Panodan kaynak toplantıya git.
+    func openMeeting(_ meetingID: Int64) {
+        showsActionBoard = false
+        selection = meetingID
     }
 
     private func scheduleRefresh() {
@@ -734,8 +757,15 @@ final class RecordingController {
     /// Aksiyonu tamamlandı olarak işaretler. Ekran hemen güncellenir,
     /// yazma arkada yapılır — kutuya basınca beklemek gerekmez.
     func setActionDone(_ actionID: Int64, _ done: Bool) {
-        guard let index = actions.firstIndex(where: { $0.id == actionID }) else { return }
-        actions[index].isDone = done
+        if let index = actions.firstIndex(where: { $0.id == actionID }) {
+            actions[index].isDone = done
+        }
+        // Pano ve toplantı görünümü aynı satırı gösterebilir; ikisi de hemen
+        // güncellenir, yazma arkada yapılır.
+        if let index = boardActions.firstIndex(where: { $0.id == actionID }) {
+            boardActions[index].status = (done ? MeetingStore.ActionStatus.done
+                                               : .pending).rawValue
+        }
         Task { [store] in
             do { try await store.setActionDone(actionID, done) }
             catch { Log.error(.store, "Aksiyon durumu yazılamadı", error) }

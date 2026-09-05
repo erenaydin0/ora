@@ -11,6 +11,17 @@ struct MeetingSidebar: View {
 
     var body: some View {
         List(selection: $recorder.selection) {
+            // Pano listenin **üstünde** ve seçime dahil değil: bir toplantı
+            // değil, toplantılar arası bir görünüm. Kendi vurgusunu çizer.
+            Section {
+                ActionBoardRow(count: recorder.openActionCount,
+                               isSelected: recorder.showsActionBoard) {
+                    recorder.showsActionBoard = true
+                }
+                .listRowInsets(EdgeInsets(top: 2, leading: 10, bottom: 2, trailing: 10))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            }
             ForEach(groups) { group in
                 Section {
                     ForEach(group.meetings) { meeting in
@@ -50,6 +61,9 @@ struct MeetingSidebar: View {
                         : "Başka bir kelime deneyin."
                 )
                 .padding(.horizontal, 24)
+                // Boş durum yalnızca bilgi verir; altındaki pano satırı
+                // tıklanabilir kalmalı.
+                .allowsHitTesting(false)
             }
         }
         .task { await recorder.refresh() }
@@ -94,6 +108,48 @@ struct MeetingSidebar: View {
         return result
     }
 
+}
+
+/// Aksiyon panosuna giriş. Toplantı satırlarıyla aynı ölçüde ve aynı seçim
+/// şeridiyle çizilir; ayrımı simge ve açık aksiyon sayısı kurar.
+private struct ActionBoardRow: View {
+    let count: Int
+    let isSelected: Bool
+    let open: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: open) {
+            HStack(spacing: 10) {
+                Image(systemName: "checklist")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .frame(width: 44, alignment: .leading)
+                Text("Aksiyonlar")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.oraInk)
+                Spacer(minLength: 0)
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .monospacedDigit()
+                        .foregroundStyle(Color.oraInkMuted)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+            .background {
+                RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous)
+                    .fill(isSelected ? Color.oraChrome
+                          : isHovered ? Color.oraChrome.opacity(0.45) : Color.clear)
+            }
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .accessibilityLabel(count > 0 ? "Aksiyonlar, \(count) açık" : "Aksiyonlar")
+    }
 }
 
 /// Saat omurgası: solda hizalı saat, sağda başlık. Sahte kart yok;

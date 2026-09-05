@@ -190,3 +190,44 @@ struct MeetingAction: Sendable, Identifiable, Hashable {
     var deadline: String?
     var isDone: Bool
 }
+
+/// Aksiyon panosunun satırı: aksiyon **ve** hangi toplantıdan çıktığı.
+/// Sütun adları sorguda takma adla verilir (`AS meetingID`); bu tip bir
+/// `OraRecord` değil, yalnızca okunan bir görünüm.
+struct BoardAction: Identifiable, Hashable, FetchableRecord, Decodable, Sendable {
+    var id: Int64
+    var meetingID: Int64
+    var meetingTitle: String
+    var meetingDate: Date
+    var person: String
+    var task: String
+    var context: String?
+    var deadline: String?
+    var status: String
+
+    var isDone: Bool { status == MeetingStore.ActionStatus.done.rawValue }
+
+    /// Kime düştüğü belli mi? Diarization olmadığı için `kisi` çoğu zaman
+    /// "belirtilmedi" gelir; pano bunu gizlemez, ayrı bir grupta gösterir.
+    var isAssigned: Bool {
+        let trimmed = person.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty
+            && trimmed.lowercased(with: Locale(identifier: "tr_TR")) != "belirtilmedi"
+    }
+
+    /// Kullanıcının kendisine mi düşüyor? Özet isteminde "Ben" kaydı tutan
+    /// kişidir; kullanıcı ayarlardan adını verdiyse o ad da sayılır.
+    func isMine(userName: String) -> Bool {
+        let turkish = Locale(identifier: "tr_TR")
+        let trimmed = person.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(with: turkish)
+        if trimmed == "ben" { return true }
+        let name = userName.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(with: turkish)
+        return !name.isEmpty && trimmed == name
+    }
+
+    var dateLabel: String {
+        meetingDate.formatted(date: .abbreviated, time: .omitted)
+    }
+}
