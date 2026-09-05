@@ -442,6 +442,13 @@ Teams dökümü) `scripts/seed-transcript.swift` ile veritabanına yüklenir.
 Uygulamada içe aktarma **yoktur**; bu yalnızca geliştirme aracıdır. Yükledikten
 sonra toplantıyı seçip "Şimdi özetle" demek uygulamanın kendi hattını koşturur.
 
+**Dikkat:** bu dosyadaki metin **Teams'in transkripsiyonudur**, ora'nın değil.
+Sesi de yoktur. Bu toplantıda görülen çözümleme hataları ("Toplum"←Toplam,
+"matığın"←matrahının, "Düdük tut", 12 adet `Işsizlik`←İşsizlik) Teams'e aittir;
+özetleme ya da Apple Speech değerlendirilirken bu veriye bakıp ora'nın
+transkripsiyonu hakkında sonuç çıkarma. Yalnızca **özetleme hattını** denemek
+için kullanılır.
+
 ### Bu Dosyayı Güncel Tutma Kuralı
 CLAUDE.md'de yazan bir yaklaşımdan **daha iyisi için** vazgeçildiyse
 (kütüphane, algoritma, mimari karar, izin modeli), CLAUDE.md **aynı commit'te**
