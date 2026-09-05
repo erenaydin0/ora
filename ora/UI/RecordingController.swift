@@ -70,6 +70,9 @@ final class RecordingController {
     /// `retryableAudio`'dan ayrı: ses transkript **varken de** durur.
     private(set) var audioURL: URL?
 
+    /// Kayıtlar dizininin toplam boyutu — Ayarlar'daki Depolama bölümü.
+    private(set) var audioBytes: Int64 = 0
+
     /// Algılamadan gelen öneri; kullanıcı karar verene kadar durur.
     var pendingSignal: MeetingSignal? { detector.pendingSignal }
     /// Toplantı uygulaması mikrofonu 30 sn'den uzun bıraktı.
@@ -223,7 +226,62 @@ final class RecordingController {
         observeSignals()
         await refreshVocabulary()
         await refreshUpcoming()
+        await purgeExpiredAudio()
+        refreshStorage()
         Task { await notifications.prepare() }
+    }
+
+    // MARK: - Depolama
+
+    func refreshStorage() {
+        audioBytes = AudioArchive.totalBytes()
+    }
+
+    /// Saklama süresi dolan ses dosyalarını siler. Transkript, özet ve
+    /// aksiyonlar **kalır** — silinen yalnızca sestir.
+    func purgeExpiredAudio() async {
+        let days = settings.audioRetentionDays
+        guard days > 0,
+              let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date())
+        else { return }
+        let files = (try? await store.audioFiles(before: cutoff)) ?? []
+        var removed = 0
+        for file in files where AudioArchive.delete(file.path) {
+            try? await store.setAudioPath(file.id, path: nil)
+            removed += 1
+        }
+        if removed > 0 {
+            Log.info(.store, "Saklama süresi dolan \(removed) ses dosyası silindi (\(days) gün)")
+            if let selection { await load(selection) }
+        }
+        refreshStorage()
+    }
+
+    /// Kullanıcının isteğiyle tek bir kaydın sesini siler.
+    func deleteAudio(_ meetingID: Int64) async {
+        let files = (try? await store.audioFiles()) ?? []
+        guard let file = files.first(where: { $0.id == meetingID }) else { return }
+        AudioArchive.delete(file.path)
+        try? await store.setAudioPath(meetingID, path: nil)
+        if selection == meetingID { await load(meetingID) }
+        refreshStorage()
+    }
+
+    /// Ayarlardaki sıkıştırma açıksa kayıt sonrası sesi AAC'ye çevirir.
+    /// Transkripsiyon ve özet bittikten **sonra** çalışır; hata verirse
+    /// ses olduğu gibi kalır.
+    private func compressAudioIfNeeded(meetingID: Int64) async {
+        guard settings.compressAudio, let url = audioURL,
+              url.pathExtension.lowercased() == "wav" else { return }
+        do {
+            let compressed = try await AudioArchive.compress(url)
+            try? await store.setAudioPath(meetingID, path: compressed.path(percentEncoded: false))
+            audioURL = compressed
+            if retryableAudio != nil { retryableAudio = compressed }
+        } catch {
+            Log.warning(.capture, "Ses sıkıştırılamadı, WAV korundu: \(error.localizedDescription)")
+        }
+        refreshStorage()
     }
 
     private func observeSignals() {
@@ -409,6 +467,7 @@ final class RecordingController {
     func delete(_ meetingID: Int64) async {
         do {
             try await store.delete(meetingID)
+            refreshStorage()
             if selection == meetingID {
                 selection = nil
                 clearDisplayed()
@@ -748,6 +807,8 @@ final class RecordingController {
         // 6 — SQLite güncelle
         try? await store.saveSummary(meetingID, ozet: summary, topics: topics)
         try? await store.markReady(meetingID)
+        // Ses ancak transkript ve özet hazırken sıkıştırılır (opt-in).
+        await compressAudioIfNeeded(meetingID: meetingID)
         if let reloaded = try? await store.load(meetingID) { actions = reloaded.actions }
         transcriptionStage = .done
         await refresh()

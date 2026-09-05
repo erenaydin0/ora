@@ -263,6 +263,37 @@ struct MeetingStore: Sendable {
         }
     }
 
+    // MARK: - Ses dosyası
+
+    /// Sıkıştırma sonrası uzantı değişir; satır yeni dosyayı göstermeli.
+    func setAudioPath(_ meetingID: Int64, path: String?) async throws {
+        try await database.write { db in
+            try db.execute(sql: "UPDATE meetings SET audio_path = ? WHERE id = ?",
+                           arguments: [path, meetingID])
+        }
+    }
+
+    struct AudioFile: FetchableRecord, Decodable, Sendable {
+        var id: Int64
+        var path: String
+    }
+
+    /// Sesi diskte duran toplantılar. `before` verilirse yalnızca o tarihten
+    /// eski olanlar — saklama süresi dolanları temizlemek için.
+    func audioFiles(before date: Date? = nil) async throws -> [AudioFile] {
+        try await database.read { db in
+            if let date {
+                return try AudioFile.fetchAll(db, sql: """
+                    SELECT id, audio_path AS path FROM meetings
+                    WHERE audio_path IS NOT NULL AND date < ?
+                    """, arguments: [date])
+            }
+            return try AudioFile.fetchAll(db, sql: """
+                SELECT id, audio_path AS path FROM meetings WHERE audio_path IS NOT NULL
+                """)
+        }
+    }
+
     // MARK: - Silme
 
     /// Toplantı satırı cascade ile transkript, özet, aksiyon ve konuları da siler;

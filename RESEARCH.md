@@ -1304,3 +1304,30 @@ belirmiyor. Yanlış bir yere atlamak, hiç atlamamaktan kötüdür.
 Kelime normalleştirme `FoundationIntelligence.words(of:)` ile ortak: Türkçe
 küçük harf, diakritik düşürme, ilk 5 harf (kaba gövdeleme). Ekler yüzünden
 kaçan eşleşmeleri ("kazanç" ~ "kazancım") bu kurtarıyor.
+
+### 25.3 Ses sıkıştırma: 11,5× kazanç, kanal ayrımı bozulmuyor
+
+Ses saklamak bugüne kadar yönetilmiyordu: 16 kHz · 16 bit · stereo WAV saatte
+~230 MB, haftada 10 saat toplantı ayda ~9 GB. `AVAssetExportSession`
+(`AVAssetExportPresetAppleM4A`) ile ölçüm, `probes/kayit.wav` (31,8 sn):
+
+```
+wav 1989 KB → m4a 173 KB · oran 11,5× · 0,09 sn
+okunabilir: 2 kanal, 16000 Hz, 509371 frame (31,8 sn)
+```
+
+**Asıl risk kanal ayrımıydı**: AAC ortak stereo (joint stereo) kodlaması mikrofon
+kanalını sistem kanalına sızdırırsa hem "yalnız karşı tarafı dinle" bozulur hem de
+yeniden işlemede sessiz kanal atlama mantığı (tepe < 0,005) yanılır. Ölçüldü:
+
+```
+wav  tepe: ch0 0.21274  ch1 0.00000
+m4a  tepe: ch0 0.21224  ch1 0.00003
+```
+
+Sızıntı 0,00003 — eşiğin iki kat büyüklük altında. Kanal ayrımı korunuyor.
+
+Yine de sıkıştırma **kayıp verendir** ve varsayılan **kapalıdır**; yalnızca
+transkripsiyon ve özet bittikten sonra çalışır. Saklama süresi (varsayılan
+süresiz) dolduğunda **yalnızca ses** silinir; transkript, özet ve aksiyonlar
+kalır.

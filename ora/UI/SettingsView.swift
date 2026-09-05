@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Ayarlar penceresi (⌘,). Üç sekme: Algılama, Takvim, Sözlük.
+/// Ayarlar penceresi (⌘,). Sekmeler: Genel, Algılama, Takvim, Sözlük, Depolama.
 struct SettingsView: View {
 
     let recorder: RecordingController
@@ -16,6 +16,8 @@ struct SettingsView: View {
                 .tabItem { Label("Takvim", systemImage: "calendar") }
             VocabularySettings(recorder: recorder)
                 .tabItem { Label("Sözlük", systemImage: "text.book.closed") }
+            StorageSettings(recorder: recorder, settings: settings)
+                .tabItem { Label("Depolama", systemImage: "internaldrive") }
         }
         .frame(width: 520, height: 420)
         .background(Color.oraPaper)
@@ -223,6 +225,65 @@ private struct CalendarSettings: View {
 }
 
 /// Özel sözlük — `ContentHint.customizedLanguage`'in beslendiği yer.
+/// Depolama. Ses saklamak bir maliyettir ve bugüne kadar yönetilmiyordu:
+/// 16 kHz stereo WAV saatte ~230 MB (COMPETITION.md §4.5).
+private struct StorageSettings: View {
+    let recorder: RecordingController
+    @Bindable var settings: OraSettings
+
+    var body: some View {
+        Form {
+            Section {
+                HStack {
+                    Text("Ses kayıtları")
+                    Spacer()
+                    Text(AudioArchive.sizeLabel(recorder.audioBytes))
+                        .foregroundStyle(Color.oraInkMuted)
+                        .monospacedDigit()
+                }
+                Text("Bir saatlik kayıt sıkıştırılmamış hâlde yaklaşık 230 MB yer kaplar. "
+                     + "Transkript, özet ve aksiyonlar sesten bağımsızdır; ses silinse de kalır.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+            }
+
+            Section("Sıkıştırma") {
+                Toggle("İşlem bittikten sonra sesi sıkıştır", isOn: $settings.compressAudio)
+                Text("Transkripsiyon ve özet tamamlandıktan sonra kayıt AAC'ye çevrilir "
+                     + "ve yaklaşık 11 kat küçülür. Kayıp veren bir sıkıştırmadır; "
+                     + "kaydı ham hâliyle saklamak isterseniz kapalı bırakın.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+            }
+
+            Section("Saklama süresi") {
+                Picker("Ses dosyalarını sakla", selection: $settings.audioRetentionDays) {
+                    ForEach(OraSettings.retentionOptions, id: \.self) { days in
+                        Text(Self.label(days)).tag(days)
+                    }
+                }
+                Text("Süresi dolan **yalnızca ses** silinir. Sesi silinen bir toplantı "
+                     + "artık yeniden işlenemez ve çalınamaz; notu yerinde kalır.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+            }
+        }
+        .formStyle(.grouped)
+        .task { recorder.refreshStorage() }
+        .onChange(of: settings.audioRetentionDays) { _, _ in
+            Task { await recorder.purgeExpiredAudio() }
+        }
+    }
+
+    private static func label(_ days: Int) -> String {
+        switch days {
+        case 0:   "Süresiz"
+        case 365: "1 yıl"
+        default:  "\(days) gün"
+        }
+    }
+}
+
 private struct VocabularySettings: View {
     let recorder: RecordingController
     @State private var newWord = ""

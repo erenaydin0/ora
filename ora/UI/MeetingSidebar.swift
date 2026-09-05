@@ -8,6 +8,7 @@ struct MeetingSidebar: View {
     @State private var renaming: Int64?
     @State private var draftTitle = ""
     @State private var confirmingDelete: MeetingListItem?
+    @State private var confirmingAudioDelete: MeetingListItem?
 
     var body: some View {
         List(selection: $recorder.selection) {
@@ -38,6 +39,9 @@ struct MeetingSidebar: View {
                                     renaming = meeting.id
                                 }
                                 Divider()
+                                // Ses en büyük dosyadır; notu tutup yalnızca onu
+                                // atabilmek gerekiyor (COMPETITION.md §4.5).
+                                Button("Yalnızca sesi sil") { confirmingAudioDelete = meeting }
                                 Button("Sil", role: .destructive) { confirmingDelete = meeting }
                             }
                     }
@@ -81,6 +85,21 @@ struct MeetingSidebar: View {
         } message: {
             Text("\"\(confirmingDelete?.title ?? "")\" ve ses kaydı kalıcı olarak silinecek. "
                  + "Bu işlem geri alınamaz.")
+        }
+        .alert("Ses kaydını sil", isPresented: Binding(
+            get: { confirmingAudioDelete != nil },
+            set: { if !$0 { confirmingAudioDelete = nil } })) {
+            Button("Vazgeç", role: .cancel) { confirmingAudioDelete = nil }
+            Button("Sesi sil", role: .destructive) {
+                if let meeting = confirmingAudioDelete {
+                    Task { await recorder.deleteAudio(meeting.id) }
+                }
+                confirmingAudioDelete = nil
+            }
+        } message: {
+            Text("\"\(confirmingAudioDelete?.title ?? "")\" toplantısının ses dosyası silinecek. "
+                 + "Transkript, özet ve aksiyonlar kalır; kayıt bir daha çalınamaz ve "
+                 + "yeniden işlenemez.")
         }
         .sheet(item: Binding(
             get: { renaming.map { RenameTarget(id: $0) } },

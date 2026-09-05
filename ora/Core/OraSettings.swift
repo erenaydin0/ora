@@ -36,6 +36,20 @@ final class OraSettings {
     /// Kullanıcının seçtiği takvimler. Varsayılan: hiçbiri.
     var selectedCalendarIDs: Set<String> { didSet { store(Array(selectedCalendarIDs), .selectedCalendars) } }
 
+    // MARK: - Depolama
+
+    /// Transkripsiyon ve özet bittikten sonra sesi AAC'ye çevir.
+    /// Kayıp veren bir sıkıştırma olduğu için **varsayılan kapalı**; açıkken
+    /// disk kazancı ~11× (RESEARCH.md §25.3).
+    var compressAudio: Bool { didSet { store(compressAudio, .compressAudio) } }
+
+    /// Bu kadar günden eski ses dosyaları silinir. `0` = süresiz sakla.
+    /// Transkript, özet ve aksiyonlar **her hâlükârda** kalır.
+    var audioRetentionDays: Int { didSet { store(audioRetentionDays, .audioRetentionDays) } }
+
+    /// Kullanıcıya sunulan saklama seçenekleri.
+    static let retentionOptions = [0, 30, 90, 180, 365]
+
     // MARK: - Sabitler
 
     /// Mikrofon en az bu kadar kesintisiz kullanılmalı — anlık mikrofon
@@ -65,6 +79,8 @@ final class OraSettings {
                                 ?? Array(Self.defaultExclusions))
         alwaysRecordBundleIDs = Set(defaults.stringArray(forKey: Key.alwaysRecord.rawValue) ?? [])
         selectedCalendarIDs = Set(defaults.stringArray(forKey: Key.selectedCalendars.rawValue) ?? [])
+        compressAudio = defaults.bool(forKey: Key.compressAudio.rawValue)
+        audioRetentionDays = defaults.integer(forKey: Key.audioRetentionDays.rawValue)
     }
 
     /// Kendi süreci de dahil, dışlanan tüm bundle ID'ler.
@@ -78,6 +94,7 @@ final class OraSettings {
         case detectionEnabled, excludedBundleIDs, alwaysRecord
         case calendarEnabled, selectedCalendars
         case userDisplayName
+        case compressAudio, audioRetentionDays
     }
 
     private func store(_ value: Any, _ key: Key) {
