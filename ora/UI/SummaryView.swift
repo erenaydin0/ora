@@ -22,6 +22,11 @@ struct SummaryView: View {
     var onToggleAction: ((MeetingAction) -> Void)?
     /// Konu başlığından transkriptteki yerine atlama.
     var onOpenTopic: ((TopicSegment) -> Void)?
+    /// Bir özet maddesinin transkriptteki karşılığına atlama. Metnin
+    /// transkriptte karşılığı bulunamazsa çağıran `nil` verir ve madde
+    /// tıklanabilir olmaz (Segment.bestMatch).
+    var openText: ((String) -> Void)?
+    var canOpenText: ((String) -> Bool)?
     /// Ses diskte ama transkript yok — ham sesten yeniden işle.
     var onRetry: (() -> Void)?
 
@@ -63,7 +68,9 @@ struct SummaryView: View {
                         Section("Aksiyonlar", expanded: $actionsExpanded) {
                             VStack(alignment: .leading, spacing: 6) {
                                 ForEach(actions) { action in
-                                    ActionRow(action: action) { onToggleAction?(action) }
+                                    ActionRow(action: action,
+                                              onToggle: { onToggleAction?(action) },
+                                              onOpen: opener(action.task))
                                 }
                             }
                         }
@@ -74,7 +81,7 @@ struct SummaryView: View {
                                 VStack(alignment: .leading, spacing: 8) {
                                     ForEach(Array(summary.genelBakis.enumerated()),
                                             id: \.offset) { _, madde in
-                                        Bullet(text: madde)
+                                        Bullet(text: madde, onOpen: opener(madde))
                                     }
                                 }
                             }
@@ -84,7 +91,7 @@ struct SummaryView: View {
                                 VStack(alignment: .leading, spacing: 8) {
                                     ForEach(Array(summary.kararlar.enumerated()),
                                             id: \.offset) { _, karar in
-                                        Bullet(text: karar)
+                                        Bullet(text: karar, onOpen: opener(karar))
                                     }
                                 }
                             }
@@ -95,7 +102,11 @@ struct SummaryView: View {
                         VStack(alignment: .leading, spacing: 24) {
                             ForEach(topics) { topic in
                                 TopicBlock(topic: topic,
-                                           onOpen: onOpenTopic.map { open in { open(topic) } })
+                                           onOpen: onOpenTopic.map { open in { open(topic) } },
+                                           onOpenBullet: { madde in
+                                               if let action = opener(madde) { action() }
+                                               else { onOpenTopic?(topic) }
+                                           })
                             }
                         }
                     }
@@ -107,6 +118,13 @@ struct SummaryView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+
+    /// Madde transkriptte bulunabiliyorsa açma eylemi, bulunamıyorsa `nil`.
+    /// Tıklanabilirlik böylece **gerçek bir hedefe** bağlı olur.
+    private func opener(_ text: String) -> (() -> Void)? {
+        guard let openText, canOpenText?(text) ?? false else { return nil }
+        return { openText(text) }
     }
 
     private var emptyDetail: String {
@@ -156,8 +174,14 @@ private struct SectionLabel: View {
     }
 }
 
+/// Madde. Transkriptte karşılığı bulunabiliyorsa tıklanır ve oraya götürür;
+/// göstergesi yalnızca imleç üzerindeyken beliren ok — sürekli duran bir simge
+/// madde listesini ızgaraya çevirirdi (BRAND: dekoratif öğe yok).
 private struct Bullet: View {
     let text: String
+    var onOpen: (() -> Void)?
+    @State private var isHovered = false
+
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("•").foregroundStyle(Color.oraInkMuted)
@@ -167,7 +191,19 @@ private struct Bullet: View {
                 .foregroundStyle(Color.oraInk)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
+            if onOpen != nil, isHovered {
+                Image(systemName: "waveform")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.oraInkMuted)
+            }
         }
+        .contentShape(Rectangle())
+        .onTapGesture { onOpen?() }
+        .onHover { hovering in
+            guard onOpen != nil else { return }
+            withAnimation(OraStyle.transition) { isHovered = hovering }
+        }
+        .help(onOpen == nil ? "" : "Bu maddenin geçtiği yeri transkriptte aç")
     }
 }
 
@@ -176,6 +212,8 @@ private struct Bullet: View {
 private struct TopicBlock: View {
     let topic: TopicSegment
     var onOpen: (() -> Void)?
+    /// Konunun maddeleri de tek tek transkripte bağlanır.
+    var onOpenBullet: ((String) -> Void)?
     @State private var isHovered = false
 
     var body: some View {
@@ -202,7 +240,7 @@ private struct TopicBlock: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(Array(topic.bullets.enumerated()), id: \.offset) { _, madde in
-                    Bullet(text: madde)
+                    Bullet(text: madde, onOpen: onOpenBullet.map { open in { open(madde) } })
                 }
             }
         }
@@ -253,6 +291,8 @@ private struct PeopleStrip: View {
 private struct ActionRow: View {
     let action: MeetingAction
     var onToggle: (() -> Void)?
+    /// İş cümlesine tıklamak transkriptte o ana götürür.
+    var onOpen: (() -> Void)?
     @State private var isHovered = false
 
     var body: some View {
@@ -286,6 +326,16 @@ private struct ActionRow: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture { onOpen?() }
+            .help(onOpen == nil ? "" : "Bu işin konuşulduğu yeri transkriptte aç")
+
+            if onOpen != nil, isHovered {
+                Image(systemName: "waveform")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .padding(.top, 2)
+            }
 
             OwnerChip(person: action.person, deadline: action.deadline)
         }

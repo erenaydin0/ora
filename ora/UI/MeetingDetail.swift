@@ -22,6 +22,9 @@ struct MeetingDetail: View {
     /// bu, bulunan toplantının içinde gezdirir.
     @State private var isFinding = false
     @State private var findText = ""
+    /// Özet maddesi → transkript eşleştirmesi. Transkript başına **bir kez**
+    /// kurulur; her satır için yeniden hesaplamak listeyi yavaşlatırdı.
+    @State private var index = TranscriptIndex([])
 
     /// Gösterilecek bir toplantı içeriği var mı — seçim yokken de kayıt sonrası
     /// akış bu yoldan görünür.
@@ -85,9 +88,13 @@ struct MeetingDetail: View {
                                 ? { Task { await recorder.summarizeNow() } } : nil,
                             onToggleAction: { recorder.setActionDone($0.id, !$0.isDone) },
                             onOpenTopic: recorder.displayedSegments.isEmpty ? nil : { topic in
-                                jumpTarget = topic.start
-                                withAnimation(OraStyle.transition) { tab = .transcript }
+                                open(at: topic.start)
                             },
+                            openText: index.isEmpty ? nil : { text in
+                                guard let segment = index.match(text) else { return }
+                                open(at: segment.start)
+                            },
+                            canOpenText: index.isEmpty ? nil : { index.match($0) != nil },
                             onRetry: recorder.canRetry
                                 ? { Task { await recorder.retryProcessing() } } : nil)
                 }
@@ -111,9 +118,28 @@ struct MeetingDetail: View {
             }
         }
         // Seçim değişince oynatıcı yeni kaydın sesine bağlanır; ses yoksa kapanır.
-        .onAppear { playback.load(recorder.audioURL) }
+        .onChange(of: recorder.selection) { _, _ in
+            isFinding = false
+            findText = ""
+        }
+        .onAppear {
+            playback.load(recorder.audioURL)
+            index = TranscriptIndex(recorder.displayedSegments)
+        }
         .onChange(of: recorder.audioURL) { _, url in playback.load(url) }
+        .onChange(of: recorder.displayedSegments) { _, segments in
+            index = TranscriptIndex(segments)
+        }
         .onDisappear { playback.pause() }
+    }
+
+    /// Özet maddesinden transkripte geçiş: sekme değişir, satıra kaydırılır ve
+    /// **oynatıcı da o ana kurulur** — kullanıcı yalnızca Çal'a basar.
+    /// Kendiliğinden çalmaz; ses beklenmedik anda başlamamalı.
+    private func open(at time: TimeInterval) {
+        jumpTarget = time
+        if playback.isAvailable { playback.seek(to: time) }
+        withAnimation(OraStyle.transition) { tab = .transcript }
     }
 }
 

@@ -1260,3 +1260,47 @@ hız 2,0×: render 16000, playerTime 35072 kaynak frame, ileri kaçak 192 ms ✓
 okur ve üç parça ileri besler. Kural #12 yazma tarafı için yazılmıştı; okuma
 tarafında da geçerli — bir saatlik kayıt 230 MB'tır, `AVAudioPlayer`'ın dosyayı
 tümüyle açması kabul edilemez.
+
+### 25.2 Alıntı bağı: madde → transkript eşleştirmesi
+
+Özet maddesine tıklayınca transkriptte geçtiği yere gitmek için maddenin
+kaynağını bulmak gerekiyor. Zaman damgası **modelden istenmiyor** (uydurur);
+maddenin metni transkriptle eşleştiriliyor. `probes/alinti.swift` gerçek
+veritabanı üzerinde koşuyor (2 toplantı, 131 segment, 42 madde).
+
+**İlk ölçüt — düz kelime örtüşmesi (eşleşen kelime / madde kelimesi ≥ 0,5):**
+```
+24/42 madde bağlandı (%57)
+✓ aksiyon · skor 0.50 → 00:36
+   madde: Toplum ve kazanç analizi yapmak
+   satır: Yok, bu da kendince şey aşağıda da özetleri falan filan vardı…
+```
+Sorun: "yapmak", "olarak", "analiz" gibi her yerde geçen kelimeler kanıt
+sayılıyor. Dört kelimelik bir maddede ikisinin tutması %50 ediyor ve madde
+alakasız bir satıra bağlanabiliyor.
+
+**İkinci ölçüt — IDF ağırlıklı örtüşme:** bir kelime kaç segmentte geçiyorsa o
+kadar değersiz (`log(N / (1 + df))`). Türkçe için ayrı bir stopword listesi
+yazmaya gerek kalmıyor; sıklık zaten eliyor.
+```
+eşik taraması (toplantı 1) — 0.3: 24/24  0.4: 23/24  0.5: 21/24  0.6: 16/24  0.7: 12/24
+eşik taraması (toplantı 2) — 0.3: 15/18  0.4: 15/18  0.5: 15/18  0.6: 14/18  0.7: 10/18
+
+36/42 madde bağlandı (%86)
+✓ aksiyon · skor 1.00 → 00:14   madde: Borç programları farklılığını analiz etmek
+   kanıt: progr(2.8) farkl(2.8)
+✓ aksiyon · skor 0.57 → 00:36   madde: Toplum ve kazanç analizi yapmak
+   kanıt: toplu(3.2) kazan(2.3)
+✓ genel bakış · skor 0.79 → 00:14
+   kanıt: forma(3.7) kulla(3.7) progr(2.8) farkl(2.8) rapor(2.8)
+```
+Eşleşmeler artık **ayırt edici** kelimelerle taşınıyor; parantez içindeki sayı
+kelimenin ağırlığı. Eşik **0,5** seçildi: 0,6 gerçek eşleşmeleri de eliyor,
+0,4 zayıf kanıtla atlıyor. Madde en az 3 (gövdelenmiş) kelime taşımalı.
+
+Eşiğin altında kalan madde **tıklanabilir olmuyor** — arayüzde ok/dalga simgesi
+belirmiyor. Yanlış bir yere atlamak, hiç atlamamaktan kötüdür.
+
+Kelime normalleştirme `FoundationIntelligence.words(of:)` ile ortak: Türkçe
+küçük harf, diakritik düşürme, ilk 5 harf (kaba gövdeleme). Ekler yüzünden
+kaçan eşleşmeleri ("kazanç" ~ "kazancım") bu kurtarıyor.
