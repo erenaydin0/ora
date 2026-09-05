@@ -109,6 +109,14 @@ struct MeetingDetail: View {
                                        Task { await recorder.correct(segment, to: text) }
                                      }
                                    : nil,
+                               onDelete: recorder.canCorrect
+                                   ? { segment in Task { await recorder.deleteSegment(segment) } }
+                                   : nil,
+                               onRelabel: recorder.canCorrect
+                                   ? { segment, speaker in
+                                       Task { await recorder.setSpeaker(segment, to: speaker) }
+                                     }
+                                   : nil,
                                find: $findText,
                                isFinding: $isFinding)
             }

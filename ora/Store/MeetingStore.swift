@@ -135,6 +135,32 @@ struct MeetingStore: Sendable {
         }
     }
 
+    /// Bir transkript satırını siler. Yanlış duyulan özel bir bilgi ya da
+    /// araya karışan bir konuşma için — kullanıcı kendi kaydının sahibidir.
+    /// FTS trigger'ı indeksi temizler.
+    func deleteSegment(meetingID: Int64, segment: Segment) async throws {
+        try await database.write { db in
+            try db.execute(sql: """
+                DELETE FROM transcripts
+                WHERE meeting_id = ? AND start_time = ? AND channel = ?
+                """,
+                arguments: [meetingID, segment.start, segment.channel.databaseValue])
+        }
+    }
+
+    /// Konuşmacı etiketini değiştirir. Yalnız-mikrofon modunda her şey "Ben"
+    /// damgalanıyor; kanal fiziksel gerçektir, **etiket** düzeltilebilir olmalı.
+    func setSpeaker(meetingID: Int64, segment: Segment, speaker: String) async throws {
+        try await database.write { db in
+            try db.execute(sql: """
+                UPDATE transcripts SET speaker = ?
+                WHERE meeting_id = ? AND start_time = ? AND channel = ?
+                """,
+                arguments: [speaker, meetingID, segment.start,
+                            segment.channel.databaseValue])
+        }
+    }
+
     // MARK: - Okuma
 
     /// Toplantı listesi. `search` boşsa tümü; doluysa başlık **ve** FTS5 transkript

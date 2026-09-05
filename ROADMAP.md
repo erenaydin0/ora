@@ -251,6 +251,43 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
   menü bar davranışı (kırmızı nokta, seviye çubukları, akan satır) gerçek bir
   kayıtla sınanmadı
 
+## Faz 8 — Elimizdekini Kullan ✅
+> Kaynağı **COMPETITION.md**: rakip incelemesinde ora'da hiç olmayan ama
+> zaten elimizdeki veriyle yapılabilen işler. Bu fazda yeni bağımlılık,
+> yeni izin ve yeni şema **yok**.
+
+- [x] **Ses oynatıcı + transkript senkronu** (§4.1) — `AudioPlayback`:
+      akış hâlinde okuma (0,5 sn'lik parçalar, dosya asla tümüyle bellekte
+      değil), kanal seçici (Karışım / Ben / Katılımcı), perde koruyan hız
+      (1× / 1,5× / 2×), satır saatine tıklayınca oradan çalma, çalınan satırın
+      vurgulanması ve takip edilmesi. Ölçüm: RESEARCH.md §25.1
+- [x] **Aksiyon panosu** (§4.2) — kenar çubuğunda toplantılardan bağımsız kök;
+      Bana düşenler / Başkalarında / Kime düştüğü belirsiz; kaynak toplantıya
+      gidiş; tamamlananlar anahtarı
+- [x] **Alıntı bağı** (§4.3) — aksiyon, karar, genel bakış ve konu maddeleri
+      transkriptteki yerine götürür ve oynatıcıyı o ana kurar. IDF ağırlıklı
+      eşleştirme; eşleşme oranı %57 → %86 (RESEARCH.md §25.2)
+- [x] **Arama parçacığı ve ⌘F** (§4.4) — kenar çubuğu sonucunda eşleşen yer
+      görünür; transkript içinde eşleşme sayacı ve gezinme
+- [x] **Depolama yönetimi** (§4.5) — boyut, AAC sıkıştırma (11,5×, kanal
+      ayrımı korunuyor — RESEARCH.md §25.3), saklama süresi, "yalnızca sesi sil"
+- [x] **Küçük işler** (§4.16) — gerçek global kısayol (⌘⇧R, Carbon
+      `RegisterEventHotKey`, izin istemez), transkript satırı silme,
+      konuşmacı etiketini düzeltme, kayıt bildirimi hatırlatıcısı
+
+**Faz 8'de bilinçli bırakılanlar:**
+- Aksiyon panosundan doğrudan transkriptteki ana atlama yok; pano toplantıyı
+  açar, alıntı bağı oradan çalışır
+- Alıntı bağı **kalıcı değil**, her açılışta hesaplanır. Şema değişmedi;
+  eşleştirme ucuz (transkript başına bir dizin)
+- Oynatıcı canlı modda yok — kayıt sürerken çalınacak bir dosya yok
+
+## Faz 9 — Not Defteri (sıradaki, COMPETITION.md §7)
+- [ ] Kullanıcının kendi notu + kayıt sonrası zenginleştirme (§4.6)
+- [ ] Kayıt sırasında "önemli an" işareti (§4.9)
+- [ ] Toplantı şablonları (§4.7)
+- [ ] Kanal başına dil — mikrofon tr, sistem en (§4.8)
+
 ## Kapsam Dışı — bilerek yapılmayacaklar
 - Windows / Linux desteği
 - Bulut senkronizasyonu, hesap sistemi, telemetri

@@ -55,9 +55,12 @@ private struct GeneralSettings: View {
                 .labelsHidden()
                 .disabled(recorder.isRecording)
 
-                Text("**Otomatik**, sesin ilk 40 saniyesini kurulu dillerle ayrı ayrı "
-                     + "çözer ve güven skoru yüksek olanı seçer. Apple'da konuşulan "
-                     + "dili tanıyan bir API yoktur; bu ölçüme dayalı bir seçimdir.")
+                // `Text(String)` markdown ayrıştırmaz; birleştirilmiş metinde
+                // vurgu için anahtar açıkça kurulur (yıldızlar ekranda görünüyordu).
+                Text(LocalizedStringKey(
+                    "**Otomatik**, sesin ilk 40 saniyesini kurulu dillerle ayrı ayrı "
+                    + "çözer ve güven skoru yüksek olanı seçer. Apple'da konuşulan "
+                    + "dili tanıyan bir API yoktur; bu ölçüme dayalı bir seçimdir."))
                     .font(.system(size: 12))
                     .foregroundStyle(Color.oraInkMuted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -66,6 +69,30 @@ private struct GeneralSettings: View {
                     Text("Kayıt sürerken dil değiştirilemez.")
                         .font(.system(size: 12))
                         .foregroundStyle(Color.oraInkMuted)
+                }
+            }
+
+            Section("Kayıt bildirimi") {
+                Toggle("Kaydı başlatınca beni uyar", isOn: $settings.announceRecording)
+                Text("Kayıt başladığında ekranda kısa bir hatırlatma çıkar ve "
+                     + "katılımcılara söyleyebileceğiniz cümleyi panoya "
+                     + "kopyalayabilirsiniz. Hiçbir bildirim dışarı gönderilmez.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                if settings.announceRecording {
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("“\(OraSettings.announcement)”")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.oraInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        Button("Kopyala") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(OraSettings.announcement,
+                                                           forType: .string)
+                        }
+                        .buttonStyle(.link)
+                    }
                 }
             }
 
@@ -262,8 +289,9 @@ private struct StorageSettings: View {
                         Text(Self.label(days)).tag(days)
                     }
                 }
-                Text("Süresi dolan **yalnızca ses** silinir. Sesi silinen bir toplantı "
-                     + "artık yeniden işlenemez ve çalınamaz; notu yerinde kalır.")
+                // Birleştirilmiş metinde markdown çalışmaz; vurgu kelimeyle kurulur.
+                Text("Süresi dolduğunda silinen yalnızca sestir. Sesi silinen bir "
+                     + "toplantı artık yeniden işlenemez ve çalınamaz; notu yerinde kalır.")
                     .font(.system(size: 12))
                     .foregroundStyle(Color.oraInkMuted)
             }

@@ -85,6 +85,10 @@ struct RootView: View {
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         .task {
             recorder.scanForInterruptedRecordings()
+            // Sistem genelinde ⌘⇧R: kaydı başlatmak istediğiniz an başka bir
+            // uygulamadasınızdır (COMPETITION.md §4.16).
+            GlobalHotKey.shared.action = { Task { await recorder.toggle() } }
+            GlobalHotKey.shared.register()
             await recorder.startServices()
         }
         .safeAreaInset(edge: .top) {
@@ -159,6 +163,8 @@ private struct RecordButton: View {
 private struct RecordingView: View {
 
     let recorder: RecordingController
+    /// Kayıt bildirimi hatırlatması — kayıt başına bir kez, kapatılabilir.
+    @State private var announcementDismissed = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -176,6 +182,10 @@ private struct RecordingView: View {
                     Spacer()
                     Button("Durdur") { Task { await recorder.stop() } }
                         .foregroundStyle(Color.oraRed)
+                }
+
+                if OraSettings.shared.announceRecording, !announcementDismissed {
+                    AnnouncementNote { announcementDismissed = true }
                 }
 
                 if let reason = recorder.micOnlyReason {
@@ -201,6 +211,32 @@ private struct RecordingView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.oraPaper)
+    }
+}
+
+/// Kayıt başladı — katılımcıları bilgilendirmeyi hatırlat. Yalnızca ayarla
+/// açılır ve tamamen yereldir: kimseye bildirim gönderilmez, yalnızca
+/// söyleyeceğiniz cümle panoya kopyalanır.
+private struct AnnouncementNote: View {
+    let dismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "person.2")
+                .foregroundStyle(Color.oraInkMuted)
+            Text("Katılımcılara kayıt aldığınızı söylemeyi unutmayın.")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraInk)
+            Spacer()
+            Button("Metni kopyala") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(OraSettings.announcement, forType: .string)
+            }
+            .buttonStyle(.link)
+            Button("Tamam", action: dismiss)
+        }
+        .padding(10)
+        .oraCard()
     }
 }
 

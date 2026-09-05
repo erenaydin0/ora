@@ -18,6 +18,10 @@ struct TranscriptView: View {
     var onRetry: (() -> Void)?
     /// Nil ise düzeltme kapalıdır (canlı modda düzeltme yapılmaz).
     var onCorrect: ((Segment, String) -> Void)?
+    /// Satırı silme ve konuşmacı etiketini değiştirme — düzeltmeyle aynı koşula
+    /// bağlıdır (kayıt ve işlem sürerken kapalı).
+    var onDelete: ((Segment) -> Void)?
+    var onRelabel: ((Segment, String) -> Void)?
     /// Toplantı içi arama (⌘F). Kenar çubuğundaki arama toplantı **bulur**;
     /// bu arama bulunan toplantının içinde gezdirir.
     var find: Binding<String> = .constant("")
@@ -124,6 +128,27 @@ struct TranscriptView: View {
                                     }
                                     .help(onCorrect == nil ? ""
                                           : "Düzeltmek için çift tıklayın")
+                                    .contextMenu {
+                                        if onCorrect != nil {
+                                            Button("Düzelt") {
+                                                draft = segment.text
+                                                editing = segment.id
+                                            }
+                                        }
+                                        if let onRelabel {
+                                            let other = segment.speaker == Channel.mic.speaker
+                                                ? Channel.system.speaker : Channel.mic.speaker
+                                            Button("Konuşmacıyı “\(other)” yap") {
+                                                onRelabel(segment, other)
+                                            }
+                                        }
+                                        if let onDelete {
+                                            Divider()
+                                            Button("Satırı sil", role: .destructive) {
+                                                onDelete(segment)
+                                            }
+                                        }
+                                    }
                             }
                         }
                         ForEach(volatileLines, id: \.0) { channel, text in

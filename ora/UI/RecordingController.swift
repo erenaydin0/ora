@@ -500,6 +500,29 @@ final class RecordingController {
         }
     }
 
+    /// Transkript satırını siler. Ham ses duruyorsa "Yeniden dene" ile
+    /// transkript baştan üretilebilir; bu yüzden geri alınamaz bir kayıp değil.
+    func deleteSegment(_ segment: Segment) async {
+        guard let meetingID = selection else { return }
+        do {
+            try await store.deleteSegment(meetingID: meetingID, segment: segment)
+            await load(meetingID)
+        } catch {
+            Log.error(.store, "Satır silinemedi", error)
+        }
+    }
+
+    /// Konuşmacı etiketini değiştirir (kanal değişmez).
+    func setSpeaker(_ segment: Segment, to speaker: String) async {
+        guard let meetingID = selection else { return }
+        do {
+            try await store.setSpeaker(meetingID: meetingID, segment: segment, speaker: speaker)
+            await load(meetingID)
+        } catch {
+            Log.error(.store, "Konuşmacı değiştirilemedi", error)
+        }
+    }
+
     // MARK: - Kayıt
 
     func toggle() async {

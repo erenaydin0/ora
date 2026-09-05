@@ -36,6 +36,20 @@ final class OraSettings {
     /// Kullanıcının seçtiği takvimler. Varsayılan: hiçbiri.
     var selectedCalendarIDs: Set<String> { didSet { store(Array(selectedCalendarIDs), .selectedCalendars) } }
 
+    // MARK: - Kayıt bildirimi
+
+    /// Kayıt başlarken katılımcıları bilgilendirmeyi hatırlat.
+    /// Rakipler bunu "consent" özelliği olarak satıyor; ora'da karşılığı
+    /// tamamen yerel bir hatırlatmadır — kimseye bir şey gönderilmez.
+    var announceRecording: Bool { didSet { store(announceRecording, .announceRecording) } }
+
+    /// Panoya kopyalanan Türkçe anons. Cümlenin ikinci yarısı ora için
+    /// **doğrudur** ve öyle kalmalıdır: hiçbir veri cihazı terk etmiyor.
+    static let announcement =
+        "Bu görüşmeyi not almak için kaydediyorum. Kayıt ve çözümleme yalnızca "
+        + "kendi bilgisayarımda yapılıyor, hiçbir yere gönderilmiyor. "
+        + "İtirazı olan var mı?"
+
     // MARK: - Depolama
 
     /// Transkripsiyon ve özet bittikten sonra sesi AAC'ye çevir.
@@ -79,6 +93,7 @@ final class OraSettings {
                                 ?? Array(Self.defaultExclusions))
         alwaysRecordBundleIDs = Set(defaults.stringArray(forKey: Key.alwaysRecord.rawValue) ?? [])
         selectedCalendarIDs = Set(defaults.stringArray(forKey: Key.selectedCalendars.rawValue) ?? [])
+        announceRecording = defaults.bool(forKey: Key.announceRecording.rawValue)
         compressAudio = defaults.bool(forKey: Key.compressAudio.rawValue)
         audioRetentionDays = defaults.integer(forKey: Key.audioRetentionDays.rawValue)
     }
@@ -94,7 +109,7 @@ final class OraSettings {
         case detectionEnabled, excludedBundleIDs, alwaysRecord
         case calendarEnabled, selectedCalendars
         case userDisplayName
-        case compressAudio, audioRetentionDays
+        case compressAudio, audioRetentionDays, announceRecording
     }
 
     private func store(_ value: Any, _ key: Key) {

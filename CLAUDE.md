@@ -373,6 +373,8 @@ bir üründe kullanıcının kendi verisine erişebilmesi bir özelliktir.
 ## Dosya Yolları
 - Uygulama verisi: `~/Library/Application Support/ora/`
 - Ses kayıtları:   `{base}/recordings/{meeting_id}.wav`
+  (sıkıştırma açıksa işlem sonrası `.m4a` olur ve `meetings.audio_path`
+  güncellenir; ölçüm RESEARCH.md §25.3 — 11,5× kazanç, kanal ayrımı korunuyor)
 - Veritabanı:      `{base}/ora.sqlite`
 - Loglar:          `{base}/logs/ora.log`
 Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirectory)`.
@@ -435,6 +437,9 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 - **ARCHITECTURE.md** — modüller arası sözleşmeler
 - **FALLBACK.md** — Apple yığını yetmezse ne yapılacağı (whisper.cpp yolu)
 - **BRAND.md** — UI kodu yazmadan önce
+- **COMPETITION.md** — rakip incelemesi ve önceliklendirilmiş iyileştirme
+  listesi. Faz 8 ve sonrası buradan besleniyor; "hangi rakipte var → ora'da
+  neye karşılık gelir → hangi kuralla çakışır" biçiminde
 
 ### Geliştirme Verisi
 Gerçek bir toplantıyla denetim için `probes/bordro_toplanti.json` (29 dk'lık
@@ -499,6 +504,13 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       **Faz 7 — Paketleme** tamam: uygulama ikonu, `MenuBarExtra` (taşıyıcı yüzey),
       kayıt sırasında kırmızı nokta ve kanal seviyeleri, ilk açılış onboarding'i,
       `scripts/build-release.sh` ile 3,7 MB .dmg (RESEARCH.md §18).
+      **Faz 8 — Elimizdekini Kullan** tamam (kaynağı COMPETITION.md):
+      ses oynatıcı (kanal seçici · hız · satır senkronu), toplantılar arası
+      aksiyon panosu, özet maddesinden transkripte alıntı bağı (IDF ağırlıklı
+      eşleştirme), arama parçacığı ve ⌘F, depolama yönetimi (AAC 11,5×,
+      saklama süresi), gerçek global kısayol, satır silme ve konuşmacı
+      etiketi düzeltme, kayıt bildirimi hatırlatıcısı. Yeni bağımlılık, yeni
+      izin ve **şema değişikliği yok**. Ölçümler RESEARCH.md §25.
       **Gerçek kayıtla uçtan uca doğrulandı (RESEARCH.md §22):** kayıt sonrası
       tam geçiş `AVAudioFile.read`'in dosya sonundaki `nilError`'ı yüzünden her
       kayıtta düşüyordu; düzeltildi. Başarısız veya yarım kalmış bir toplantı
@@ -525,14 +537,16 @@ Config/Info.plist      — izin metinleri (INFOPLIST_FILE ile bağlı)
 Config/ora.entitlements— sandbox + audio-input; ağ girişi YOK (kural #3'ün garantisi)
 ora/oraApp.swift       — @main + AppDelegate (dizin hazırlığı, açık mod sabiti)
 ora/Core/              — AppPaths, Log, OraError, MeetingMetrics, OraSettings,
-                         PowerState
+                         PowerState, AudioArchive (boyut/sıkıştırma/silme),
+                         GlobalHotKey (⌘⇧R, Carbon)
 ora/Detect/            — MeetingDetector (CoreAudio olay dinleyicileri)
 ora/Calendar/          — CalendarReader (EventKit, opt-in)
 ora/Capture/           — AudioCapture (orkestra), MicrophoneCapture,
                          SystemAudioTap, StereoRecordingWriter, AudioClock,
                          RecordingRecovery, MeetingApps, Channel
 ora/Transcribe/        — SpeechTranscription (tam geçiş), LiveTranscription,
-                         TranscriptionLocale (dil + otomatik seçim), Segment
+                         TranscriptionLocale (dil + otomatik seçim), Segment,
+                         TranscriptIndex (özet maddesi → transkript eşleştirme)
 ora/Intelligence/      — FoundationIntelligence (noktalama + map-reduce özet),
                          Ozet (@Generable şemalar), TranscriptChunker, Intelligent
 ora/Store/             — OraDatabase (şema + migration), MeetingStore (tek kapı),
@@ -540,7 +554,8 @@ ora/Store/             — OraDatabase (şema + migration), MeetingStore (tek ka
 ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          MenuBarView (taşıyıcı yüzey), OnboardingView,
                          RecordingController, MeetingSidebar, MeetingDetail,
-                         TranscriptView, SummaryView, MeetingExport, SettingsView,
+                         TranscriptView, SummaryView, ActionBoardView,
+                         AudioPlayback (+ PlaybackBar), MeetingExport, SettingsView,
                          MeetingNotifications, ChatInspector,
                          EmptyState (+ ProcessingState), CurveLoader, FlowLayout
 ora/Resources/Assets.xcassets/Colors    — BRAND paletinin tek kaynağı

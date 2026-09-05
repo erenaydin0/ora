@@ -58,11 +58,11 @@ toplantı sohbeti, FTS5 arama, takvim eşleştirme, otomatik algılama, vocabula
 
 | # | İş | Etki | Efor | Yeni bağımlılık |
 |---|---|---|---|---|
-| 1 | Ses oynatıcı + transkript senkronu | ★★★ | S | yok |
-| 2 | Açık aksiyonlar panosu (toplantılar arası) | ★★★ | S | yok |
-| 3 | Alıntı bağı: her madde → transkript → ses | ★★★ | S | yok |
-| 4 | Arama parçacığı + toplantı içi arama | ★★ | XS | yok |
-| 5 | Depolama yönetimi (AAC'ye çevir / eski sesi sil) | ★★ | S | yok |
+| 1 | ✅ Ses oynatıcı + transkript senkronu | ★★★ | S | yok |
+| 2 | ✅ Açık aksiyonlar panosu (toplantılar arası) | ★★★ | S | yok |
+| 3 | ✅ Alıntı bağı: her madde → transkript → ses | ★★★ | S | yok |
+| 4 | ✅ Arama parçacığı + toplantı içi arama | ★★ | XS | yok |
+| 5 | ✅ Depolama yönetimi (AAC'ye çevir / eski sesi sil) | ★★ | S | yok |
 | 6 | Kullanıcı notu + not zenginleştirme (Granola modeli) | ★★★ | M | yok |
 | 7 | Toplantı şablonları | ★★ | M | yok |
 | 8 | Kanal başına dil (mic tr / sistem en) | ★★★ | S | yok |
@@ -324,10 +324,11 @@ Bunlar CLAUDE.md'nin kurallarıyla çakışır; listeye "yapılmadı" diye deği
 
 ## 7. Önerilen faz planı
 
-**Faz 8 — "Elimizdekini kullan" (yeni bağımlılık yok, yeni izin yok)**
+**Faz 8 — "Elimizdekini kullan" (yeni bağımlılık yok, yeni izin yok)** ✅
 4.1 oynatıcı · 4.2 aksiyon panosu · 4.3 alıntı bağı · 4.4 arama parçacığı ·
-4.5 depolama · 4.16'dan global kısayol, satır silme, kayıt uyarısı.
-*Hepsi var olan veriyi ve var olan SQL'i arayüze bağlıyor.*
+4.5 depolama · 4.16'dan global kısayol, satır silme, konuşmacı etiketi,
+kayıt uyarısı. *Hepsi var olan veriyi ve var olan SQL'i arayüze bağladı;
+şema değişmedi.* Ölçümler RESEARCH.md §25.
 
 **Faz 9 — "Not defteri" (ürün kimliği)**
 4.6 kullanıcı notu + zenginleştirme · 4.9 önemli an · 4.7 şablonlar ·
