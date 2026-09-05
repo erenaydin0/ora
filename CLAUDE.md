@@ -89,8 +89,10 @@ Bu sıra asla değişmez:
 5. Foundation Models ile map-reduce özetleme → konu blokları (başlık +
    maddeler) ve aksiyonlar parça aşamasında; genel bakış ve kararlar
    birleştirme aşamasında
-6. SQLite güncelle (summaries + action_items + topic_segments)
-7. Kullanıcıya bildir
+6. Son kontrol: üretilen cümlelerin dilbilgisi düzeltilir (olgu koruma
+   güvenceli; sayı ve özel isim değişirse satır reddedilir — §24.3)
+7. SQLite güncelle (summaries + action_items + topic_segments)
+8. Kullanıcıya bildir
 
 ## Ses Yakalama Kuralları — ölçülmüş davranış
 - Sistem sesi: `CATapDescription` + `AudioHardwareCreateProcessTap`.
@@ -189,6 +191,9 @@ Bu sıra asla değişmez:
   isim listesi verildiğinde model onu kısıt değil *menü* gibi kullanıyor,
   görevler belirsizleşiyor ve son tarihlere toplantı tarihi sızıyor. Liste
   yalnızca **doğrulamada** kullanılır.
+- **Konuşmacı etiketi üç biçimde sızıyor** (§24.4): `Ben: …`, `Katılımcı, …`
+  ve ayraçsız `Ben …`. Üçü de `withoutSpeakerPrefix` ile kesilir; isteme ayrıca
+  üçüncü şahıs kuralı yazılmıştır.
 - **Model, içeriği olmayan alanı istemdeki en yakın metinle doldurur.** "Şunu
   yazma" demek 3B modelde işe yaramıyor, tetikliyor. İki sızıntı kodda kesilir
   (`FoundationIntelligence.validated`): bağlam konu başlığını tekrarlıyorsa
@@ -197,8 +202,14 @@ Bu sıra asla değişmez:
   ayrıştırma yazma. Ölçüldü: aksiyon maddelerini `kisi`/`gorev`/`sonTarih`
   alanlarıyla doğru üretiyor. `sonTarih` alanını şemadan çıkarma — önceki
   ora'da istenmediği için DB'deki `deadline` hep NULL kalıyordu.
-- Talimat (instructions) her zaman şunu içerir:
-  "Sen bir toplantı asistanısın. Toplantı Türkçe ise yanıtını Türkçe ver."
+- **İstemler İngilizce yazılır, çıktı dili açıkça Türkçe istenir.** Ölçüldü
+  (RESEARCH.md §24.2): İngilizce istemle madde uzunluğu 60→70 karakter,
+  çıkarılan karar 3,3→5,7, aksiyon 2,7→3,7, genel bakış/karar tekrarı 1,7→0,7;
+  süre aynı, guardrail ikisinde de 8/8. Model İngilizce ağırlıklı eğitilmiş.
+  Kullanıcıya görünen hiçbir metin bundan etkilenmez.
+- **Daha güçlü bir cihaz üstü model yok** (§24.1). `.contentTagging` daha büyük
+  bir model değil, aynı modelin başka kullanım biçimi. Tek kaldıraç
+  `SystemLanguageModel.Adapter` — cihazda kalan, eğitilmiş bir LoRA katmanı.
 - Her map-reduce parçası için **yeni `LanguageModelSession`** aç; oturumu
   tekrar kullanırsan geçmiş bağlamı yiyip 4096'yı taşırır.
 - **Noktalama istemine konuşmacı öneki ("Ben:", "Katılımcı:") EKLEME.**
@@ -374,6 +385,10 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
   "Konuşmacılar" sekmesi yoktur (DESIGN.md §4)
 - **Özet sırası: Kişiler → Aksiyonlar → Genel bakış → Kararlar → Konular.**
   Aksiyon önce gelir; kullanıcının toplantı notuna ilk sorusu "bana ne düştü"
+- **Pencere minimumu sohbet paneline göre değişir** (900 → 1180) ve `Window`
+  sahnesinde `.windowResizability(.contentMinSize)` ile sert sınır yapılır.
+  Bu olmadan `NavigationSplitView` + `.inspector` sığmadığında kenar çubuğunu
+  pencerenin dışına taşıyıp kırpıyor (§24.5)
 - **İlerleme çubuğu yoktur.** İşlem sürerken Özet sekmesinin tamamı ortalanmış
   `ProcessingState` olur: `CurveLoader` + yalnızca yüzde. Boş durumların düğmesi
   (Yeniden dene / Şimdi özetle) metnin altında ortalanır, tepede şerit yok

@@ -11,11 +11,16 @@ struct OraApp: App {
     var body: some Scene {
         Window("ora", id: "main") {
             RootView(recorder: recorder)
-                .frame(minWidth: 900, minHeight: 560)
                 .tint(Color.oraCarmine)
                 .containerBackground(Color.oraPaper, for: .window)
         }
         .defaultSize(width: 1100, height: 700)
+        // En küçük boyut **içeriğin** bildirdiği minimumdur. Bu olmadan
+        // `NavigationSplitView` + `.inspector` sığmadığında sütunları
+        // daraltmak yerine kenar çubuğunu pencerenin dışına taşıyordu
+        // (RESEARCH.md §24). Minimum RootView'da, sohbet paneline göre
+        // değişken olarak bildirilir.
+        .windowResizability(.contentMinSize)
         .windowToolbarStyle(.unified)
 
         // Taşıyıcı yüzey: menü bar. Pencere kapalıyken de kayıt sürdürülebilir.

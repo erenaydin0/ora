@@ -47,6 +47,11 @@ struct ProcessingState: View {
 
     let stage: RecordingController.Stage
 
+    /// Dönen metin kaç saniyede bir değişsin.
+    private static let rotation: TimeInterval = 3.5
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         VStack(spacing: 8) {
             CurveLoader()
@@ -61,11 +66,16 @@ struct ProcessingState: View {
             }
             // İlk parça bitene kadar yüzde uzun süre %0'da kalıyor; o sırada
             // ne olduğunu söyleyen tek şey bu satır (CLAUDE.md, Hata Yönetimi:
-            // sessiz bekleme yok).
-            Text(stageName)
-                .font(.system(size: 12))
-                .foregroundStyle(Color.oraInkMuted)
-                .multilineTextAlignment(.center)
+            // sessiz bekleme yok). Aşamanın birden çok gerçek adımı varsa
+            // metin bunlar arasında dönüyor — bekleme donmuş hissettirmesin.
+            TimelineView(.periodic(from: .now, by: Self.rotation)) { timeline in
+                Text(message(at: timeline.date))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .multilineTextAlignment(.center)
+                    .contentTransition(.opacity)
+                    .animation(OraStyle.transition, value: message(at: timeline.date))
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)
@@ -85,19 +95,38 @@ struct ProcessingState: View {
 
     private var percentText: String? { percent.map { "%\($0)" } }
 
-    private var stageName: String {
+    /// Aşamanın **gerçekten yaptığı** adımlar. Uydurma değil: noktalama adımı
+    /// büyük harfi de düzeltiyor, özetleme adımı sırayla konu, aksiyon ve
+    /// karar üretiyor. Bekleyen kullanıcıya yanlış bilgi verilmez.
+    private var messages: [String] {
         switch stage {
-        case .preparingLanguage:   "Dil hazırlanıyor"
-        case .downloadingLanguage: "Dil paketi indiriliyor"
-        case .transcribing:        "Yazıya dökülüyor"
-        case .punctuating:         "Noktalama ekleniyor"
-        case .summarizing:         "Özetleniyor"
-        case .idle, .done:         ""
+        case .preparingLanguage:
+            ["Dil hazırlanıyor", "Model yükleniyor"]
+        case .downloadingLanguage:
+            ["Dil paketi indiriliyor"]
+        case .transcribing:
+            ["Yazıya dökülüyor", "Ses çözümleniyor", "Kelimeler zamanlanıyor"]
+        case .punctuating:
+            ["Noktalama ekleniyor", "Cümleler ayrılıyor", "Büyük harfler düzeltiliyor"]
+        case .summarizing:
+            ["Özetleniyor", "Konular ayrıştırılıyor", "Aksiyonlar çıkarılıyor",
+             "Kararlar toparlanıyor", "Cümleler düzeltiliyor"]
+        case .idle, .done:
+            [""]
         }
     }
 
+    /// Hareket azaltma açıkken metin dönmez; ilk adım sabit kalır.
+    private func message(at date: Date) -> String {
+        guard !reduceMotion, messages.count > 1 else { return messages[0] }
+        let tick = Int(date.timeIntervalSinceReferenceDate / Self.rotation)
+        return messages[abs(tick) % messages.count]
+    }
+
     private var spokenLabel: String {
-        stageName + (percent.map { " · yüzde \($0)" } ?? "")
+        // VoiceOver dönen metni okumaz — sürekli değişen bir etiket okumayı
+        // böler. Aşamanın kanonik adı okunur.
+        messages[0] + (percent.map { " · yüzde \($0)" } ?? "")
     }
 }
 
@@ -118,7 +147,7 @@ struct ProcessingState: View {
         .background(Color.oraPaper)
 }
 
-#Preview("İşlem durumu") {
+#Preview("İşlem durumu · dönen metin") {
     VStack(spacing: 0) {
         ProcessingState(stage: .punctuating(0.33))
         Divider().overlay(Color.oraBorder)

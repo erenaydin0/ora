@@ -12,12 +12,19 @@ struct FoundationIntelligence: Intelligent {
 
     /// Talimat her çağrıda aynıdır.
     ///
-    /// Genişletilmiş hâli guardrail'e takılmıyor (RESEARCH.md §23) — §15.1'de
-    /// ölçülen guardrail sorunu noktalama istemine ve konuşmacı önekine özgüydü.
+    /// **İstem İngilizce, çıktı Türkçe.** Ölçüldü (RESEARCH.md §24): aynı
+    /// transkriptte üçer koşu — İngilizce istemle madde uzunluğu 60→70 karakter,
+    /// çıkarılan karar 3,3→5,7, aksiyon 2,7→3,7, genel bakış/karar tekrarı
+    /// 1,7→0,7. Süre aynı, guardrail ikisinde de 8/8. Model İngilizce ağırlıklı
+    /// eğitilmiş; talimatı İngilizce vermek yönerge takibini artırıyor, çıktı
+    /// dili ayrı bir cümleyle sabitleniyor.
+    ///
+    /// Kullanıcıya görünen hiçbir metin bundan etkilenmez.
     private static let instructions = """
-        Sen bir toplantı asistanısın. Türkçe toplantıda Türkçe yanıt ver.
-        Yalnızca metinde geçen bilgiyi kullan; çıkarım yapma, uydurma.
-        Sayıları, tarihleri ve özel isimleri aynen koru.
+        You are a meeting assistant. The meeting is in Turkish; write every
+        output in Turkish.
+        Use only information present in the text; do not infer or invent.
+        Keep numbers, dates and proper nouns exactly as written.
         """
 
     var availability: ModelAvailability {
@@ -184,8 +191,8 @@ struct FoundationIntelligence: Intelligent {
                 skipped += 1
                 Log.warning(.intelligence, "Parça \(index + 1) özetlenemedi, atlandı")
             }
-            // Birleştirme adımı için son %20 pay bırakılır.
-            progress(Double(index + 1) / Double(chunks.count) * 0.8)
+            // Birleştirme ve son kontrol için pay bırakılır.
+            progress(Double(index + 1) / Double(chunks.count) * 0.75)
         }
 
         topics = Self.deduplicatedTopics(topics)
@@ -202,25 +209,34 @@ struct FoundationIntelligence: Intelligent {
         do {
             // Birleştirme **aksiyon üretmez** — sorumlu kişiyi bilemez.
             let response = try await session.respond(to: """
-                Aşağıda bir toplantının konu konu notları var. Bunlardan
-                toplantının 4-6 maddelik genel bakışını ve alınan kararları çıkar.
-                Kurallar:
-                - Genel bakışta her madde tek cümle olsun; önce ne olduğu,
-                  sonra sonucu.
-                - Genel bakışa toplantının tarihini veya süresini yazma.
-                - Konu başlıklarını olduğu gibi tekrar etme; ne olduğunu yaz.
-                - Karar olarak yalnızca gerçekten karara bağlanmış şeyleri yaz.
+                Below are topic-by-topic notes from a meeting. From them
+                produce a 4-6 bullet overview of the meeting and the decisions
+                that were made. Write everything in Turkish.
+                Rules:
+                - Each overview bullet is one sentence; first what happened,
+                  then its consequence.
+                - Do not write the meeting's date or duration in the overview.
+                - Do not repeat the topic headings verbatim; write what happened.
+                - Write as decisions only things that were actually decided.
+                - The overview and the decisions must not be the same sentences.
                 \(Self.dateLine(context))
 
                 \(combined)
                 """,
                 generating: ToplantiOzeti.self)
-            progress(1)
+            progress(0.85)
             let ozet = Ozet(genelBakis: response.content.genelBakis,
                             kararlar: response.content.kararlar,
                             aksiyonlar: aksiyonlar)
-            return SummaryResult(ozet: Self.deduplicated(ozet),
-                                 topics: topics,
+            // Son kontrol: üretilen cümlelerin dilbilgisi düzeltilir.
+            // Başarısızlığa dayanıklı — düzeltilemeyen cümle olduğu gibi kalır.
+            let (finalOzet, finalTopics) = await polished(
+                Self.deduplicated(ozet), topics: topics) { value in
+                    progress(0.85 + value * 0.15)
+                }
+            progress(1)
+            return SummaryResult(ozet: finalOzet,
+                                 topics: finalTopics,
                                  skippedChunks: skipped)
         } catch let error as LanguageModelSession.GenerationError {
             if case .exceededContextWindowSize = error {
@@ -237,25 +253,31 @@ struct FoundationIntelligence: Intelligent {
     private func chunkTopics(of text: String, target: Int,
                              context: SummaryContext) async -> ParcaOzeti? {
         let prompt = """
-            Bu toplantı bölümünü konularına ayır. En fazla \(target) konu çıkar.
-            Her konu için 2-6 kelimelik bir başlık ve o konuda konuşulanları
-            anlatan maddeler yaz. Az konu isteniyorsa her konuyu daha ayrıntılı
-            yaz; konuşulan her önemli noktaya bir madde ayır.
-            Kurallar:
-            - Her madde tek cümle olsun ve tek başına anlaşılsın.
-            - Sayıları, tarihleri, firma ve kişi adlarını metinde geçtiği gibi yaz.
-            - "Toplantıda konuşuldu" gibi dolgu cümle kurma; ne olduğunu yaz.
-            - Kim ne üstlendiyse adıyla yaz. \(Self.selfLine(context))
-            - "Ben", "Katılımcı" gibi konuşmacı etiketlerini maddeye yazma.
-            Aksiyon kuralları:
-            - Yalnızca birinin **açıkça üstlendiği** işleri yaz. Durum bildiren
-              cümleleri ("şu çalışıyor", "şu tamamlandı") aksiyon sayma.
-            - Bir bölümde hiç aksiyon olmayabilir; zorlama, boş bırak.
-            - Sorumluyu metinde o işi üstlenen kişiden al; anlaşılmıyorsa
-              "belirtilmedi" yaz.
-            - Yapılmış işleri değil, **yapılacak** işleri yaz.
-            - Bağlam alanına işin hangi konuşmadan çıktığını yaz.
-            - Son tarihi yalnızca metinde açıkça geçiyorsa yaz.
+            Split this meeting excerpt into its topics. Produce at most
+            \(target) topics. For each topic write a 2-6 word Turkish heading
+            and bullets describing what was discussed. If few topics are
+            requested, write each one in more detail; give every important
+            point its own bullet.
+            Rules:
+            - Each bullet is one sentence and must stand on its own.
+            - Keep numbers, dates, company and person names exactly as in the text.
+            - Do not write filler like "this was discussed"; write what happened.
+            - Name whoever took something on. \(Self.selfLine(context))
+            - Do not write speaker labels such as "Ben" or "Katılımcı" in a bullet.
+            - Write each bullet as a note in the third person, describing what
+              happened. Never write in the first person ("Ben", "yapacağım",
+              "ediyorum").
+            Action rules:
+            - Only write work someone explicitly took on. Status statements
+              ("this works", "this is finished") are not actions.
+            - An excerpt may contain no actions at all; do not force any,
+              leave the list empty.
+            - Take the owner from whoever took the work on in the text; write
+              "belirtilmedi" if it is unclear.
+            - Write work still to be done, not work already finished.
+            - In the context field write which part of the conversation the
+              work came from.
+            - Write a due date only if the text states one.
             \(Self.dateLine(context))
 
             \(text)
@@ -300,12 +322,18 @@ struct FoundationIntelligence: Intelligent {
                           context: SummaryContext) -> Ozet.Aksiyon {
         var result = aksiyon
         result.kisi = resolvedPerson(aksiyon.kisi, context: context)
+        // Konuşmacı etiketi görev ve bağlam alanlarına da sızıyor
+        // ("Katılımcı, toplam kazancı analiz etti").
+        result.gorev = withoutSpeakerPrefix(aksiyon.gorev)
+        result.baglam = withoutSpeakerPrefix(aksiyon.baglam)
 
         // Bağlam **görevin kendisini** de tekrarlayabiliyor, yalnızca konu
         // başlığını değil: "…belirlemek." → "…hesaplanması konusu." Gerçek
         // veride en sık görülen tekrar buydu.
-        if aksiyon.baglam.split(separator: " ").count < 4
-            || Self.isEcho(aksiyon.baglam, of: topicTitles + [aksiyon.gorev]) {
+        // Kontroller **temizlenmiş** metin üzerinde yapılır; etiket sayılırsa
+        // kelime sayısı yanlış çıkar.
+        if result.baglam.split(separator: " ").count < 4
+            || Self.isEcho(result.baglam, of: topicTitles + [result.gorev]) {
             result.baglam = ""
         }
 
@@ -367,8 +395,8 @@ struct FoundationIntelligence: Intelligent {
     /// bu cümle olmadan `kisi` alanı hep "belirtilmedi" geliyor (RESEARCH.md §15.2).
     static func selfLine(_ context: SummaryContext) -> String {
         guard let name = context.userName?.trimmingCharacters(in: .whitespaces),
-              !name.isEmpty else { return "\"Ben\" bu kaydı tutan kişidir." }
-        return "\"Ben\" bu kaydı tutan kişidir, adı \(name)."
+              !name.isEmpty else { return "\"Ben\" is the person recording." }
+        return "\"Ben\" is the person recording, named \(name)."
     }
 
     /// Katılımcı listesi **isteme yazılmaz.** A/B ölçüldü (RESEARCH.md §23):
@@ -410,8 +438,9 @@ struct FoundationIntelligence: Intelligent {
         formatter.dateFormat = "EEEE, d MMMM yyyy"
         // Örnek kelime **verilmez**: ölçümde "haftaya" örneği istemden
         // yankılanıp bütün son tarihlere yazıldı.
-        return "Toplantı tarihi: \(formatter.string(from: context.meetingDate)). "
-            + "Metinde geçen gün adlarını bu tarihe göre yorumla; tarih uydurma."
+        return "Meeting date: \(formatter.string(from: context.meetingDate)). "
+            + "Interpret weekday names in the text relative to this date; "
+            + "do not invent dates."
     }
 
     // MARK: - Birleştirme yardımcıları
@@ -449,19 +478,38 @@ struct FoundationIntelligence: Intelligent {
     }
 
     /// "Ben: Kayıt paylaşımını kontrol ediyorum." → "Kayıt paylaşımını kontrol
-    /// ediyorum."
+    /// ediyorum." Virgüllü biçim de aynı: "Katılımcı, kontrol ediyor." →
+    /// "Kontrol ediyor."
     ///
     /// İstem konuşmacı etiketini maddeye yazmamayı söylüyor ama model dinlemiyor
     /// — §23.6'daki desen: "şunu yazma" 3B modelde tutmuyor, kodda kesilmeli.
+    /// Model etiketi hem `:` ile önek hem de `,` ile **özne** olarak kullanıyor;
+    /// ikincisi üstelik bozuk cümle kuruyor ("Ben, … kontrol ediyor").
+    ///
     /// Yalnızca **bilinen etiketler** atılır; "Karar: …" gibi meşru bir önek
-    /// hayatta kalsın diye iki nokta öncesi körlemesine silinmez.
+    /// hayatta kalsın diye ayraç öncesi körlemesine silinmez. "Katılımcılar"
+    /// gibi gerçek bir özne de etkilenmez — tam eşleşme aranır.
     static func withoutSpeakerPrefix(_ text: String) -> String {
-        guard let colon = text.firstIndex(of: ":") else { return text }
-        let label = normalized(String(text[text.startIndex ..< colon]))
-        guard Channel.allCases.contains(where: { normalized($0.speaker) == label })
-        else { return text }
-        return String(text[text.index(after: colon)...])
-            .trimmingCharacters(in: .whitespaces)
+        let labels = Channel.allCases.map { normalized($0.speaker) }
+            + [normalized("belirtilmedi")]
+        // Ayraçlı biçim: "Ben: …" / "Katılımcı, …"
+        var rest: String
+        if let separator = text.firstIndex(where: { $0 == ":" || $0 == "," }),
+           case let head = String(text[text.startIndex ..< separator]),
+           head.count <= 15, labels.contains(normalized(head)) {
+            rest = String(text[text.index(after: separator)...])
+                .trimmingCharacters(in: .whitespaces)
+        } else if let space = text.firstIndex(of: " "),
+                  labels.contains(normalized(String(text[text.startIndex ..< space]))) {
+            // Ayraçsız biçim: "Ben kazançların toplamı üzerinde çalışıyor."
+            rest = String(text[text.index(after: space)...])
+                .trimmingCharacters(in: .whitespaces)
+        } else {
+            return text
+        }
+        guard let first = rest.first else { return rest }
+        return String(first).uppercased(with: Locale(identifier: "tr_TR"))
+            + rest.dropFirst()
     }
 
     /// Aynı başlık iki parçada da çıkabiliyor; ikincisinin maddeleri
@@ -482,6 +530,143 @@ struct FoundationIntelligence: Intelligent {
             }
         }
         return order.compactMap { byKey[$0] }
+    }
+
+    // MARK: - Son kontrol (dilbilgisi)
+
+    /// Üretilen cümleleri dilbilgisi açısından düzeltir.
+    ///
+    /// Model Türkçe'de sık sık hâl eki tutturamıyor ("Analiz akışını uçtan uca
+    /// çalıştırıldı" — belirtme hâli + edilgen çatı). Bu adım cümleleri
+    /// düzeltir ama **bilgi eklemez/çıkarmaz**: numaralı satır protokolü
+    /// noktalama adımından devralındı (satır sayısı tutmazsa parça bütünüyle
+    /// reddedilir) ve satır başına olgu koruma güvencesi eklendi.
+    ///
+    /// Başarısızlık zararsızdır: düzeltilemeyen satır olduğu gibi kalır.
+    func polished(_ ozet: Ozet, topics: [TopicSegment],
+                  progress: @Sendable @escaping (Double) -> Void) async
+        -> (Ozet, [TopicSegment]) {
+        guard availability.isAvailable else { return (ozet, topics) }
+
+        // Tüm cümleler tek sıraya dizilir, düzeltilir, sıra korunarak geri yazılır.
+        var lines: [String] = ozet.genelBakis + ozet.kararlar
+        for action in ozet.aksiyonlar { lines.append(action.gorev); lines.append(action.baglam) }
+        for topic in topics { lines.append(contentsOf: topic.bullets) }
+        guard !lines.isEmpty else { return (ozet, topics) }
+
+        var fixed: [String] = []
+        let chunks = Self.batches(of: lines, limit: TranscriptChunker.punctuationLimit)
+        for (index, chunk) in chunks.enumerated() {
+            fixed.append(contentsOf: await polish(chunk))
+            progress(Double(index + 1) / Double(chunks.count))
+        }
+        guard fixed.count == lines.count else { return (ozet, topics) }
+
+        var cursor = 0
+        func next(_ count: Int) -> [String] {
+            defer { cursor += count }
+            return Array(fixed[cursor ..< cursor + count])
+        }
+
+        var result = ozet
+        result.genelBakis = next(ozet.genelBakis.count)
+        result.kararlar = next(ozet.kararlar.count)
+        result.aksiyonlar = ozet.aksiyonlar.map { action in
+            var copy = action
+            copy.gorev = next(1)[0]
+            copy.baglam = next(1)[0]
+            return copy
+        }
+        let newTopics = topics.map { topic in
+            TopicSegment(title: topic.title, bullets: next(topic.bullets.count),
+                         start: topic.start, end: topic.end)
+        }
+        return (result, newTopics)
+    }
+
+    /// Bir grup satırı düzeltir. Sözleşme noktalama adımıyla aynı: numaralı
+    /// gir, numaralı çık, satır sayısı değişirse parçayı komple reddet.
+    private func polish(_ lines: [String]) async -> [String] {
+        let numbered = lines.enumerated()
+            .map { "\($0.offset + 1). \($0.element)" }
+            .joined(separator: "\n")
+
+        let prompt = """
+            Fix the grammar of the following numbered Turkish sentences.
+            Rules:
+            - Keep the meaning. Do not add or remove information.
+            - Keep every number, date and proper noun exactly as written.
+            - Keep the line count and the numbering exactly as given.
+            - An empty line stays empty.
+            - Return only the lines, no commentary.
+
+            \(numbered)
+            """
+        do {
+            let session = LanguageModelSession(instructions: Self.instructions)
+            let content = try await session.respond(to: prompt).content
+            let candidates = Self.numberedLines(content)
+            guard candidates.count == lines.count else {
+                Log.warning(.intelligence, "Dilbilgisi parçası atlandı: satır sayısı "
+                            + "uyuşmadı (\(candidates.count) ≠ \(lines.count))")
+                return lines
+            }
+            return zip(lines, candidates).map { original, candidate in
+                Self.keepsFacts(original, candidate) ? candidate : original
+            }
+        } catch {
+            Log.warning(.intelligence, "Dilbilgisi parçası başarısız: "
+                        + "\(error.localizedDescription)")
+            return lines
+        }
+    }
+
+    /// Düzeltme, cümledeki **olguları** koruyor mu?
+    ///
+    /// Noktalama adımındaki "kelimeler aynı kalmalı" güvencesi burada
+    /// kullanılamaz — dilbilgisi düzeltmesi zaten kelime değiştirir. Bunun
+    /// yerine değişmemesi gerekenler korunur: sayılar ve cümle başında
+    /// olmayan büyük harfli kelimeler (özel isimler). Ayrıca uzunluk yarıdan
+    /// aza inmiş ya da iki katına çıkmışsa düzeltme değil yeniden yazımdır.
+    static func keepsFacts(_ original: String, _ candidate: String) -> Bool {
+        guard !candidate.trimmingCharacters(in: .whitespaces).isEmpty
+                || original.trimmingCharacters(in: .whitespaces).isEmpty
+        else { return false }
+        let ratio = Double(candidate.count) / Double(max(original.count, 1))
+        guard ratio > 0.5, ratio < 2 else { return false }
+
+        let haystack = normalized(candidate)
+        return facts(in: original).allSatisfy { haystack.contains($0) }
+    }
+
+    /// Sayılar ve cümle başında olmayan büyük harfli kelimeler.
+    static func facts(in text: String) -> [String] {
+        let tokens = text.split { !$0.isLetter && !$0.isNumber && $0 != "%" }
+        return tokens.enumerated().compactMap { index, raw -> String? in
+            let token = String(raw)
+            if token.contains(where: \.isNumber) { return normalized(token) }
+            // Cümle başı büyük harfi özel isim değildir.
+            guard index > 0, let first = token.first, first.isUppercase,
+                  token.count > 2 else { return nil }
+            return normalized(token)
+        }
+        .filter { !$0.isEmpty }
+    }
+
+    /// Satırları toplam karakter sınırına göre gruplar.
+    static func batches(of lines: [String], limit: Int) -> [[String]] {
+        var result: [[String]] = []
+        var current: [String] = []
+        var size = 0
+        for line in lines {
+            if !current.isEmpty, size + line.count + 5 > limit {
+                result.append(current); current = []; size = 0
+            }
+            current.append(line)
+            size += line.count + 5
+        }
+        if !current.isEmpty { result.append(current) }
+        return result
     }
 
     // MARK: - Toplantı sohbeti
@@ -506,10 +691,11 @@ struct FoundationIntelligence: Intelligent {
             let text = TranscriptChunker.render(chunk)
             do {
                 let response = try await session.respond(to: """
-                    Aşağıdaki toplantı bölümünde şu sorunun yanıtı var mı?
-                    Soru: \(trimmed)
+                    Does the following meeting excerpt answer this question?
+                    Question: \(trimmed)
 
-                    Varsa kısaca yaz. Yoksa yalnızca "YOK" yaz. Uydurma.
+                    If it does, answer briefly in Turkish. If it does not,
+                    write only "YOK". Do not invent anything.
 
                     \(text)
                     """)
@@ -532,11 +718,11 @@ struct FoundationIntelligence: Intelligent {
         let session = LanguageModelSession(instructions: Self.instructions)
         do {
             let response = try await session.respond(to: """
-                Soru: \(trimmed)
+                Question: \(trimmed)
 
-                Toplantının farklı bölümlerinden şu bulgular çıktı. Bunları
-                birleştirerek soruyu Türkçe ve kısaca yanıtla. Bulgularda olmayan
-                bir şey ekleme.
+                These findings came from different parts of the meeting. Combine
+                them and answer the question briefly, in Turkish. Do not add
+                anything that is not in the findings.
 
                 \(findings.joined(separator: "\n---\n"))
                 """)
@@ -590,11 +776,11 @@ struct FoundationIntelligence: Intelligent {
         do {
             let response = try await session.respond(
                 to: """
-                Bu toplantıya 3-6 kelimelik Türkçe bir başlık ver. Başlık
-                toplantının **tamamını** temsil etmeli, tek bir bölümünü değil.
-                Tarih yazma, tırnak kullanma, liste yapma, "toplantı" kelimesini
-                gereksizce tekrarlama. "Ben", "Katılımcı" gibi konuşmacı
-                etiketlerini başlığa koyma.
+                Give this meeting a 3-6 word title in Turkish. The title must
+                represent the **whole** meeting, not one section of it.
+                No date, no quotation marks, no list, do not repeat the word
+                "toplantı" needlessly. Do not put speaker labels such as "Ben"
+                or "Katılımcı" in the title.
 
                 \(source)
                 """,
@@ -617,7 +803,12 @@ struct FoundationIntelligence: Intelligent {
         var result = ozet
         result.genelBakis = cleaned(ozet.genelBakis)
             .filter { seenOverview.insert(normalized($0)).inserted }
+        // Karar, genel bakışın kopyası olmamalı. İstemde kural var ama model
+        // yine de aynı cümleyi iki alana yazabiliyor (ölçüldü, RESEARCH.md §24);
+        // aynı cümle iki başlık altında iki kez okunmaz.
+        let overview = Set(result.genelBakis.map(normalized))
         result.kararlar = cleaned(ozet.kararlar)
+            .filter { !overview.contains(normalized($0)) }
             .filter { seenDecisions.insert(normalized($0)).inserted }
         // Aksiyonlar artık parça parça toplanıyor; aynı iş birden çok
         // parçada geçebiliyor ve toplam sayı şişebiliyor.

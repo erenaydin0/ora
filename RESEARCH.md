@@ -1122,3 +1122,91 @@ isim seçmiyor.
 *probe:* `probes/ozet_gercek.swift` · `FILE=bordro_toplanti.txt`
 *yükleme:* `swiftc -parse-as-library scripts/seed-transcript.swift -o /tmp/seed`
 `&& /tmp/seed probes/bordro_toplanti.json`
+
+---
+
+## 24. İstem dili, son kontrol ve pencere minimumu
+
+### 24.1 Hangi modeller var? "Daha güçlü üst model" yok
+
+`probes/model_envanter.swift` bu makinede:
+```
+SystemLanguageModel.default         : kullanılabilir
+SystemLanguageModel(.contentTagging): kullanılabilir
+desteklenen dil: 23  ·  tr-Latn-TR var
+```
+FoundationModels **tek bir cihaz üstü model** sunuyor. `.contentTagging` daha
+büyük bir model değil, aynı modelin sınıflandırma/etiketleme için ayarlanmış
+kullanım biçimi — özetleme için bir üst basamak değil. Apple'ın büyük modeli
+sunucu tarafında (Private Cloud Compute) ve bu çerçeveden üçüncü taraf
+uygulamalara **açılmıyor**; açılsaydı bile CLAUDE.md kural #3 gereği kullanılamazdı.
+
+**Tek gerçek kaldıraç `SystemLanguageModel.Adapter`.** API mevcut
+(`Adapter(fileURL:)` + `SystemLanguageModel(adapter:)`, derlenerek doğrulandı):
+Apple'ın adapter eğitim araç setiyle eğitilmiş bir LoRA katmanı modele takılıyor,
+her şey cihazda kalıyor. Türkçe toplantı notu için eğitilmiş bir adapter, istem
+mühendisliğinin üstünde kalan tek yol. Maliyeti eğitim verisi ve eğitim
+altyapısı; çalışma zamanı maliyeti aynı modelinki.
+
+### 24.2 **İngilizce istem, Türkçe çıktı ölçülür biçimde daha iyi**
+
+Aynı transkript, üçer koşu, tek değişken istem dili:
+
+| Ölçü | Türkçe istem | İngilizce istem |
+|---|---|---|
+| madde uzunluğu (medyan) | 63 · 69 · 47 → **60** | 65 · 70 · 75 → **70** |
+| çıkarılan karar | 4 · 4 · 2 → **3,3** | 5 · 6 · 6 → **5,7** |
+| çıkarılan aksiyon | 3 · 2 · 3 → **2,7** | 3 · 4 · 4 → **3,7** |
+| genel bakış ↔ karar tekrarı | 1 · 3 · 1 → **1,7** | 0 · 0 · 2 → **0,7** |
+| bölüm sayısı | 4 | 4 |
+| süre | ~12,1 sn | ~12,5 sn |
+| guardrail | 8/8 | 8/8 |
+
+Model İngilizce ağırlıklı eğitilmiş; yönergeyi İngilizce vermek takibi
+artırıyor, çıktı dili ayrı bir cümleyle sabitleniyor ve **çıktı tamamen
+Türkçe kalıyor**. Örneklem küçük (3'er koşu) ama beş ölçütün beşi de aynı yöne
+işaret ediyor. Uygulamadaki tüm istemler İngilizce'ye çevrildi.
+
+*probe:* `probes/ozet_gercek.swift`, `PROMPT_LANG=en`
+
+### 24.3 Son kontrol: dilbilgisi düzeltme adımı
+
+Model Türkçe'de sık sık hâl eki tutturamıyor ("Analiz akışı**nı** uçtan uca
+çalıştırıl**dı**"). Özet üretildikten sonra bütün cümleler numaralı satır
+protokolüyle (noktalama adımından devralındı) tek geçişte düzeltiliyor.
+
+Noktalamadaki "kelimeler aynı kalmalı" güvencesi burada kullanılamaz —
+dilbilgisi düzeltmesi zaten kelime değiştirir. Yerine **olgu koruma**:
+sayılar ve cümle başında olmayan büyük harfli kelimeler (özel isimler)
+düzeltilmiş satırda da bulunmalı; uzunluk yarıdan aza inmiş ya da iki katına
+çıkmışsa düzeltme değil yeniden yazımdır, reddedilir. Satır sayısı tutmazsa
+parça bütünüyle reddedilir. Başarısızlık zararsız: satır olduğu gibi kalır.
+
+Maliyet: 29 dakikalık toplantıda tek ek geçiş, ilerlemenin son %15'i.
+
+### 24.4 Konuşmacı etiketi üç ayrı biçimde sızıyor
+
+§23.6'daki desenin devamı. İstem "etiket yazma" diyor, model üç biçim deniyor:
+
+| Biçim | Örnek |
+|---|---|
+| iki nokta | `Ben: Kayıt paylaşımını kontrol ediyorum.` |
+| virgül (özne) | `Katılımcı, toplam kazancı analiz etti.` |
+| ayraçsız (özne) | `Ben kazançların toplamı üzerinde çalışıyor.` |
+
+Üçü de `withoutSpeakerPrefix` ile kesiliyor; yalnızca tam eşleşen bilinen
+etiketler (`Ben`, `Katılımcı`, `Belirtilmedi`) — "Katılımcılar" gibi gerçek bir
+özne ve "Karar: …" gibi meşru bir önek korunuyor. Ayrıca isteme **üçüncü şahıs**
+kuralı eklendi; birinci şahıs sızıntısı ölçümde 0'a indi.
+
+### 24.5 Pencere minimumu sohbet panelini saymıyordu
+
+`NavigationSplitView` + `.inspector` birlikte sığmadığında SwiftUI sütunları
+daraltmıyor, **kenar çubuğunu pencerenin dışına taşıyıp kırpıyor**. 900 pt
+minimum yalnızca kenar çubuğu + orta paneli sayıyordu; sohbet açılınca üçüncü
+sütun için yer kalmıyordu.
+
+Düzeltme iki parçalı: minimum `RootView`'da sohbet paneline göre **değişken**
+bildiriliyor (900 → 1180) ve `Window` sahnesine `.windowResizability(.contentMinSize)`
+eklendi — bu olmadan bildirilen minimum sert sınır olmuyor. Doğrulandı: panel
+açılınca pencere 900'den 1180'e kendiliğinden büyüyor, üç sütun da tam görünüyor.

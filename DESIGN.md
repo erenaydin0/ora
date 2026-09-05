@@ -138,8 +138,12 @@ sayısı pratikte iki ("Ben" / "Katılımcı") — bu bir sekmeyi hak etmiyor.
 İlerleme çubuğu başlıkla içerik arasında yatay bir şerit çiziyordu: beklenen şey
 (özet) ortada "hazır değil" derken, o beklemenin göstergesi ilgisiz bir yerdeydi.
 Çubuk kaldırıldı. İşlem sürerken Özet sekmesinin **tamamı** `ProcessingState`
-olur: ortada küçük bir eğri animasyonu, altında yalnızca yüzde. Aşamanın Türkçe
-adı ekranda yazmaz; VoiceOver etiketine ve başlıktaki "işleniyor" çipine düşer.
+olur: ortada küçük bir eğri animasyonu, altında yüzde ve aşamanın adı.
+Aşama metni, o adımın **gerçekten yaptığı** işler arasında 3,5 saniyede bir
+dönüyor ("Konular ayrıştırılıyor" → "Aksiyonlar çıkarılıyor" → "Cümleler
+düzeltiliyor") — bekleme donmuş hissettirmesin diye. Metinler uydurulmaz, o
+aşamanın gerçek adımlarıdır. Hareket azaltma açıkken dönmez, ilki sabit kalır.
+VoiceOver dönen metni değil aşamanın kanonik adını okur.
 
 Transkript sekmesi bu sırada **canlı metni göstermeye devam eder** — akan metin
 zaten kendi ilerleme göstergesidir.

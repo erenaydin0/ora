@@ -46,13 +46,22 @@ enum Ozet {
            + "kimse üstlenmediyse boş", .maximumCount(4)) var aksiyonlar: [Ozet.Aksiyon]
 }
 
-let ins = """
+let ingilizce = ProcessInfo.processInfo.environment["PROMPT_LANG"] == "en"
+let ins = ingilizce ? """
+    You are a meeting assistant. The meeting is in Turkish; write every output
+    in Turkish.
+    Use only information present in the text; do not infer or invent.
+    Keep numbers, dates and proper nouns exactly as written.
+    """ : """
     Sen bir toplantı asistanısın. Türkçe toplantıda Türkçe yanıt ver.
     Yalnızca metinde geçen bilgiyi kullan; çıkarım yapma, uydurma.
     Sayıları, tarihleri ve özel isimleri aynen koru.
     """
-let tarih = "Toplantı tarihi: Salı, 18 Ağustos 2026. "
-    + "Metinde geçen gün adlarını bu tarihe göre yorumla; tarih uydurma."
+let tarih = ingilizce
+    ? "Meeting date: Tuesday, 18 August 2026. Interpret weekday names in the "
+      + "text relative to this date; do not invent dates."
+    : "Toplantı tarihi: Salı, 18 Ağustos 2026. "
+      + "Metinde geçen gün adlarını bu tarihe göre yorumla; tarih uydurma."
 let rosterAcik = ProcessInfo.processInfo.environment["ROSTER"] != "0"
 let roster = ["Eren AYDIN", "Zerrin ALTUN"]
 let rosterSatiri = rosterAcik
@@ -62,30 +71,52 @@ let rosterSatiri = rosterAcik
     : ""
 
 func parcaIstemi(_ metin: String, hedef: Int) -> String {
-    """
-                Bu toplantı bölümünü konularına ayır. En fazla \(hedef) konu çıkar.
-                Her konu için 2-6 kelimelik bir başlık ve o konuda konuşulanları
-                anlatan maddeler yaz. Az konu isteniyorsa her konuyu daha ayrıntılı
-                yaz; konuşulan her önemli noktaya bir madde ayır.
-                Kurallar:
-                - Her madde tek cümle olsun ve tek başına anlaşılsın.
-                - Sayıları, tarihleri, firma ve kişi adlarını metinde geçtiği gibi yaz.
-                - "Toplantıda konuşuldu" gibi dolgu cümle kurma; ne olduğunu yaz.
-                - Kim ne üstlendiyse adıyla yaz. "Ben" bu kaydı tutan kişidir, adı Eren AYDIN.
-                - "Ben", "Katılımcı" gibi konuşmacı etiketlerini maddeye yazma.
-                Aksiyon kuralları:
-                - Yalnızca birinin **açıkça üstlendiği** işleri yaz. Durum bildiren
-                  cümleleri ("şu çalışıyor", "şu tamamlandı") aksiyon sayma.
-                - Sorumluyu metinde o işi üstlenen kişiden al; anlaşılmıyorsa
-                  "belirtilmedi" yaz.
-                - Yapılmış işleri değil, **yapılacak** işleri yaz.
-                - Bağlam alanına işin hangi konuşmadan çıktığını yaz.
-                - Son tarihi yalnızca metinde açıkça geçiyorsa yaz.
-                \(rosterSatiri)\(tarih)
+    ingilizce ? """
+    Split this meeting excerpt into its topics. Produce at most \(hedef) topics.
+    For each topic write a 2-6 word Turkish heading and bullets describing what
+    was discussed. If few topics are requested, write each one in more detail;
+    give every important point its own bullet.
+    Rules:
+    - Each bullet is one sentence and must stand on its own.
+    - Keep numbers, dates, company and person names exactly as in the text.
+    - Do not write filler like "this was discussed"; write what happened.
+    - Name whoever took something on. "Ben" is the person recording, named Eren AYDIN.
+    - Do not write speaker labels such as "Ben" or "Katılımcı" in a bullet.
+    Action rules:
+    - Only write work someone explicitly took on. Status statements
+      ("this works", "this is done") are not actions.
+    - Take the owner from whoever took the work on; write "belirtilmedi" if unclear.
+    - Write work still to be done, not work already finished.
+    - In the context field write which part of the conversation the work came from.
+    - Write a due date only if the text states one.
+    \(rosterSatiri)\(tarih)
 
-                \(metin)
-                """
+    \(metin)
+    """ : """
+    Bu toplantı bölümünü konularına ayır. En fazla \(hedef) konu çıkar.
+    Her konu için 2-6 kelimelik bir başlık ve o konuda konuşulanları
+    anlatan maddeler yaz. Az konu isteniyorsa her konuyu daha ayrıntılı
+    yaz; konuşulan her önemli noktaya bir madde ayır.
+    Kurallar:
+    - Her madde tek cümle olsun ve tek başına anlaşılsın.
+    - Sayıları, tarihleri, firma ve kişi adlarını metinde geçtiği gibi yaz.
+    - "Toplantıda konuşuldu" gibi dolgu cümle kurma; ne olduğunu yaz.
+    - Kim ne üstlendiyse adıyla yaz. "Ben" bu kaydı tutan kişidir, adı Eren AYDIN.
+    - "Ben", "Katılımcı" gibi konuşmacı etiketlerini maddeye yazma.
+    Aksiyon kuralları:
+    - Yalnızca birinin **açıkça üstlendiği** işleri yaz. Durum bildiren
+      cümleleri ("şu çalışıyor", "şu tamamlandı") aksiyon sayma.
+    - Sorumluyu metinde o işi üstlenen kişiden al; anlaşılmıyorsa
+      "belirtilmedi" yaz.
+    - Yapılmış işleri değil, **yapılacak** işleri yaz.
+    - Bağlam alanına işin hangi konuşmadan çıktığını yaz.
+    - Son tarihi yalnızca metinde açıkça geçiyorsa yaz.
+    \(rosterSatiri)\(tarih)
+
+    \(metin)
+    """
 }
+
 
 func kelimeler(_ t: String) -> [String] {
     t.lowercased(with: Locale(identifier: "tr_TR"))
@@ -152,7 +183,8 @@ func medyan(_ xs: [Int]) -> Int {
     }
     if !cur.isEmpty { parcalar.append(cur) }
     let hedef = max(1, min(4, Int((6.0 / Double(parcalar.count)).rounded(.up))))
-    print("roster: \(rosterAcik ? "AÇIK" : "KAPALI")")
+    print("istem dili: \(ingilizce ? "İNGİLİZCE" : "TÜRKÇE")"
+          + " · roster: \(rosterAcik ? "AÇIK" : "KAPALI")")
     print("transkript: \(satirlar.joined(separator: "\n").count) karakter · "
           + "\(satirlar.count) replik")
     print("parça: \(parcalar.count) · hedef parça başına \(hedef) konu\n")
@@ -200,7 +232,20 @@ func medyan(_ xs: [Int]) -> Int {
     let s = LanguageModelSession(instructions: ins)
     var ozet: ToplantiOzeti?
     do {
-        ozet = try await s.respond(to: """
+        let reduceIstem = ingilizce ? """
+            Below are topic-by-topic notes from a meeting. From them produce a
+            4-6 bullet overview of the meeting and the decisions that were made.
+            Rules:
+            - Each overview bullet is one sentence; first what happened, then
+              its consequence.
+            - Do not write the meeting's date or duration in the overview.
+            - Do not repeat the topic headings verbatim; write what happened.
+            - Write as decisions only things that were actually decided.
+            - The overview and the decisions must not be the same sentences.
+            \(tarih)
+
+            \(notlar.joined(separator: "\n\n"))
+            """ : """
             Aşağıda bir toplantının konu konu notları var. Bunlardan
             toplantının 4-6 maddelik genel bakışını ve alınan kararları çıkar.
             Kurallar:
@@ -209,10 +254,13 @@ func medyan(_ xs: [Int]) -> Int {
             - Genel bakışa toplantının tarihini veya süresini yazma.
             - Konu başlıklarını olduğu gibi tekrar etme; ne olduğunu yaz.
             - Karar olarak yalnızca gerçekten karara bağlanmış şeyleri yaz.
+            - Genel bakış ile kararlar aynı cümleler olmasın.
             \(tarih)
 
             \(notlar.joined(separator: "\n\n"))
-            """, generating: ToplantiOzeti.self).content
+            """
+        ozet = try await s.respond(to: reduceIstem,
+                                   generating: ToplantiOzeti.self).content
     } catch { print("REDUCE HATASI: \(error)") }
     print("atlanan parça: \(atlanan)")
 
@@ -252,6 +300,12 @@ func medyan(_ xs: [Int]) -> Int {
         ozet.genelBakis.forEach { print("  • \($0)") }
         print("\n— kararlar (\(ozet.kararlar.count)) —")
         ozet.kararlar.forEach { print("  • \($0)") }
+    }
+
+    if let o = ozet {
+        let gb = Set(o.genelBakis.map { norm($0) })
+        let ortak = gb.intersection(Set(o.kararlar.map { norm($0) })).count
+        print("\ngenel bakış ↔ kararlar aynı madde: \(ortak)  (0 olmalı)")
     }
 
     var gorulen = Set<String>()
