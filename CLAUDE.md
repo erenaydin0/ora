@@ -60,8 +60,11 @@ Python yok, Node yok, Electron yok, model dosyası indirme yok.
    çubuğundaki canlı kayıt noktası için
 9b. Uygulamanın vurgu rengi (`AccentColor`) `.oraCarmine`’dir — sistem
     mavisi ve eski Soft Apricot kullanılmaz. Anahtarlar, sekmeler ve
-    varsayılan butonlar Carmine alır. Kenar çubuğu seçimi `.oraChrome`
-    şerittir; sohbet araç çubuğu kapalıyken mürekkep, açıkken Carmine. Active Red
+    varsayılan butonlar Carmine alır. **Kenar çubuğunda seçili kart dolu
+    Carmine'dir**, metni kâğıt rengidir (eski `.oraChrome` şerit bırakıldı:
+    sistemin seçim kapsülü liste odağı gidince griye dönüyor ve kartın altında
+    ikinci bir renk bırakıyordu — bu yüzden `List` seçimi de kullanılmaz).
+    Sohbet araç çubuğu kapalıyken mürekkep, açıkken Carmine. Active Red
     Carmine’den açıkça ayırt edilebilir kalmalı.
 10. Uygulama adı her zaman küçük harf "ora"
 11. Kayıt **stereo** yazılır: kanal 0 = mikrofon, kanal 1 = sistem sesi.
@@ -391,6 +394,11 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
   sahnesinde `.windowResizability(.contentMinSize)` ile sert sınır yapılır.
   Bu olmadan `NavigationSplitView` + `.inspector` sığmadığında kenar çubuğunu
   pencerenin dışına taşıyıp kırpıyor (§24.5)
+- **Kenar çubuğu araması bir simgedir**, sürekli duran alan kutusu değil;
+  tıklanınca açılır, Escape kapatır. Toplantı kartı: başlık üstte, altında
+  tarih-saat, sağ uçta süre
+- **Oynatıcı ve ⌘F arama paneli yüzer** — kenardan kenara şerit çizmezler.
+  Oynatıcıda kanal seçici yoktur; oynatma karışımdır
 - **İlerleme çubuğu yoktur.** İşlem sürerken Özet sekmesinin tamamı ortalanmış
   `ProcessingState` olur: `CurveLoader` + yalnızca yüzde. Boş durumların düğmesi
   (Yeniden dene / Şimdi özetle) metnin altında ortalanır, tepede şerit yok

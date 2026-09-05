@@ -68,15 +68,17 @@ struct MeetingDetail: View {
 
             Divider().overlay(Color.oraBorder)
 
-            switch tab {
-            case .summary:
-                // İşlem sürerken Özet'te gösterilecek bir şey yok; beklenen şeyin
-                // yerinde beklemek doğrusu. Transkript sekmesi bu sırada canlı
-                // metni göstermeye devam eder.
-                if recorder.isTranscribing {
-                    ProcessingState(stage: recorder.transcriptionStage)
-                } else {
-                SummaryView(summary: recorder.summary,
+            Group {
+                switch tab {
+                case .summary:
+                    // İşlem sürerken Özet'te gösterilecek bir şey yok; beklenen
+                    // şeyin yerinde beklemek doğrusu. Transkript sekmesi bu
+                    // sırada canlı metni göstermeye devam eder.
+                    if recorder.isTranscribing {
+                        ProcessingState(stage: recorder.transcriptionStage)
+                    } else {
+                        SummaryView(
+                            summary: recorder.summary,
                             topics: recorder.topics,
                             actions: recorder.actions,
                             notice: recorder.summaryNotice
@@ -97,32 +99,39 @@ struct MeetingDetail: View {
                             canOpenText: index.isEmpty ? nil : { index.match($0) != nil },
                             onRetry: recorder.canRetry
                                 ? { Task { await recorder.retryProcessing() } } : nil)
+                    }
+                case .transcript:
+                    TranscriptView(
+                        segments: recorder.displayedSegments,
+                        jumpTarget: $jumpTarget,
+                        playback: playback.isAvailable ? playback : nil,
+                        onRetry: recorder.canRetry
+                            ? { Task { await recorder.retryProcessing() } } : nil,
+                        onCorrect: recorder.canCorrect
+                            ? { segment, text in
+                                Task { await recorder.correct(segment, to: text) }
+                              }
+                            : nil,
+                        onDelete: recorder.canCorrect
+                            ? { segment in Task { await recorder.deleteSegment(segment) } }
+                            : nil,
+                        onRelabel: recorder.canCorrect
+                            ? { segment, speaker in
+                                Task { await recorder.setSpeaker(segment, to: speaker) }
+                              }
+                            : nil,
+                        find: $findText,
+                        isFinding: $isFinding)
                 }
-            case .transcript:
-                TranscriptView(segments: recorder.displayedSegments,
-                               jumpTarget: $jumpTarget,
-                               playback: playback.isAvailable ? playback : nil,
-                               onRetry: recorder.canRetry
-                                   ? { Task { await recorder.retryProcessing() } } : nil,
-                               onCorrect: recorder.canCorrect
-                                   ? { segment, text in
-                                       Task { await recorder.correct(segment, to: text) }
-                                     }
-                                   : nil,
-                               onDelete: recorder.canCorrect
-                                   ? { segment in Task { await recorder.deleteSegment(segment) } }
-                                   : nil,
-                               onRelabel: recorder.canCorrect
-                                   ? { segment, speaker in
-                                       Task { await recorder.setSpeaker(segment, to: speaker) }
-                                     }
-                                   : nil,
-                               find: $findText,
-                               isFinding: $isFinding)
             }
-
-            if playback.isAvailable {
-                PlaybackBar(playback: playback)
+            // Oynatıcı içeriğin **üstünde** yüzer; şerit olarak yer kaplamaz.
+            // Altta ayrılan boşluk, son satırın kalıcı olarak panelin altında
+            // kalmasını önler.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if playback.isAvailable { Color.clear.frame(height: 52) }
+            }
+            .overlay(alignment: .bottom) {
+                if playback.isAvailable { PlaybackBar(playback: playback) }
             }
         }
         // Seçim değişince oynatıcı yeni kaydın sesine bağlanır; ses yoksa kapanır.

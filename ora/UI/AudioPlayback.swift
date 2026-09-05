@@ -10,38 +10,13 @@ import SwiftUI
 /// yazılmıştı ama aynı disiplin okuma tarafında da geçerli — bir saatlik kayıt
 /// 230 MB'tır.
 ///
-/// **Kanal seçici ora'ya özgüdür.** Kayıt stereo yazıldığı için (ch0 = mikrofon,
-/// ch1 = sistem sesi) tek bir kanalı yalnız dinlemek mümkün; gürültülü bir
-/// kayıtta karşı tarafı tek başına dinlemek transkripti doğrulamanın en hızlı
-/// yoludur. Seçilen kanal **iki çıkışa da** kopyalanır — tek kulakta ses
-/// dinletmek için değil, o kanalı yalıtmak için yapılıyor.
+/// Kayıt iki kanallı yazılır (ch0 = mikrofon, ch1 = sistem sesi) ama oynatma
+/// **karışımdır**: kanal seçici kullanıcı kararıyla kaldırıldı — dinlerken
+/// yapılan iş kaydı gözden geçirmek, kanal ayıklamak değil. Ölçümü
+/// RESEARCH.md §25.1'de duruyor.
 @MainActor
 @Observable
 final class AudioPlayback {
-
-    /// Hangi kanal duyulacak.
-    enum Mode: String, CaseIterable, Identifiable {
-        case mix, mic, system
-
-        var id: String { rawValue }
-
-        var label: String {
-            switch self {
-            case .mix:    "Karışım"
-            case .mic:    Channel.mic.speaker
-            case .system: Channel.system.speaker
-            }
-        }
-
-        /// `nil` = iki kanal birlikte.
-        var channel: Channel? {
-            switch self {
-            case .mix:    nil
-            case .mic:    .mic
-            case .system: .system
-            }
-        }
-    }
 
     // MARK: - Yayınlanan durum
 
@@ -51,10 +26,6 @@ final class AudioPlayback {
 
     /// Ses diskte yoksa oynatıcı hiç görünmez.
     var isAvailable: Bool { file != nil }
-
-    var mode: Mode = .mix {
-        didSet { if mode != oldValue { seek(to: currentTime) } }
-    }
 
     /// Konuşma 1,5×'te rahat dinlenir; perde korunur (`AVAudioUnitTimePitch`).
     var rate: Float = 1 {
@@ -195,7 +166,6 @@ final class AudioPlayback {
             }
             guard buffer.frameLength > 0 else { reachedEnd = true; break }
             readPosition += AVAudioFramePosition(buffer.frameLength)
-            isolate(into: buffer)
             pending += 1
             player.scheduleBuffer(buffer, completionCallbackType: .dataConsumed) { [weak self] _ in
                 Task { @MainActor in self?.consumed() }
@@ -217,21 +187,6 @@ final class AudioPlayback {
         ticker?.cancel()
         ticker = nil
         currentTime = duration
-    }
-
-    /// Seçili kanalı diğer çıkışlara kopyalar. `AVAudioFile.processingFormat`
-    /// her zaman ayrık (non-interleaved) float32'dir, bu yüzden kanal
-    /// düzlemleri doğrudan kopyalanabilir.
-    private func isolate(into buffer: AVAudioPCMBuffer) {
-        guard let source = mode.channel?.rawValue,
-              let data = buffer.floatChannelData,
-              buffer.format.channelCount > 1,
-              source < Int(buffer.format.channelCount)
-        else { return }
-        let bytes = Int(buffer.frameLength) * MemoryLayout<Float>.size
-        for target in 0..<Int(buffer.format.channelCount) where target != source {
-            memcpy(data[target], data[source], bytes)
-        }
     }
 
     // MARK: - Zaman
@@ -293,22 +248,23 @@ final class AudioPlayback {
     }
 }
 
-/// Toplantı panelinin altındaki oynatıcı şeridi.
+/// Yüzen oynatıcı. İçeriğin **üstünde** durur, kenardan kenara bir şerit
+/// çizmez: kayıt her zaman görünür bir araçtır ama sayfanın bir parçası değil.
 ///
-/// Özet ve Transkript sekmelerinin **altında** durur, ikisinde de görünür:
-/// özet maddesinden ses o an çalınabilsin diye (COMPETITION.md §4.3) ve
-/// görünmeyen bir yüzeyden ses gelmesin diye.
+/// Özet ve Transkript sekmelerinin ikisinde de görünür — özet maddesinden ses
+/// o an çalınabilsin diye (COMPETITION.md §4.3) ve görünmeyen bir yüzeyden ses
+/// gelmesin diye.
 struct PlaybackBar: View {
 
     @Bindable var playback: AudioPlayback
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Button(action: playback.toggle) {
                 Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 12))
+                    .font(.system(size: 11))
                     .foregroundStyle(Color.oraInk)
-                    .frame(width: 26, height: 22)
+                    .frame(width: 22, height: 20)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -316,29 +272,21 @@ struct PlaybackBar: View {
             .accessibilityLabel(playback.isPlaying ? "Duraklat" : "Çal")
 
             Text(AudioPlayback.timeLabel(playback.currentTime))
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(size: 11, design: .monospaced))
                 .monospacedDigit()
                 .foregroundStyle(Color.oraInk)
 
             Slider(value: Binding(get: { playback.currentTime },
                                   set: { playback.seek(to: $0) }),
                    in: 0...max(playback.duration, 1))
-                .controlSize(.small)
+                .controlSize(.mini)
+                .frame(minWidth: 160)
                 .accessibilityLabel("Kaydın konumu")
 
             Text(AudioPlayback.timeLabel(playback.duration))
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(size: 11, design: .monospaced))
                 .monospacedDigit()
                 .foregroundStyle(Color.oraInkMuted)
-
-            // Kanal seçici: stereo kaydın kullanıcıya ilk kez görünür değeri.
-            Picker("", selection: $playback.mode) {
-                ForEach(AudioPlayback.Mode.allCases) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 190)
-            .help("Hangi kanalı duyacağınızı seçin")
 
             Menu("\(rateLabel)×") {
                 ForEach(AudioPlayback.rates, id: \.self) { value in
@@ -346,14 +294,20 @@ struct PlaybackBar: View {
                 }
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
             .fixedSize()
             .help("Oynatma hızı")
         }
-        .font(.system(size: 12))
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.oraChrome)
-        .overlay(alignment: .top) { Divider().overlay(Color.oraBorder) }
+        .frame(maxWidth: 460)
+        .background(Color.oraSurface)
+        .clipShape(RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous)
+                .stroke(Color.oraBorder, lineWidth: 1))
+        .oraShadow()
+        .padding(.bottom, 14)
     }
 
     private var rateLabel: String { Self.label(playback.rate) }

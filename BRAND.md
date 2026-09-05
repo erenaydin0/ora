@@ -35,8 +35,12 @@ sistem mavisi hiçbir yerde görünmez.
 - **Active Red** — yalnızca canlı kayıt (buton, menü bar noktası, kenar çubuğu
   kayıt noktası). Parlak ve alarm; Carmine’den açıkça ayrılır.
 
-Kenar çubuğu seçimi Carmine **yıkanmaz** — macOS seçimi soldurur ve kayıt
-kırmızısıyla karışır. Seçili satır `.oraChrome` kâğıt karttır.
+Kenar çubuğunda **seçili satır dolu Carmine karttır**, metni kâğıt rengidir.
+Eskiden `.oraChrome` şerittti ve gerekçesi "macOS seçimi soldurur" idi; ölçüde
+tersi çıktı: sistemin seçim kapsülü liste odağını kaybedince griye dönüyor ve
+üzerine yazılan metnin kontrastı bozuluyordu. Artık seçim kapsülü hiç
+kullanılmıyor, kartı satırın kendisi çiziyor — tek renk, her durumda aynı.
+İmleç izi aynı rengin %8'idir. Kayıt kırmızısı listeye hiç girmez.
 
 Bağlantı da Carmine’dir (AccentColor). Metadata (kişi, tarih, konuşmacı)
 `.oraInkMuted` kalır; ikinci bir vurgu rengi açılmaz.
@@ -88,8 +92,8 @@ kendiliğinden uyar. Marka kimliğini renk, boşluk ve işaret taşır; özel fo
 ## Bileşen Renk Kuralları
 - Birincil / varsayılan buton: sistem stili, AccentColor = Carmine, açık metin
 - İkincil buton: `.oraSurface` zemin, `.oraInk` metin, `.oraBorder` kenarlık
-- Kenar çubuğu: saat omurgası (solda saat, sağda başlık). Seçili satır
-  `.oraChrome` şerit, `.oraInk` metin — kart yığını değil.
+- Kenar çubuğu kartı: başlık üstte (`.oraInk`), altında tarih-saat ve sağ uçta
+  süre (`.oraInkMuted`). Seçili kart dolu `.oraCarmine`, metni `.oraPaper`.
 - Sohbet araç çubuğu: kapalıyken `.oraInk` çizgi, açıkken dolu `.oraCarmine`
   simge — renkli zemin yok
 - Yıkıcı eylem: `.oraRed` (sistem destructive)
@@ -117,7 +121,7 @@ Pencere arka planı (`NSWindow.backgroundColor` / `.containerBackground`) tuvall
 ## Ne YAPILMAMALI
 - Active Red’i (`#E53935`) kayıt bağlamı dışında kullanma
 - Carmine Deep’i işaret dışında kullanma
-- Kenar çubuğu seçimini Carmine veya Active Red ile boyama
+- Kenar çubuğu seçimini Active Red ile boyama (Carmine seçimin kendisidir)
 - Sohbet ve boş durum simgelerinde çok renkli / palet SF Symbol kullanma
 - Saf siyah (`#000000`) kullanma — her zaman Slate Black (`#333333`)
 - Aynı ekranda ikiden fazla font ağırlığı kullanma

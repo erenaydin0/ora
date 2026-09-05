@@ -43,15 +43,23 @@ struct TranscriptView: View {
                        actionTitle: onRetry == nil ? nil : "Yeniden dene",
                        action: onRetry)
         } else {
-            VStack(spacing: 0) {
-                if isFinding.wrappedValue { findBar }
-                transcript
-            }
+            transcript
+                // Arama **yüzen** bir paneldir: sayfa genişliğinde bir şerit
+                // okuma alanını bölüyordu, oysa arama geçici bir araçtır.
+                .overlay(alignment: .topTrailing) {
+                    if isFinding.wrappedValue {
+                        findPanel
+                            .padding(.top, 12)
+                            .padding(.trailing, 16)
+                            .transition(.opacity)
+                    }
+                }
+                .animation(OraStyle.transition, value: isFinding.wrappedValue)
         }
     }
 
-    /// ⌘F şeridi. Escape kapatır, Enter sonraki eşleşmeye gider.
-    private var findBar: some View {
+    /// ⌘F paneli. Escape kapatır, Enter sonraki eşleşmeye gider.
+    private var findPanel: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 11))
@@ -60,6 +68,7 @@ struct TranscriptView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .foregroundStyle(Color.oraInk)
+                .frame(width: 150)
                 .focused($findFocused)
                 .onSubmit { step(1) }
             if !find.wrappedValue.isEmpty {
@@ -84,10 +93,15 @@ struct TranscriptView: View {
         }
         .font(.system(size: 11))
         .foregroundStyle(Color.oraInkMuted)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
-        .background(Color.oraChrome)
-        .overlay(alignment: .bottom) { Divider().overlay(Color.oraBorder) }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color.oraSurface)
+        .clipShape(RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous)
+                .stroke(Color.oraBorder, lineWidth: 1))
+        .oraShadow()
+        .fixedSize()
         .onAppear { findFocused = true }
         .onExitCommand(perform: closeFind)
     }

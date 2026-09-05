@@ -185,10 +185,21 @@ olabilir — ve kart aksiyonlarla konuların arasında okuma akışını kesiyor
   ("davetli 6 · konuşan 3"). Bu ayrım toplantının kimin için yapıldığını söyler
 - **Toplantı listesinde** (kenar çubuğu) takvimden gelen toplantılar adıyla
   görünür; gelmeyenler LLM'in ürettiği başlıkla. Görsel ayrım yapılmaz —
-  ikisi de meşru başlıktır. Satır **saat omurgasıdır**: solda hizalı saat,
-  sağda başlık; süre veya durum alt satırda. Sahte kart yığını yok.
-  Seçili satır `.oraChrome` şerittir; Carmine liste yıkanmaz.
+  ikisi de meşru başlıktır. Satır bir **karttır**: başlık üstte sola yaslı,
+  altında tarih-saat, sağ uçta süre (ya da "Kayıt sürüyor" / "İşleniyor").
+  Seçili kart dolu Carmine'dir ve metni kâğıt rengine döner — tek renk.
+  `List` seçimi kullanılmaz; sistemin kapsülü kaldırılamadığı için kartın
+  altında ikinci bir renk olarak kalıyordu. Ok tuşlarıyla gezinme elle kurulur.
 - Takvim kapalıyken bu yüzeylerin hiçbiri **yer tutmaz**; boş kart gösterme
+
+### Yüzen yüzeyler
+Sürekli görünmesi gereken ama sayfanın parçası olmayan iki araç **yüzer**:
+- **Oynatıcı** — panelin altında ortada duran kart. Kenardan kenara şerit
+  değil; altında içerik için 52 pt boşluk ayrılır, böylece son satır kalıcı
+  olarak panelin altında kalmaz. Kanal seçici yoktur: dinlerken yapılan iş
+  kaydı gözden geçirmektir
+- **⌘F arama paneli** — transkriptin sağ üstünde küçük bir kart. Sayfa
+  genişliğinde bir şerit okuma alanını bölüyordu
 
 ### Canlı mod (yeni)
 Kayıt sürerken pencere açıksa:
@@ -225,7 +236,8 @@ Bunun dışında BRAND.md aynen geçerli: gradyan yok, 8'den büyük köşe yok,
 - `.accessibilityReduceMotion` — çentik açılma animasyonu ve nabız atan kayıt
   noktası bu durumda sabit hâle gelir
 - Kayıt başlat/durdur için global kısayol (varsayılan ⌘⇧R)
-- Kenar çubuğu araması `.searchable`, FTS5 destekli
+- Kenar çubuğu araması **simgedir**; tıklanınca 150 ms'de açılır, Escape
+  kapatır ve temizler. FTS5 destekli
 - Canlı transkriptte VoiceOver kesinleşmemiş metni okumaz (sürekli değişir);
   yalnızca kesinleşen segmentler duyurulur
 

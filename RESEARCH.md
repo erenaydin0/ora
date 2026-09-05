@@ -1256,6 +1256,12 @@ hız 2,0×: render 16000, playerTime 35072 kaynak frame, ileri kaçak 192 ms ✓
    saniyeler uzunluğunda) fazlasıyla yeterli. Konum hesabı için ayrı bir duvar
    saati sayacı yazmaya gerek yok.
 
+**Kanal seçici sonradan kaldırıldı** (kullanıcı kararı, Faz 8 tasarım turu):
+dinlerken yapılan iş kaydı gözden geçirmek, kanal ayıklamak değil. Oynatma
+karışımdır. Yukarıdaki 1. ve 2. ölçüm, yalıtım geri istenirse tekrar
+koşturulabilsin diye kayıtta bırakıldı; `probes/playback.swift` `isolate()`
+işlevini kendi içinde taşır.
+
 **Akış hâlinde okuma:** oynatıcı dosyayı 8.192 frame'lik (0,5 sn) parçalarla
 okur ve üç parça ileri besler. Kural #12 yazma tarafı için yazılmıştı; okuma
 tarafında da geçerli — bir saatlik kayıt 230 MB'tır, `AVAudioPlayer`'ın dosyayı
