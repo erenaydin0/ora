@@ -47,6 +47,10 @@ final class RecordingController {
     /// diyor; o vaadin karşılığı budur.
     private(set) var retryableAudio: URL?
 
+    /// Seçili toplantının diskteki ses dosyası — oynatıcı bunu çalar.
+    /// `retryableAudio`'dan ayrı: ses transkript **varken de** durur.
+    private(set) var audioURL: URL?
+
     /// Algılamadan gelen öneri; kullanıcı karar verene kadar durur.
     var pendingSignal: MeetingSignal? { detector.pendingSignal }
     /// Toplantı uygulaması mikrofonu 30 sn'den uzun bıraktı.
@@ -365,7 +369,8 @@ final class RecordingController {
             actions = loaded.actions
             summaryNotice = nil
             transcriptionStage = loaded.segments.isEmpty ? .idle : .done
-            retryableAudio = loaded.segments.isEmpty ? Self.existingAudio(loaded.meeting) : nil
+            audioURL = Self.existingAudio(loaded.meeting)
+            retryableAudio = loaded.segments.isEmpty ? audioURL : nil
             chatTurns = (try? await store.chatHistory(meetingID)) ?? []
             calendarParticipants = (try? await store.calendarParticipants(meetingID)) ?? []
         } catch {
@@ -522,6 +527,7 @@ final class RecordingController {
         calendarParticipants = []
         transcriptionStage = .idle
         retryableAudio = nil
+        audioURL = nil
     }
 
     // MARK: - Canlı transkripsiyon (en iyi çaba)
@@ -572,6 +578,9 @@ final class RecordingController {
     // MARK: - İşlem hattı (sıra CLAUDE.md'de sabittir)
 
     private func runFullPass(meetingID: Int64, url: URL, duration: TimeInterval) async {
+        // Ses artık diskte; oynatıcı toplantıyı yeniden seçmeye gerek kalmadan
+        // bu kayda bağlanabilir.
+        audioURL = url
         transcriptionStage = .preparingLanguage
         let locale: Locale
         if let chosen = language.locale {

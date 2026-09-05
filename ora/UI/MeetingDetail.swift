@@ -15,6 +15,9 @@ struct MeetingDetail: View {
     @State private var tab: Tab = .summary
     /// Konu başlığından transkripte atlarken hedeflenen an.
     @State private var jumpTarget: TimeInterval?
+    /// Kaydın sesi. Şerit iki sekmenin de altında durur — ses görünmeyen bir
+    /// yüzeyden gelmez, özet maddesinden de çalınabilir.
+    @State private var playback = AudioPlayback()
 
     /// Gösterilecek bir toplantı içeriği var mı — seçim yokken de kayıt sonrası
     /// akış bu yoldan görünür.
@@ -82,6 +85,7 @@ struct MeetingDetail: View {
             case .transcript:
                 TranscriptView(segments: recorder.displayedSegments,
                                jumpTarget: $jumpTarget,
+                               playback: playback.isAvailable ? playback : nil,
                                onRetry: recorder.canRetry
                                    ? { Task { await recorder.retryProcessing() } } : nil,
                                onCorrect: recorder.canCorrect
@@ -90,7 +94,15 @@ struct MeetingDetail: View {
                                      }
                                    : nil)
             }
+
+            if playback.isAvailable {
+                PlaybackBar(playback: playback)
+            }
         }
+        // Seçim değişince oynatıcı yeni kaydın sesine bağlanır; ses yoksa kapanır.
+        .onAppear { playback.load(recorder.audioURL) }
+        .onChange(of: recorder.audioURL) { _, url in playback.load(url) }
+        .onDisappear { playback.pause() }
     }
 }
 

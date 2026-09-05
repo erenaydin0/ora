@@ -11,6 +11,9 @@ struct TranscriptView: View {
     /// Özet'teki konu başlığından gelen atlama hedefi (saniye). Kaydırma
     /// yapıldıktan sonra `nil`'e çekilir ki aynı konuya tekrar basılabilsin.
     var jumpTarget: Binding<TimeInterval?> = .constant(nil)
+    /// Kaydın sesi. Nil ise (canlı mod, sesi silinmiş toplantı) satırlar
+    /// çalınamaz ve vurgulanmaz.
+    var playback: AudioPlayback?
     /// Ses diskte ama transkript yok — boş durumdaki tek çıkış yolu.
     var onRetry: (() -> Void)?
     /// Nil ise düzeltme kapalıdır (canlı modda düzeltme yapılmaz).
@@ -49,7 +52,11 @@ struct TranscriptView: View {
                                     editing = nil
                                 }
                             } else {
-                                SegmentRow(segment: segment)
+                                SegmentRow(segment: segment,
+                                           isActive: segment.id == activeID,
+                                           onPlay: playback.map { player in
+                                               { player.play(from: segment.start) }
+                                           })
                                     .contentShape(Rectangle())
                                     .onTapGesture(count: 2) {
                                         guard onCorrect != nil else { return }
@@ -86,8 +93,19 @@ struct TranscriptView: View {
                     proxy.scrollTo(id, anchor: .top)
                     jumpTarget.wrappedValue = nil
                 }
+                // Ses çalarken okunan satır görünür kalır. Yalnızca çalarken:
+                // kullanıcı duraklatıp gezinirken kaydırmayı ele geçirmek yanlış.
+                .onChange(of: activeID) { _, id in
+                    guard let id, playback?.isPlaying == true else { return }
+                    withAnimation(OraStyle.transition) { proxy.scrollTo(id, anchor: .center) }
+                }
             }
         }
+    }
+
+    /// O an çalınan satır — oynatıcı yoksa hiçbiri.
+    private var activeID: Segment.ID? {
+        playback?.activeSegmentID(in: segments)
     }
 
     /// Verilen anı içeren ya da ondan sonraki ilk segment.
@@ -105,6 +123,12 @@ struct TranscriptView: View {
 
 private struct SegmentRow: View {
     let segment: Segment
+    /// Ses bu satırı çalıyor.
+    var isActive = false
+    /// Ses varsa saat etiketi "buradan çal" düğmesine dönüşür.
+    var onPlay: (() -> Void)?
+
+    @State private var isHovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -114,9 +138,26 @@ private struct SegmentRow: View {
                 Text(segment.speaker)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(segment.channel == .mic ? Color.oraInk : Color.oraInkMuted)
-                Text(segment.timeLabel)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(Color.oraInkMuted)
+                if let onPlay {
+                    Button(action: onPlay) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 8))
+                                .opacity(isHovered || isActive ? 1 : 0)
+                            Text(segment.timeLabel)
+                                .font(.system(size: 12, design: .monospaced))
+                        }
+                        .foregroundStyle(isActive ? Color.oraCarmine : Color.oraInkMuted)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Kaydı buradan çal")
+                    .accessibilityLabel("\(segment.timeLabel) — kaydı buradan çal")
+                } else {
+                    Text(segment.timeLabel)
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(Color.oraInkMuted)
+                }
             }
             Text(segment.text)
                 .font(.system(.body, design: .monospaced))
@@ -125,6 +166,16 @@ private struct SegmentRow: View {
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        // Çalınan satır krem şeritle işaretlenir — kenar çubuğu seçimiyle aynı
+        // dil (BRAND: vurgu için renk yıkaması yok).
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background {
+            RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous)
+                .fill(isActive ? Color.oraChrome : Color.clear)
+        }
+        .padding(.horizontal, -8)
+        .onHover { isHovered = $0 }
         .accessibilityElement(children: .combine)
     }
 }

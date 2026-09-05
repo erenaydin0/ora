@@ -1210,3 +1210,53 @@ Düzeltme iki parçalı: minimum `RootView`'da sohbet paneline göre **değişke
 bildiriliyor (900 → 1180) ve `Window` sahnesine `.windowResizability(.contentMinSize)`
 eklendi — bu olmadan bildirilen minimum sert sınır olmuyor. Doğrulandı: panel
 açılınca pencere 900'den 1180'e kendiliğinden büyüyor, üç sütun da tam görünüyor.
+
+---
+
+## 25. Faz 8 ölçümleri — oynatıcı, alıntı bağı, depolama
+
+Faz 8'in kaynağı **COMPETITION.md**: rakip incelemesinde ora'da hiç olmayan ama
+elimizdeki veriyle yapılabilen işler. Bu bölüm o işlerin ölçümlerini tutar.
+
+### 25.1 Oynatıcı: kanal yalıtımı, grafik ve hızlı oynatmada konum
+
+`probes/playback.swift` (manuel render modu — ölçüm sessiz, ses çıkışına gitmez),
+`probes/kayit.wav` üzerinde (31,8 sn · 16 kHz · 2 kanal · ayrık float32):
+
+```
+— 1. Kanal yalıtımı —
+kaynak RMS  ch0(mic) 0.00208  ch1(system) 0.00000
+mic:    iki düzlem aynı ✓, kaynak kanal korunmuş ✓, RMS 0.00208
+system: iki düzlem aynı ✓, kaynak kanal korunmuş ✓, RMS 0.00000
+
+— 2. Grafik akıyor mu (1 sn render, 10. saniyeden) —
+mix:    çıkış RMS 0.00228, kaynak 0.00208 ✓
+mic:    çıkış RMS 0.00228, kaynak 0.00208 ✓
+system: çıkış RMS 0.00000, kaynak 0.00000 ✓
+
+— 3. Hız değişince konum hesabı —
+hız 1,0×: render 16000, playerTime 16896 kaynak frame, ileri kaçak  56 ms ✓
+hız 1,5×: render 16000, playerTime 25088 kaynak frame, ileri kaçak  68 ms ✓
+hız 2,0×: render 16000, playerTime 35072 kaynak frame, ileri kaçak 192 ms ✓
+```
+
+Üç sonuç:
+
+1. **Kanal yalıtımı `memcpy` ile birebir.** Seçilen kanal diğer düzleme
+   kopyalanıyor; `AVAudioFile.processingFormat` her zaman ayrık float32 olduğu
+   için düzlemler doğrudan kopyalanabiliyor. Yalıtım pan/balans ile
+   yapılmıyor — pan tek kulakta ses bırakırdı.
+2. **Sistem kanalının sessiz çıkması test verisinin kendisi**: bu kayıtta ch1
+   10. saniyede gerçekten sessiz (kaynak RMS 0.00000). Probe sabit eşikle değil
+   **kaynakla** karşılaştırdığı için bunu hata saymıyor.
+3. **`playerTime.sampleTime` kaynak frame'lerini sayıyor.** Hız 1,5× ve 2,0×'te
+   oran hıza uyuyor; aradaki fark oransal değil **sabit** (56–192 ms), ve bu
+   `AVAudioUnitTimePitch`'in kendi tamponunun ileriden okumasıdır. Yani konum
+   göstergesi duyulandan en fazla ~0,2 sn ileride; segment vurgusu için (segmentler
+   saniyeler uzunluğunda) fazlasıyla yeterli. Konum hesabı için ayrı bir duvar
+   saati sayacı yazmaya gerek yok.
+
+**Akış hâlinde okuma:** oynatıcı dosyayı 8.192 frame'lik (0,5 sn) parçalarla
+okur ve üç parça ileri besler. Kural #12 yazma tarafı için yazılmıştı; okuma
+tarafında da geçerli — bir saatlik kayıt 230 MB'tır, `AVAudioPlayer`'ın dosyayı
+tümüyle açması kabul edilemez.
