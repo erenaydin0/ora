@@ -6,11 +6,16 @@ struct RootView: View {
     let recorder: RecordingController
     @State private var isChatShown = false
 
-    /// Kenar çubuğu (240) + okunabilir bir orta panel.
+    /// Kenar çubuğu (240) + okunabilir bir orta panel. Ölçüldü: sohbet
+    /// kapalıyken 900 pt'de üç sütun da tam görünüyor.
     static let minWidth: CGFloat = 900
     static let inspectorMinWidth: CGFloat = 280
-    /// Sohbet açıkken üç sütunun da kendi minimumunda sığdığı genişlik.
-    static let minWidthWithInspector = minWidth + inspectorMinWidth
+    /// Sohbet açıkken gereken en küçük genişlik. **Ölçülerek** bulundu
+    /// (RESEARCH.md §24.5): 1255 pt'nin altında SwiftUI kenar çubuğunu
+    /// daraltmak yerine pencerenin dışına taşıyıp kırpıyor. Eski değer
+    /// `minWidth + inspectorMinWidth` (1180) idi ve **yetmiyordu** — panel
+    /// bildirilen minimumla değil, kendi ideal genişliğiyle yerleşiyor.
+    static let minWidthWithInspector: CGFloat = 1260
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
@@ -29,7 +34,7 @@ struct RootView: View {
         .inspector(isPresented: $isChatShown) {
             ChatInspector(recorder: recorder, isDisabledDuringRecording: recorder.isRecording)
                 .inspectorColumnWidth(min: Self.inspectorMinWidth,
-                                      ideal: 320, max: 420)
+                                      ideal: 300, max: 420)
         }
         // Pencerenin alt sınırı sohbet paneline **göre değişir**. Sabit 900 pt
         // iken panel açılınca üç sütun sığmıyor ve SwiftUI kenar çubuğunu

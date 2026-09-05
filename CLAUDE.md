@@ -397,7 +397,7 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
   "Konuşmacılar" sekmesi yoktur (DESIGN.md §4)
 - **Özet sırası: Kişiler → Aksiyonlar → Genel bakış → Kararlar → Konular.**
   Aksiyon önce gelir; kullanıcının toplantı notuna ilk sorusu "bana ne düştü"
-- **Pencere minimumu sohbet paneline göre değişir** (900 → 1180) ve `Window`
+- **Pencere minimumu sohbet paneline göre değişir** (900 → 1260, ölçüldü) ve `Window`
   sahnesinde `.windowResizability(.contentMinSize)` ile sert sınır yapılır.
   Bu olmadan `NavigationSplitView` + `.inspector` sığmadığında kenar çubuğunu
   pencerenin dışına taşıyıp kırpıyor (§24.5)

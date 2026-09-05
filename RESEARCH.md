@@ -1207,9 +1207,25 @@ minimum yalnızca kenar çubuğu + orta paneli sayıyordu; sohbet açılınca ü
 sütun için yer kalmıyordu.
 
 Düzeltme iki parçalı: minimum `RootView`'da sohbet paneline göre **değişken**
-bildiriliyor (900 → 1180) ve `Window` sahnesine `.windowResizability(.contentMinSize)`
-eklendi — bu olmadan bildirilen minimum sert sınır olmuyor. Doğrulandı: panel
-açılınca pencere 900'den 1180'e kendiliğinden büyüyor, üç sütun da tam görünüyor.
+bildiriliyor ve `Window` sahnesine `.windowResizability(.contentMinSize)` eklendi
+— bu olmadan bildirilen minimum sert sınır olmuyor.
+
+**Düzeltme (Faz 8 tasarım turu): bildirilen 1180 yetmiyordu.** İlk değer
+`minWidth + inspectorMinWidth` (900 + 280) diye *hesaplanmıştı*; ölçülmedi.
+Panel bildirilen minimumla değil kendi **ideal** genişliğiyle yerleştiği için
+gerçek gereksinim daha büyük. Pencere genişliği taranarak kenar çubuğu kartının
+sol kenarı ölçüldü (tam yerleşimde 24 pt; kırpılmada 0):
+
+| Genişlik | 1180 | 1200 | 1215 | 1230 | 1240 | 1250 | **1255** | 1300 |
+|---|---|---|---|---|---|---|---|---|
+| Kart sol kenarı | 0 | 0 | 4,5 | 12 | 17 | 22 | **24** | 24 |
+
+Sohbet **kapalıyken** 900 pt'de kart 24 pt'de duruyor, yani sorun orta panelde
+değil panelin kendisinde. Minimum 1260'a çekildi (ölçülen 1255 + pay) ve panelin
+ideali 320'den 300'e indirildi. Doğrulandı: 1000 pt genişlikteki pencere sohbet
+açılınca kendiliğinden 1260'a büyüyor ve kenar çubuğu tam görünüyor.
+
+**Ders:** üç sütunlu yerleşimde minimum genişlik hesaplanmaz, ölçülür.
 
 ---
 
