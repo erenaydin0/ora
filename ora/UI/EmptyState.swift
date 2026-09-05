@@ -37,8 +37,8 @@ struct EmptyState: View {
     }
 }
 
-/// İşlem sürerken görünen durum. Boş durumla **aynı iskelet**: ortada, simge
-/// yerine eğri, başlık yerine yüzde.
+/// İşlem sürerken görünen durum. Boş durumla **aynı iskelet**: simge yerine
+/// eğri, başlık yerine yüzde, açıklama yerine aşamanın Türkçe adı.
 ///
 /// Üstteki ilerleme çubuğunun yerini aldı. Çubuk hem içeriğin üstünde yatay bir
 /// dikiş bırakıyordu hem de asıl beklenen şey (özet) ekranın ortasında "hazır
@@ -59,11 +59,16 @@ struct ProcessingState: View {
                     .contentTransition(.numericText())
                     .animation(OraStyle.transition, value: percentText)
             }
+            // İlk parça bitene kadar yüzde uzun süre %0'da kalıyor; o sırada
+            // ne olduğunu söyleyen tek şey bu satır (CLAUDE.md, Hata Yönetimi:
+            // sessiz bekleme yok).
+            Text(stageName)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraInkMuted)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)
-        // Ekranda yalnızca yüzde yazıyor; aşamanın Türkçe adı VoiceOver'a
-        // buradan ulaşır — sessiz bekleme yok (CLAUDE.md, Hata Yönetimi).
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(spokenLabel)
     }
@@ -80,16 +85,19 @@ struct ProcessingState: View {
 
     private var percentText: String? { percent.map { "%\($0)" } }
 
-    private var spokenLabel: String {
-        let suffix = percent.map { " · yüzde \($0)" } ?? ""
+    private var stageName: String {
         switch stage {
-        case .preparingLanguage:      return "Dil hazırlanıyor"
-        case .downloadingLanguage:    return "Dil paketi indiriliyor" + suffix
-        case .transcribing:           return "Yazıya dökülüyor" + suffix
-        case .punctuating:            return "Noktalama ekleniyor" + suffix
-        case .summarizing:            return "Özetleniyor" + suffix
-        case .idle, .done:            return ""
+        case .preparingLanguage:   "Dil hazırlanıyor"
+        case .downloadingLanguage: "Dil paketi indiriliyor"
+        case .transcribing:        "Yazıya dökülüyor"
+        case .punctuating:         "Noktalama ekleniyor"
+        case .summarizing:         "Özetleniyor"
+        case .idle, .done:         ""
         }
+    }
+
+    private var spokenLabel: String {
+        stageName + (percent.map { " · yüzde \($0)" } ?? "")
     }
 }
 

@@ -1014,12 +1014,27 @@ Tekrarlayan iki sızıntı ve "yapma" demenin işe yaramadığı:
 | `Toplantı tarihini son tarih olarak yazma` | bütün `sonTarih` alanları "3 Eylül 2026" |
 | `konu başlığını tekrar etme` | bağlam: "Analiz ekranı konusundan çıktı" |
 | `baglam … yoksa boş` | bağlam tek kelime: "Mehmet" |
+| `konuşmacı etiketlerini maddeye yazma` | madde: "Ben: Kayıt paylaşımını kontrol ediyorum." |
 
 İstemden **örnek kelimeyi kaldırmak** işe yaradı (tarih yankısı düzeldi).
-Kalan ikisi kodda kesiliyor (`FoundationIntelligence.validated`): bağlamın
-anlamlı kelimelerinin %60'ı bir konu başlığında geçiyorsa düşürülür; son tarih
-toplantı tarihini içeriyorsa "belirtilmedi" olur. Doğrulamadan sonra üç sayaç
-da **0**.
+Kalanlar kodda kesiliyor:
+
+- `validated`: son tarih toplantı tarihini içeriyorsa "belirtilmedi" olur.
+- `isEcho`: bağlamın anlamlı kelimelerinin %60'ı **bir konu başlığında ya da
+  görevin kendisinde** geçiyorsa düşürülür. Gerçek veride en sık görülen tekrar
+  görevin yeniden yazılmasıydı ("…belirlemek." → "…hesaplanması konusu.").
+- `withoutSpeakerPrefix`: maddenin başındaki "Ben:" / "Katılımcı:" atılır.
+  Yalnızca bilinen etiketler — "Karar: …" gibi meşru bir önek korunur.
+
+**Türkçe'de kelime karşılaştırması gövdelemeden çalışmıyor.** "kazançları" ile
+"kazançların" tam kelime olarak eşleşmediği için ilk ölçümde tekrar oranı 0,50'de
+kalıp %60 eşiğinin altında kalıyordu; kelimeler **ilk 5 harfe** kırpılınca oran
+0,75'e çıkıp yakalanıyor. 8 gerçek örnek üzerinde 8/8 doğru (3 tekrar elendi,
+5 gerçek bağlam korundu).
+
+Gerçek bir 29 dakikalık toplantıda doğrulandı: 8 aksiyonun 6'sında tekrar eden
+bağlam elendi, kalan 2'si gerçek bilgi taşıyor; konu maddelerinde konuşmacı
+etiketi sızıntısı **0**.
 
 ### 23.7 Aksiyonlar birleştirme aşamasında çıkarılamaz
 

@@ -301,8 +301,11 @@ struct FoundationIntelligence: Intelligent {
         var result = aksiyon
         result.kisi = resolvedPerson(aksiyon.kisi, context: context)
 
+        // Bağlam **görevin kendisini** de tekrarlayabiliyor, yalnızca konu
+        // başlığını değil: "…belirlemek." → "…hesaplanması konusu." Gerçek
+        // veride en sık görülen tekrar buydu.
         if aksiyon.baglam.split(separator: " ").count < 4
-            || Self.echoesTitle(aksiyon.baglam, titles: topicTitles) {
+            || Self.isEcho(aksiyon.baglam, of: topicTitles + [aksiyon.gorev]) {
             result.baglam = ""
         }
 
@@ -312,22 +315,26 @@ struct FoundationIntelligence: Intelligent {
         return result
     }
 
-    /// Bağlam bir konu başlığının yeniden yazımı mı? Birebir eşleşme yetmiyor:
-    /// model "Analiz Ekranı Durumu ve Yemek Parası Kalemi" başlığından
-    /// "Analiz ekranı konusundan çıktı" üretiyor. Ölçüt kelime örtüşmesi:
-    /// bağlamın anlamlı kelimelerinin çoğu başlıkta geçiyorsa bilgi taşımıyor.
-    static func echoesTitle(_ baglam: String, titles: [String]) -> Bool {
-        let filler: Set<String> = ["konusundan", "konusunda", "cikti", "cikan",
-                                   "hakkinda", "ile", "ve", "bu", "icin"]
-        let words = Set(words(of: baglam)).subtracting(filler)
+    /// Bağlam, kendisine komşu bir metnin yeniden yazımı mı? Birebir eşleşme
+    /// yetmiyor: model "Analiz Ekranı Durumu ve Yemek Parası Kalemi"
+    /// başlığından "Analiz ekranı konusundan çıktı" üretiyor, görevden de
+    /// "…belirlemek." → "…hesaplanması konusu." Ölçüt kelime örtüşmesi:
+    /// bağlamın anlamlı kelimelerinin çoğu adaylardan birinde geçiyorsa
+    /// bilgi taşımıyor demektir.
+    static func isEcho(_ baglam: String, of candidates: [String]) -> Bool {
+        let words = Set(words(of: baglam)).subtracting(fillerStems)
         guard !words.isEmpty else { return true }
-        return titles.contains { title in
-            let titleWords = Set(Self.words(of: title))
-            guard !titleWords.isEmpty else { return false }
-            let shared = words.intersection(titleWords).count
-            return Double(shared) / Double(words.count) >= 0.6
+        return candidates.contains { candidate in
+            let other = Set(Self.words(of: candidate))
+            guard !other.isEmpty else { return false }
+            return Double(words.intersection(other).count) / Double(words.count) >= 0.6
         }
     }
+
+    /// Tek başına bilgi taşımayan kelimeler. `words(of:)`'ten geçirilir ki
+    /// gövdeleme ikisinde de aynı olsun.
+    private static let fillerStems =
+        Set(words(of: "konusundan konusunda çıktı çıkan hakkında ile için"))
 
     /// Son tarih toplantının kendi tarihi mi? Model tarihi "3 Eylül 2026" ya da
     /// "Perşembe, 3 Eylül 2026" biçiminde kopyalıyor — **içerme** aranır.
@@ -339,13 +346,19 @@ struct FoundationIntelligence: Intelligent {
         return !stamp.isEmpty && normalized(value).contains(stamp)
     }
 
-    /// Türkçe küçük harfe indirip harf/rakam dışını atarak kelimelere böler.
+    /// Türkçe küçük harfe indirip harf/rakam dışını atarak kelimelere böler,
+    /// sonra **gövdeye kırpar**.
+    ///
+    /// Kırpma şart: Türkçe eklemeli bir dil ve "kazançları" ile "kazançların"
+    /// tam kelime olarak eşleşmiyor — gövdelemeden tekrar oranı 0,5'te kalıp
+    /// eşiğin altında kalıyordu. İlk 5 harf, ek kuyruğunu atmaya yetiyor.
     static func words(of text: String) -> [String] {
         text.lowercased(with: Locale(identifier: "tr_TR"))
             .split { !$0.isLetter && !$0.isNumber }
             .map { String($0.folding(options: .diacriticInsensitive,
                                      locale: Locale(identifier: "tr_TR"))) }
             .filter { $0.count > 2 }
+            .map { String($0.prefix(5)) }
     }
 
     // MARK: - İstem parçaları
@@ -429,10 +442,26 @@ struct FoundationIntelligence: Intelligent {
             let text = raw
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .trimmingPrefix(while: { $0 == "-" || $0 == "•" || $0 == " " })
-            let value = String(text)
+            let value = withoutSpeakerPrefix(String(text))
             guard !value.isEmpty, seen.insert(normalized(value)).inserted else { return nil }
             return value
         }
+    }
+
+    /// "Ben: Kayıt paylaşımını kontrol ediyorum." → "Kayıt paylaşımını kontrol
+    /// ediyorum."
+    ///
+    /// İstem konuşmacı etiketini maddeye yazmamayı söylüyor ama model dinlemiyor
+    /// — §23.6'daki desen: "şunu yazma" 3B modelde tutmuyor, kodda kesilmeli.
+    /// Yalnızca **bilinen etiketler** atılır; "Karar: …" gibi meşru bir önek
+    /// hayatta kalsın diye iki nokta öncesi körlemesine silinmez.
+    static func withoutSpeakerPrefix(_ text: String) -> String {
+        guard let colon = text.firstIndex(of: ":") else { return text }
+        let label = normalized(String(text[text.startIndex ..< colon]))
+        guard Channel.allCases.contains(where: { normalized($0.speaker) == label })
+        else { return text }
+        return String(text[text.index(after: colon)...])
+            .trimmingCharacters(in: .whitespaces)
     }
 
     /// Aynı başlık iki parçada da çıkabiliyor; ikincisinin maddeleri
