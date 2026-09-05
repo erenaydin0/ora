@@ -13,62 +13,66 @@ enum MeetingExport {
         let segments: [Segment]
         let summary: Ozet?
         let topics: [TopicSegment]
-        let metrics: MeetingMetrics?
+        let actions: [MeetingAction]
+        let participants: [String]
     }
 
     // MARK: - Markdown
 
-    static func markdown(_ payload: Payload) -> String {
+    /// Yapı `circleback-notes/` referansından: başlık, künye, aksiyonlar
+    /// (onay kutulu), genel bakış ve konu bölümleri. Transkript en sonda ve
+    /// isteğe bağlı — notu okunur kılan şey onun ayrı durması.
+    static func markdown(_ payload: Payload, includeTranscript: Bool = true) -> String {
         var lines: [String] = []
         lines.append("# \(payload.title)")
         lines.append("")
-        lines.append(payload.date.formatted(date: .long, time: .shortened)
-                     + " · " + durationText(payload.duration))
+        lines.append("**Tarih**: \(longDate(payload.date))  ")
+        lines.append("**Süre**: \(durationText(payload.duration))  ")
+        if !payload.participants.isEmpty {
+            lines.append("**Kişiler**: \(list(payload.participants))")
+        }
         lines.append("")
 
+        if !payload.actions.isEmpty {
+            lines.append("#### Aksiyonlar")
+            lines.append("")
+            for action in payload.actions {
+                var line = "- [\(action.isDone ? "x" : " ")] "
+                if isSpecified(action.person) { line += "\(action.person) — " }
+                line += "**\(action.task)**"
+                if let context = action.context, !context.isEmpty { line += " \(context)" }
+                if let deadline = action.deadline, !deadline.isEmpty {
+                    line += " _(\(deadline))_"
+                }
+                lines.append(line)
+            }
+            lines.append("")
+        }
+
         if let summary = payload.summary {
-            lines.append("## Genel bakış")
-            lines.append("")
-            lines.append(summary.genelBakis)
-            lines.append("")
+            if !summary.genelBakis.isEmpty {
+                lines.append("#### Genel Bakış")
+                lines.append("")
+                summary.genelBakis.forEach { lines.append("- \($0)") }
+                lines.append("")
+            }
             if !summary.kararlar.isEmpty {
-                lines.append("## Kararlar")
+                lines.append("#### Kararlar")
                 lines.append("")
                 summary.kararlar.forEach { lines.append("- \($0)") }
                 lines.append("")
             }
-            if !summary.aksiyonlar.isEmpty {
-                lines.append("## Aksiyonlar")
-                lines.append("")
-                lines.append("| Kişi | Görev | Son tarih |")
-                lines.append("|---|---|---|")
-                for aksiyon in summary.aksiyonlar {
-                    lines.append("| \(aksiyon.kisi) | \(aksiyon.gorev) | \(aksiyon.sonTarih) |")
-                }
-                lines.append("")
-            }
         }
 
-        if let metrics = payload.metrics {
-            lines.append("## Toplantı")
+        for topic in payload.topics where !topic.bullets.isEmpty {
+            lines.append("#### \(topic.title)")
             lines.append("")
-            for channel in Channel.allCases {
-                let share = Int(((metrics.talkShare[channel.rawValue] ?? 0) * 100).rounded())
-                lines.append("- \(channel.speaker): %\(share)")
-            }
-            lines.append("- Ölü hava: %\(Int((metrics.deadAirPercentage * 100).rounded()))")
+            topic.bullets.forEach { lines.append("- \($0)") }
             lines.append("")
         }
 
-        if !payload.topics.isEmpty {
-            lines.append("## Konular")
-            lines.append("")
-            payload.topics.forEach { lines.append("- `\($0.timeLabel)` \($0.title)") }
-            lines.append("")
-        }
-
-        if !payload.segments.isEmpty {
-            lines.append("## Transkript")
+        if includeTranscript, !payload.segments.isEmpty {
+            lines.append("#### Transkript")
             lines.append("")
             for segment in payload.segments {
                 lines.append("**\(segment.speaker)** `\(segment.timeLabel)`  ")
@@ -86,29 +90,53 @@ enum MeetingExport {
         lines.append("")
         lines.append("Merhaba,")
         lines.append("")
-        if let summary = payload.summary {
-            lines.append(summary.genelBakis)
+        if let summary = payload.summary, !summary.genelBakis.isEmpty {
+            summary.genelBakis.forEach { lines.append("• \($0)") }
             lines.append("")
             if !summary.kararlar.isEmpty {
                 lines.append("Kararlar:")
                 summary.kararlar.forEach { lines.append("• \($0)") }
                 lines.append("")
             }
-            if !summary.aksiyonlar.isEmpty {
-                lines.append("Aksiyonlar:")
-                for aksiyon in summary.aksiyonlar {
-                    let deadline = MeetingStore.normalizedDeadline(aksiyon.sonTarih)
-                        .map { " (\($0))" } ?? ""
-                    lines.append("• \(aksiyon.kisi): \(aksiyon.gorev)\(deadline)")
-                }
-                lines.append("")
-            }
-        } else {
+        } else if payload.actions.isEmpty {
             lines.append("Toplantının transkripti hazır, özet oluşturulamadı.")
+            lines.append("")
+        }
+        if !payload.actions.isEmpty {
+            lines.append("Aksiyonlar:")
+            for action in payload.actions {
+                var line = "• "
+                if isSpecified(action.person) { line += "\(action.person): " }
+                line += action.task
+                if let deadline = action.deadline, !deadline.isEmpty { line += " (\(deadline))" }
+                lines.append(line)
+                if let context = action.context, !context.isEmpty {
+                    lines.append("  \(context)")
+                }
+            }
             lines.append("")
         }
         lines.append("İyi çalışmalar.")
         return lines.joined(separator: "\n")
+    }
+
+    /// "belirtilmedi" bir kişi adı değil — çıktıda yer kaplamaz.
+    static func isSpecified(_ person: String) -> Bool {
+        !person.trimmingCharacters(in: .whitespaces).isEmpty
+            && person.lowercased(with: Locale(identifier: "tr_TR")) != "belirtilmedi"
+    }
+
+    /// "a, b ve c" — Türkçe bağlaçla.
+    static func list(_ names: [String]) -> String {
+        guard names.count > 1 else { return names.first ?? "" }
+        return names.dropLast().joined(separator: ", ") + " ve " + names[names.count - 1]
+    }
+
+    static func longDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "tr_TR")
+        formatter.dateFormat = "EEEE, d MMMM yyyy HH:mm"
+        return formatter.string(from: date)
     }
 
     @MainActor
@@ -191,32 +219,45 @@ private struct ExportDocument: View {
             Text(payload.title)
                 .font(.system(size: 20, weight: .medium))
                 .foregroundStyle(Color.oraInk)
-            Text(payload.date.formatted(date: .long, time: .shortened))
+            Text(MeetingExport.longDate(payload.date))
                 .font(.system(size: 12))
                 .foregroundStyle(Color.oraInkMuted)
+            if !payload.participants.isEmpty {
+                Text(MeetingExport.list(payload.participants))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
+            if !payload.actions.isEmpty {
+                block("Aksiyonlar") {
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(payload.actions) { action in
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("\(action.isDone ? "☑" : "☐") \(actionLine(action))")
+                                    .font(.system(size: 12))
+                                if let context = action.context, !context.isEmpty {
+                                    Text(context)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(Color.oraInkMuted)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             if let summary = payload.summary {
-                block("Genel bakış") {
-                    Text(summary.genelBakis).font(.system(size: 12))
+                if !summary.genelBakis.isEmpty {
+                    block("Genel bakış") { bullets(summary.genelBakis) }
                 }
                 if !summary.kararlar.isEmpty {
-                    block("Kararlar") {
-                        VStack(alignment: .leading, spacing: 3) {
-                            ForEach(Array(summary.kararlar.enumerated()), id: \.offset) { _, karar in
-                                Text("• \(karar)").font(.system(size: 12))
-                            }
-                        }
-                    }
+                    block("Kararlar") { bullets(summary.kararlar) }
                 }
-                if !summary.aksiyonlar.isEmpty {
-                    block("Aksiyonlar") {
-                        VStack(alignment: .leading, spacing: 3) {
-                            ForEach(summary.aksiyonlar) { aksiyon in
-                                Text("• \(aksiyon.kisi): \(aksiyon.gorev) — \(aksiyon.sonTarih)")
-                                    .font(.system(size: 12))
-                            }
-                        }
-                    }
+            }
+            // Konular PDF'te hiç yoktu — notun gövdesi basılı çıktıda eksikti.
+            ForEach(payload.topics) { topic in
+                if !topic.bullets.isEmpty {
+                    block(topic.title) { bullets(topic.bullets) }
                 }
             }
             if !payload.segments.isEmpty {
@@ -238,6 +279,22 @@ private struct ExportDocument: View {
         .padding(48)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.oraSurface)
+    }
+
+    private func actionLine(_ action: MeetingAction) -> String {
+        var line = MeetingExport.isSpecified(action.person) ? "\(action.person): " : ""
+        line += action.task
+        if let deadline = action.deadline, !deadline.isEmpty { line += " — \(deadline)" }
+        return line
+    }
+
+    private func bullets(_ items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                Text("• \(item)").font(.system(size: 12))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     private func block<Content: View>(_ title: String,

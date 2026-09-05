@@ -922,3 +922,188 @@ sessizlikte uydurma sonuç verebiliyor. Kanal atlama bunu eliyor.
    görünürken logun sessiz kalması teşhisi imkânsız kılıyordu.
 2. `localizedDescription` köprülenmiş Swift hatalarında hiçbir şey söylemez;
    log satırı `String(describing:)` hâlini de taşır (`Log.describe`).
+
+---
+
+## 23. Çıktı yapısı: Circleback referansıyla ölçüm
+
+Kullanıcı ora'nın toplantı çıktılarını beğenmedi ve referans olarak Circleback'i
+gösterdi (`circleback-notes/`: 5 gerçek Türkçe çıktı + 2 ekran görüntüsü).
+Referansın **ölçülmüş** yapısı:
+
+| Ölçü | Değer |
+|---|---|
+| Konu bölümü sayısı | 5–7 (18 dk'lık toplantıda da 66 dk'lıkta da) |
+| Bölüm başına madde | 2–9 |
+| "Genel Bakış" madde sayısı | her zaman 4–6 |
+| Aksiyon sayısı | 2–5 |
+| Madde uzunluğu | medyan 134 krk · p90 197 |
+
+Aradaki fark üslup değil **yapı**: ora'nın konuları `MM:SS + 2-5 kelime`
+başlıktan ibaretti, genel bakış tek paragraftı, aksiyonlarda gerekçe yoktu.
+
+### 23.1 Konu gövdesi zaten üretiliyor ve atılıyordu
+
+Eski hat parça başına **iki** çağrı yapıyordu: serbest metin özet + ayrı başlık.
+Başlık `topic_segments`'a yazılıyor, özet metni birleştirmeye girip kayboluyordu.
+Tek yapılandırılmış `ParcaOzeti` çağrısı hem gövdeyi kalıcı kılıyor hem de bir
+çağrı tasarruf ediyor.
+
+### 23.2 **Parça sınırı yanlıştı — gerçek toplantıda her parça düşüyordu**
+
+En önemli bulgu. §3'teki "4 karakter ≈ 1 token" oranı iyimserdi:
+```
+gerçek transkript, 10.000 karakterlik parça
+→ exceededContextWindowSize: "Content contains 4089 tokens,
+   which exceeds the maximum allowed context size of 4096."
+ölçülen oran: 2,45 karakter/token   (teknik terim, kesme işareti, yoğun ek)
+sonuç: 49.229 karakterlik toplantıda 5 parçanın 5'i de düştü → özet üretilemedi
+```
+`summaryLimit` 10.000 → **6.000**, `punctuationLimit` 4.000 → **3.500**.
+Düzeltmeden sonra aynı girdide **0 atlanan parça**.
+
+### 23.3 Süre — yeni hat daha pahalı
+
+49.229 karakter (60 dk mertebesi), düzeltilmiş sınırlarla:
+```
+parça      : 9   (6.000 krk sınırı)
+map süresi : 95,7 sn     (taban 47,9 sn)
+toplam     : 99,3 sn     (taban 55,3 sn)
+atlanan    : 0
+guardrail  : 0/8
+```
+Kısa toplantı (3.281 krk, 1 parça): map 9,5 sn · toplam 11,7 sn.
+
+**~1,8× yavaş.** İki nedeni var: parça sınırı yarılandığı için parça sayısı
+arttı, ve parça başına üretilen çıktı zenginleşti. Karşılığında 6 çıplak başlık
+yerine 9 gövdeli bölüm (38 madde) geliyor. Kayıt sonrası arka plan işi olduğu
+için kabul edildi.
+
+### 23.4 Genişletilmiş sistem istemi guardrail'e takılmıyor
+
+Talimat 14 kelimeden üç satıra çıkarıldı ("uydurma", "sayı ve tarihleri koru").
+§15.1 yöntemiyle aynı istem 8 kez: **8/8 başarılı · 0 guardrail**.
+§15.1'deki guardrail sorunu noktalama istemine ve konuşmacı önekine özgüydü.
+
+### 23.5 **Kapalı isim listesi isteme yazılınca her şeyi bozuyor** (A/B)
+
+Kullanıcı takvim katılımcılarının isteme kapalı liste olarak verilmesini
+istemişti. Aynı transkript, tek değişken:
+
+| | roster AÇIK | roster KAPALI |
+|---|---|---|
+| son tarihe toplantı tarihi sızması | **4/4** | 0/4 |
+| bağlam konu başlığını tekrarlıyor | **4/4** | 1/4 |
+| görev biçimi | belirsiz isim-fiil ("…çalıştırmak") | doğru emir kipi ("PR'ı gönder") |
+
+Model listeyi bir kısıt değil **menü** gibi kullanıyor; üstelik uzayan istem
+onu genel olarak kopyalama moduna itiyor. Attribution da düzelmiyor — iki
+koşulda da `kisi` alanı "Katılımcı" geliyor.
+
+**Karar:** liste isteme yazılmaz, yalnızca **doğrulamada** kullanılır
+(`resolvedPerson`): "Ben" → kullanıcının adı, "Katılımcı" → "belirtilmedi",
+tek eşleşme varsa takvimdeki tam ada genişletilir.
+
+### 23.6 Model, içeriği olmayan alanı istemdeki en yakın metinle doldurur
+
+Tekrarlayan iki sızıntı ve "yapma" demenin işe yaramadığı:
+
+| İstem | Sonuç |
+|---|---|
+| `"haftaya" gibi ifadeleri bu tarihe göre çöz` | bütün `sonTarih` alanları "Haftaya" |
+| `Toplantı tarihini son tarih olarak yazma` | bütün `sonTarih` alanları "3 Eylül 2026" |
+| `konu başlığını tekrar etme` | bağlam: "Analiz ekranı konusundan çıktı" |
+| `baglam … yoksa boş` | bağlam tek kelime: "Mehmet" |
+
+İstemden **örnek kelimeyi kaldırmak** işe yaradı (tarih yankısı düzeldi).
+Kalan ikisi kodda kesiliyor (`FoundationIntelligence.validated`): bağlamın
+anlamlı kelimelerinin %60'ı bir konu başlığında geçiyorsa düşürülür; son tarih
+toplantı tarihini içeriyorsa "belirtilmedi" olur. Doğrulamadan sonra üç sayaç
+da **0**.
+
+### 23.7 Aksiyonlar birleştirme aşamasında çıkarılamaz
+
+İlk tasarımda aksiyonlar konu notlarından çıkarılıyordu. Konu notlarında
+konuşmacı bilgisi yok; model roster'dan isim seçip transkriptte olmayan işler
+atadı ("Merve Halilzade — BA ve servis katmanlarının ayrılması"), ve durum
+bildiren cümleleri aksiyon saydı (8 aksiyon, referans aralığı 2-5).
+
+Aksiyonlar **parça aşamasına** taşındı — orada konuşma sırası ve adlar duruyor.
+Birleştirme yalnızca genel bakış ve kararları üretir.
+
+### 23.8 Kalan boşluk — dürüst durum
+
+| | ora | referans |
+|---|---|---|
+| bölüm sayısı | 4–9 | 5–7 |
+| bölüm başına madde | 2–6 | 2–9 |
+| madde uzunluğu (medyan) | **~50 krk** | **134 krk** |
+| genel bakış | 4–6 madde | 4–6 madde |
+| aksiyon sahibi | çoğu zaman "belirtilmedi" | gerçek kişi |
+
+Maddeleri "iki bölümlü" (durum; sonuç) yazmaya zorlamak uzunluğu artırdı ama
+**sayıyı düşürdü** (bölüm başına 2'ye, genel bakış 2 maddeye) — geri alındı,
+yönerge yalnızca şemada bırakıldı.
+
+Sahip alanının boş kalmasının nedeni **diarization yokluğudur**: kanal ayrımı
+"Ben" ve "Katılımcı" verir, uzaktaki 6 kişi tek etikete düşer. Kendinden emin
+yanlış bir ad boş bir alandan kötü olduğu için doğrulama katmanı bunu
+"belirtilmedi"ye çeviriyor.
+
+*probe:* `probes/ozet_gercek.swift` (+ `probes/gercek_toplanti.txt`)
+`ROSTER=0|1` A/B · `SCALE=N` 60 dk mertebesi · `GUARDRAIL=1` 8 koşuluk oran
+
+### 23.9 Gerçek toplantı: "Bordro Fark Çözümü" (29 dk, Teams dökümü)
+
+Sentetik metinle yapılan ayar yanıltıcıydı. Gerçek bir Teams dökümü
+(`probes/bordro_toplanti.txt`, 117 replik / 17.418 karakter, iki konuşmacı)
+uygulamaya yüklendi (`scripts/seed-transcript.swift`) ve **uygulamanın kendi
+hattı** koşturuldu.
+
+```
+parça      : 3   ·  bölüm: 6  ·  bölüm başına madde: 3–6
+uygulamada uçtan uca (noktalama + özet): ~90 sn
+guardrail  : 0   ·  atlanan parça: 0
+```
+Bölüm sayısı ve madde yoğunluğu referans aralığında. Genel bakış somut sayıları
+taşıyor ("%33.030 asgari ücretin %20'si", "SSK primleri %10").
+
+**Bulgu — model olmayan aksiyonu uyduruyor.** Bu toplantı bir ekran paylaşımı
+anlatımı; gerçekte neredeyse hiç aksiyon yok. Model yine de doldurdu:
+
+| Aşama | Aksiyon | Kalıp |
+|---|---|---|
+| tavan 4, kural yok | 12 ham | "…kontrol ediliyor" (durum) |
+| şimdiki zaman filtresi | 9 ham | "…belirtti", "…yazdı" (anlatım) |
+| belirli geçmiş filtresi | 8 tekil | gerçek görev ("…kontrol edecek") |
+
+Kapalı fiil listesi **yetmedi** ("yazdı", "etti" listede yoktu); ekin kendisi
+aranıyor: son kelime `-dı/-di/-du/-dü/-tı/-ti/-tu/-tü` ile bitiyorsa anlatımdır.
+`ParcaOzeti.aksiyonlar` tavanı 4 → 3 indirildi; yüksek tavan modeli doldurmaya
+itiyor.
+
+**Bulgu — başlık ilk parçadan üretilemiyor, ama konu listesinden de üretilemiyor.**
+29 dakikalık bordro mutabakatı ilk 6.000 karaktere bakılarak "Toplam Kazanç ve
+Diğer Kazançlar" oluyordu. Konu başlıkları kaynak verilince model **hepsini
+birleştirip** geri verdi:
+```
+"Rapor formatı, Kazanç ayrımı, Vergi Muafiyetleri ve Hataları,
+ Bireysel Emeklilik ve Hayat Sigortası, Veri Kalitesi ve Çözümleme
+ Zorlukları, Bütçe ve Muafiyet Yönetimi"
+```
+Çözüm: önce konu başlıklarından denenir, sonuç 7 kelimeyi aşıyor ya da birden
+çok virgül içeriyorsa **ilk parçaya düşülür** (`isUsableTitle`). Ayrıca isteme
+"konuşmacı etiketlerini başlığa koyma" eklendi — "Katılımcı ile Birlikte
+Toplantı Sonuçları" çıkmıştı.
+
+**Koşudan koşuya değişkenlik yüksek.** Aynı girdi, aynı istem, iki koşu: bir
+seferinde genel bakış maddeleri somut ve sayı taşıyor, diğerinde genelleşiyor.
+3B modelde bu beklenen; tek bir koşuya bakarak istem ayarlamak yanıltıcı.
+
+**`kisi` bu toplantıda hep "belirtilmedi".** Beklenen: kanal ayrımı "Ben" ve
+"Katılımcı" veriyor, diarization yok. §23.5'teki karar gereği model roster'dan
+isim seçmiyor.
+
+*probe:* `probes/ozet_gercek.swift` · `FILE=bordro_toplanti.txt`
+*yükleme:* `swiftc -parse-as-library scripts/seed-transcript.swift -o /tmp/seed`
+`&& /tmp/seed probes/bordro_toplanti.json`

@@ -16,20 +16,21 @@ import AppKit
 // | Nötr vurgu / hover       | #F5F5F7   | .oraGray       |
 // | Metin & tipografi        | #333333   | .oraInk        |
 // | İkincil metin            | #888888   | .oraInkMuted   |
-// | Vurgu (içerik: bağlantı) | #1A56A3   | .oraBlue       |
-// | Vurgu / seçili zemin     | #F7C79A   | .oraAccentSoft |
+// | Marka / vurgu            | #A61B2B   | .oraCarmine    |
+// | Marka — dudak / kavite   | #6B121C   | .oraCarmineDeep|
 // | Kayıt durumu             | #E53935   | .oraRed        |
 // | Kart / panel içi         | #FFFFFF   | .oraSurface    |
 // | Kenarlık                 | #E8E8E8   | .oraBorder     |
 //
 // Görünümlerde ham hex veya `Color(red:green:blue:)` yazılmaz (CLAUDE.md kural #8).
-// `.oraRed` yalnızca kayıt butonu ve menü bar noktası içindir (kural #9).
+// `.oraCarmine` kimlik ve native vurgu (AccentColor). `.oraCarmineDeep` yalnızca işaret.
+// `.oraRed` yalnızca kayıt göstergeleridir (kural #9).
 
 /// Paletin tamamı — testler ve doğrulama için tek listede.
 enum OraPalette {
     static let all: [ColorResource] = [
         .oraPaper, .oraChrome, .oraGray, .oraInk, .oraInkMuted,
-        .oraBlue, .oraAccentSoft, .oraRed, .oraSurface, .oraBorder,
+        .oraCarmine, .oraCarmineDeep, .oraRed, .oraSurface, .oraBorder,
     ]
 }
 

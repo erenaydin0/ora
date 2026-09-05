@@ -24,3 +24,10 @@ calendar
 wintitle
 build/
 scripts/make-icon
+
+# Gerçek toplantı verisi — kişi adı ve iş içeriği taşır, depoya girmez.
+# `*.wav` ile aynı gerekçe: ölçümün kendisi RESEARCH.md'de, ham veri değil.
+circleback-notes/
+probes/bordro_toplanti.json
+probes/bordro_toplanti.txt
+probes/gercek_toplanti.txt

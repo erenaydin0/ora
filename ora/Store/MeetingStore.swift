@@ -14,7 +14,7 @@ struct MeetingStore: Sendable {
             var record = MeetingRecord(
                 id: nil,
                 title: Self.provisionalTitle(for: date),
-                date: date, duration: 0, healthScore: nil,
+                date: date, duration: 0,
                 status: MeetingRecord.Status.recording.rawValue,
                 template: "general", audioPath: nil,
                 calendarEventId: nil, createdAt: Date())
@@ -68,48 +68,50 @@ struct MeetingStore: Sendable {
         }
     }
 
-    func saveSummary(_ meetingID: Int64, ozet: Ozet?, topics: [TopicSegment],
-                     metrics: MeetingMetrics?) async throws {
+    /// Özeti, aksiyonları ve konuları **tümüyle** yeniden yazar. Yeniden
+    /// özetleme aksiyonların tamamlanma durumunu sıfırlar; maddeler de
+    /// yeniden üretildiği için bu doğru davranış.
+    func saveSummary(_ meetingID: Int64, ozet: Ozet?, topics: [TopicSegment]) async throws {
         try await database.write { db in
             try db.execute(sql: "DELETE FROM summaries WHERE meeting_id = ?", arguments: [meetingID])
             try db.execute(sql: "DELETE FROM action_items WHERE meeting_id = ?", arguments: [meetingID])
             try db.execute(sql: "DELETE FROM topic_segments WHERE meeting_id = ?", arguments: [meetingID])
 
             let encoder = JSONEncoder()
-            var talkShare: String?
-            if let metrics {
-                // Kanal numarası değil, konuşmacı adı saklanır — okunabilir kalsın.
-                let named = Dictionary(uniqueKeysWithValues: metrics.talkShare.map {
-                    (Channel(rawValue: $0.key)?.speaker ?? "\($0.key)",
-                     Int(($0.value * 100).rounded()))
-                })
-                talkShare = String(data: try encoder.encode(named), encoding: .utf8)
-            }
-
             var summary = SummaryRecord(
                 id: nil, meetingId: meetingID,
-                overview: ozet?.genelBakis,
+                overview: try ozet.map { String(data: try encoder.encode($0.genelBakis),
+                                                encoding: .utf8) } ?? nil,
                 decisions: try ozet.map { String(data: try encoder.encode($0.kararlar),
                                                  encoding: .utf8) } ?? nil,
-                nextMeeting: nil, sentiment: nil,
-                talkShare: talkShare,
-                deadAirPct: metrics.map { $0.deadAirPercentage * 100 },
                 createdAt: Date())
             try summary.insert(db)
 
             for aksiyon in ozet?.aksiyonlar ?? [] {
                 var item = ActionItemRecord(
                     id: nil, meetingId: meetingID, person: aksiyon.kisi, task: aksiyon.gorev,
+                    context: Self.normalizedContext(aksiyon.baglam),
                     deadline: Self.normalizedDeadline(aksiyon.sonTarih),
-                    status: "pending", createdAt: Date())
+                    status: ActionStatus.pending.rawValue, createdAt: Date())
                 try item.insert(db)
             }
             for topic in topics {
-                var record = TopicSegmentRecord(id: nil, meetingId: meetingID,
-                                                title: topic.title,
-                                                startTime: topic.start, endTime: topic.end)
+                var record = TopicSegmentRecord(
+                    id: nil, meetingId: meetingID, title: topic.title,
+                    bullets: String(data: try encoder.encode(topic.bullets), encoding: .utf8),
+                    startTime: topic.start, endTime: topic.end)
                 try record.insert(db)
             }
+        }
+    }
+
+    /// Aksiyonun tamamlanma durumu. `action_items.status` bu iki değeri alır.
+    enum ActionStatus: String { case pending, done }
+
+    func setActionDone(_ actionID: Int64, _ done: Bool) async throws {
+        try await database.write { db in
+            try db.execute(sql: "UPDATE action_items SET status = ? WHERE id = ?",
+                           arguments: [(done ? ActionStatus.done : .pending).rawValue, actionID])
         }
     }
 
@@ -191,22 +193,28 @@ struct MeetingStore: Sendable {
             let topics = try TopicSegmentRecord.fetchAll(db, sql: """
                 SELECT * FROM topic_segments WHERE meeting_id = ? ORDER BY start_time
                 """, arguments: [meetingID])
-                .map { TopicSegment(title: $0.title, start: $0.startTime, end: $0.endTime) }
+                .map { TopicSegment(title: $0.title, bullets: $0.bulletList,
+                                    start: $0.startTime, end: $0.endTime) }
 
             var ozet: Ozet?
-            if let summaryRow, let overview = summaryRow.overview {
-                ozet = Ozet(genelBakis: overview,
+            if let summaryRow, !summaryRow.overviewList.isEmpty {
+                ozet = Ozet(genelBakis: summaryRow.overviewList,
                             kararlar: summaryRow.decisionList,
                             aksiyonlar: actions.map {
                                 Ozet.Aksiyon(kisi: $0.person, gorev: $0.task,
+                                             baglam: $0.context ?? "",
                                              sonTarih: $0.deadline ?? "belirtilmedi")
                             })
             }
-            let metrics = segments.isEmpty ? nil
-                : MeetingMetrics.compute(segments: segments,
-                                         duration: TimeInterval(meeting.duration))
-            return LoadedMeeting(meeting: meeting, segments: segments,
-                                 summary: ozet, topics: topics, metrics: metrics)
+            return LoadedMeeting(
+                meeting: meeting, segments: segments, summary: ozet, topics: topics,
+                actions: actions.compactMap { row in
+                    row.id.map {
+                        MeetingAction(id: $0, person: row.person, task: row.task,
+                                      context: row.context, deadline: row.deadline,
+                                      isDone: row.status == ActionStatus.done.rawValue)
+                    }
+                })
         }
     }
 
@@ -243,6 +251,16 @@ struct MeetingStore: Sendable {
     }
 
     /// "belirtilmedi" DB'de NULL olur — sütun anlamını korusun.
+    /// Model bağlam alanını boş ya da "belirtilmedi" bırakabiliyor; o zaman
+    /// satırda ikinci bir satır çizilmesin diye NULL yazılır.
+    static func normalizedContext(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              trimmed.lowercased(with: Locale(identifier: "tr_TR")) != "belirtilmedi"
+        else { return nil }
+        return trimmed
+    }
+
     static func normalizedDeadline(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,

@@ -17,8 +17,11 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                OraLogo(height: 28, showsWordmark: true)
+            VStack(alignment: .leading, spacing: 8) {
+                OraLogo(height: 36, showsWordmark: true)
+                Text("Sesi bilgiye dönüştürür")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.oraInk)
                 Text("Toplantılarınızı kaydeder, yazıya döker ve özetler. "
                      + "Tüm işlem bu Mac'te yapılır; hiçbir veri cihazınızdan çıkmaz.")
                     .font(.system(size: 13))
@@ -26,6 +29,8 @@ struct OnboardingView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.oraChrome)
 
             Divider().overlay(Color.oraBorder)
 
@@ -95,6 +100,7 @@ struct OnboardingView: View {
         }
         .frame(width: 520)
         .background(Color.oraPaper)
+        .tint(Color.oraCarmine)
         .task { microphoneGranted = await MicrophoneCapture.isAuthorized() }
         .onExitCommand(perform: finish)
     }
@@ -111,7 +117,8 @@ private struct Row<Trailing: View>: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: isDone ? "checkmark.circle.fill" : icon)
                 .font(.system(size: 15))
-                .foregroundStyle(isDone ? Color.oraBlue : Color.oraInkMuted)
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(isDone ? Color.oraCarmine : Color.oraInkMuted)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

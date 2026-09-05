@@ -1,8 +1,8 @@
 # ora (native) — Arayüz Tasarımı
 
-Renk paleti, tipografi ve ton **BRAND.md**'de ve değişmedi. Bu dosya
-*yapı* hakkında: hangi yüzeyler var, hangi an hangisine düşüyor, ve
-eski ora'nın 3 sütunlu düzeninden nerede ayrılıyoruz.
+Renk paleti ve işaret **BRAND.md**'dedir. Bu dosya *yapı* hakkında: hangi
+yüzeyler var, hangi an hangisine düşüyor, ve eski ora'nın 3 sütunlu
+düzeninden nerede ayrılıyoruz.
 
 Tasarımı değiştiren tek yeni gerçek şu: **canlı transkripsiyon artık bedava**
 (tek çekirdeğin %1'i). Eski tasarım "toplantı bitti, şimdi okuyalım" üzerine
@@ -119,9 +119,9 @@ katlama animasyonu, araç çubuğu düğmesi ve durum hatırlama getiriyor.
 ```
 
 Sohbet panelinin ayrı bir başlık şeridi **yoktur** — panelin kimliği araç
-çubuğundaki düğmeden ve içeriğinden bellidir, başka hiçbir panelde böyle bir
-etiket yok. Düğme `Toggle(.button)` stilindedir: panel açıkken basılı kalır,
-açık olduğu düğmeden anlaşılır. Boş durum panelin **tamamına** göre ortalanır
+çubuğundaki düğmeden ve içeriğinden bellidir. Kapalıyken `.oraInk` çizgi
+simge, açıkken dolu `.oraCarmine`; renkli zemin yok, çok renkli SF Symbol
+yok. Boş durum panelin **tamamına** göre ortalanır
 (yazma alanı yüksekliği kadar yukarı kaymaz) ki kenar çubuğu ve orta paneldeki
 boş durumlarla aynı hizada dursun.
 
@@ -133,8 +133,31 @@ ama kalıcı vergi almaz.
 ### Sekmeler: **Özet | Transkript** (üç değil, iki)
 Eskisi Özet | Transkript | Konuşmacılar idi. Kanal ayrımı sayesinde konuşmacı
 sayısı pratikte iki ("Ben" / "Katılımcı") — bu bir sekmeyi hak etmiyor.
-Konuşma payı, ölü hava ve katılımcı istatistikleri **Özet'in içinde kompakt bir
-kart** olur; kullanıcı "ne oldu" sorusunu yanıtlarken bunlar zaten oradadır.
+
+### Özet sekmesinin sırası
+```
+Kişiler        takvim katılımcıları, baş harf daireleri (takvim kapalıysa yok)
+Aksiyonlar     katlanabilir · onay kutusu · gerekçe satırı · sahip çipi
+Genel bakış    madde listesi (paragraf değil)
+Kararlar       madde listesi
+Konular        başlık + maddeler — notun gövdesi
+```
+**Aksiyonlar önce gelir.** Kullanıcının toplantı notuna ilk sorusu "bana ne
+düştü"; referans üründe de (`circleback-notes/`) ilk bölüm budur.
+
+**Konular bir başlık dizini değildir.** Eskiden `MM:SS + 2-5 kelime` satırlarıydı
+ve notun gövdesi hiç yoktu; gövde parça aşamasında üretilip birleştirmede
+atılıyordu. Artık her konu başlık **ve** maddelerdir. Başlığa tıklamak
+transkriptte o ana götürür — referans üründe olmayan, kaydı elde tutmanın
+getirdiği yer. Parça sınırı kaba olduğu için **kesin `MM:SS` etiketi gösterilmez**.
+
+### Konuşma payı kartı **yoktur**
+Önceki tasarım konuşma payı, ölü hava ve süreyi Özet içinde bir kartta
+gösteriyordu. Kaldırıldı: kanal başına iki kova ("Ben" %62 / "Katılımcı" %38)
+kişi bilgisi taşımıyor — diarization olmadığı için "Katılımcı" altı kişi de
+olabilir — ve kart aksiyonlarla konuların arasında okuma akışını kesiyordu.
+`MeetingMetrics` ve karşılık gelen sütunlar silindi. Katılımcılar kartın içinden
+çıkıp kendi **Kişiler** yüzeyine taşındı.
 
 ### Takvimin arayüzdeki yeri
 - **Özet sekmesinin başında** kaynak rozeti: başlık takvimden geldiyse küçük bir
@@ -144,7 +167,9 @@ kart** olur; kullanıcı "ne oldu" sorusunu yanıtlarken bunlar zaten oradadır.
   ("davetli 6 · konuşan 3"). Bu ayrım toplantının kimin için yapıldığını söyler
 - **Toplantı listesinde** (kenar çubuğu) takvimden gelen toplantılar adıyla
   görünür; gelmeyenler LLM'in ürettiği başlıkla. Görsel ayrım yapılmaz —
-  ikisi de meşru başlıktır
+  ikisi de meşru başlıktır. Satır **saat omurgasıdır**: solda hizalı saat,
+  sağda başlık; süre veya durum alt satırda. Sahte kart yığını yok.
+  Seçili satır `.oraChrome` şerittir; Carmine liste yıkanmaz.
 - Takvim kapalıyken bu yüzeylerin hiçbiri **yer tutmaz**; boş kart gösterme
 
 ### Canlı mod (yeni)
@@ -190,7 +215,11 @@ Bunun dışında BRAND.md aynen geçerli: gradyan yok, 8'den büyük köşe yok,
 
 ## 7. Bilinçli olarak yapılmayanlar
 - Ayrı sistem popup penceresi (eski `popup.html`) — yerine eylemli bildirim
-- Kalıcı sohbet sütunu — yerine `.inspector`
+- Kalıcı sohbet sütunu (alt bara sabitlenmiş soru çubuğu dahil) — yerine
+  `.inspector`. Gerekçe aynı: transkript sürekli okunan metin, sohbet ara sıra
+  kullanılan araç. Soru kutusu toplantının adını taşır ("… hakkında sorun"),
+  panelin ne hakkında olduğu başlık şeridi olmadan bellidir
+- Konuşma payı / ölü hava kartı — kanal başına iki kova kişi bilgisi taşımıyor
 - "Konuşmacılar" sekmesi — istatistikler Özet'in içinde
 - Boştayken görünen çentik göstergesi — yalnızca kayıt sırasında
 - İçerik yüzeyinde cam/bulanıklık — okunabilirliğe zarar verir

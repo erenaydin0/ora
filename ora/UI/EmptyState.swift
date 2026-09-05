@@ -11,6 +11,7 @@ struct EmptyState: View {
         VStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.system(size: 26, weight: .light))
+                .symbolRenderingMode(.monochrome)
                 .foregroundStyle(Color.oraInkMuted)
                 .padding(.bottom, 4)
             Text(title)

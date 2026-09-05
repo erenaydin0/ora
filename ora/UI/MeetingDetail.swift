@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Orta panel. Sekmeler **Özet | Transkript** — "Konuşmacılar" sekmesi yoktur,
-/// istatistikler Özet'in içindeki kompakt kartta durur (DESIGN.md §4).
+/// Orta panel. Sekmeler **Özet | Transkript** — "Konuşmacılar" sekmesi yoktur
+/// (DESIGN.md §4).
 struct MeetingDetail: View {
 
     enum Tab: String, CaseIterable, Identifiable {
@@ -13,6 +13,8 @@ struct MeetingDetail: View {
     let recorder: RecordingController
 
     @State private var tab: Tab = .summary
+    /// Konu başlığından transkripte atlarken hedeflenen an.
+    @State private var jumpTarget: TimeInterval?
 
     /// Gösterilecek bir toplantı içeriği var mı — seçim yokken de kayıt sonrası
     /// akış bu yoldan görünür.
@@ -32,7 +34,7 @@ struct MeetingDetail: View {
                 loaded(meeting: nil)
             } else {
                 EmptyState(
-                    icon: "text.bubble",
+                    icon: "text.alignleft",
                     title: "Toplantı seçilmedi",
                     detail: "Soldan bir toplantı seçin veya yeni bir kayıt başlatın."
                 )
@@ -63,14 +65,22 @@ struct MeetingDetail: View {
             case .summary:
                 SummaryView(summary: recorder.summary,
                             topics: recorder.topics,
-                            metrics: recorder.metrics,
-                            notice: recorder.summaryNotice,
-                            calendarParticipants: recorder.calendarParticipants,
-                            onSummarizeNow: recorder.deferReason == nil ? nil : {
-                                Task { await recorder.summarizeNow() }
+                            actions: recorder.actions,
+                            notice: recorder.summaryNotice
+                                ?? (recorder.canSummarize
+                                    ? "Bu toplantının özeti yok." : nil),
+                            participants: recorder.calendarParticipants,
+                            onSummarizeNow: recorder.deferReason != nil
+                                || recorder.canSummarize
+                                ? { Task { await recorder.summarizeNow() } } : nil,
+                            onToggleAction: { recorder.setActionDone($0.id, !$0.isDone) },
+                            onOpenTopic: recorder.displayedSegments.isEmpty ? nil : { topic in
+                                jumpTarget = topic.start
+                                withAnimation(OraStyle.transition) { tab = .transcript }
                             })
             case .transcript:
                 TranscriptView(segments: recorder.displayedSegments,
+                               jumpTarget: $jumpTarget,
                                onCorrect: recorder.canCorrect
                                    ? { segment, text in
                                        Task { await recorder.correct(segment, to: text) }
@@ -120,11 +130,16 @@ private struct MeetingHeader: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .textSelection(.enabled)
-                if let line = metadataLine {
-                    Text(line)
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.oraInkMuted)
-                        .lineLimit(1)
+                if meeting != nil {
+                    HStack(spacing: 6) {
+                        Chip(icon: "calendar", text: meeting?.dateLabel ?? "")
+                        if let duration = meeting?.duration, duration > 0 {
+                            Chip(icon: "clock", text: meeting?.durationLabel ?? "")
+                        }
+                        if let statusNote {
+                            Chip(icon: "exclamationmark.circle", text: statusNote)
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -142,21 +157,34 @@ private struct MeetingHeader: View {
         .padding(.bottom, 12)
     }
 
-    /// Tarih · saat · süre — tek satırda, ayrı ayrı `Text` yığmadan.
-    private var metadataLine: String? {
-        guard let meeting else { return nil }
-        var parts = [meeting.dateLabel]
-        if meeting.duration > 0 { parts.append(meeting.durationLabel) }
-        if let statusNote { parts.append(statusNote) }
-        return parts.joined(separator: " · ")
-    }
-
     private var statusNote: String? {
         switch meeting?.status {
         case MeetingRecord.Status.recording.rawValue:  "yarım kalmış kayıt"
         case MeetingRecord.Status.processing.rawValue: "işleniyor"
         default: nil
         }
+    }
+}
+
+/// Tarih ve süre çipi. Tek birleşik metin satırı tarama için zayıftı; çipler
+/// iki bağımsız veriyi ayrı ayrı okunur kılıyor.
+private struct Chip: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 10))
+                .symbolRenderingMode(.monochrome)
+            Text(text).font(.system(size: 12))
+        }
+        .foregroundStyle(Color.oraInkMuted)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous)
+                .fill(Color.oraChrome))
     }
 }
 
@@ -170,7 +198,7 @@ struct TranscriptionProgressBar: View {
         HStack(spacing: 10) {
             ProgressView(value: fraction)
                 .progressViewStyle(.linear)
-                .tint(Color.oraBlue)
+                .tint(Color.oraCarmine)
             Text(label)
                 .font(.system(size: 12))
                 .foregroundStyle(Color.oraInkMuted)

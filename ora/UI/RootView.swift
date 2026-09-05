@@ -46,14 +46,15 @@ struct RootView: View {
                 .help("Dışa aktar")
             }
             ToolbarItem {
-                // Toggle + .button stili: açıkken düğme native "basılı" görünümde
-                // kalır, panelin açık olduğu düğmeden anlaşılır.
-                Toggle(isOn: $isChatShown) {
-                    Label("Sohbet", systemImage: isChatShown
-                          ? "bubble.left.and.text.bubble.right.fill"
-                          : "bubble.left.and.text.bubble.right")
+                Button {
+                    isChatShown.toggle()
+                } label: {
+                    Image(systemName: isChatShown
+                          ? "bubble.left.and.bubble.right.fill"
+                          : "bubble.left.and.bubble.right")
+                        .symbolRenderingMode(.monochrome)
+                        .foregroundStyle(isChatShown ? Color.oraCarmine : Color.oraInk)
                 }
-                .toggleStyle(.button)
                 .help(isChatShown ? "Sohbet panelini kapat" : "Sohbet panelini aç")
                 .accessibilityLabel("Sohbet paneli")
                 .accessibilityValue(isChatShown ? "açık" : "kapalı")

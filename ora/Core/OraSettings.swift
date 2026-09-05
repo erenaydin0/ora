@@ -20,6 +20,14 @@ final class OraSettings {
     /// Bu uygulamalarda kayıt **sorulmadan** başlar.
     var alwaysRecordBundleIDs: Set<String> { didSet { store(Array(alwaysRecordBundleIDs), .alwaysRecord) } }
 
+    // MARK: - Kimlik
+
+    /// Kullanıcının adı. Mikrofon kanalı bu kişidir; özetleme isteminde
+    /// "Ben"in kim olduğunu söylemek için kullanılır ve sorumlu kişi listesine
+    /// eklenir. Boşsa modele yalnızca "Ben" denir — davranış eskisi gibi kalır.
+    /// Transkriptte konuşmacı etiketi **değişmez**.
+    var userDisplayName: String { didSet { store(userDisplayName, .userDisplayName) } }
+
     // MARK: - Takvim
 
     /// Opt-in, varsayılan kapalı. Kapalıyken EventKit'e hiç dokunulmaz.
@@ -52,6 +60,7 @@ final class OraSettings {
         let defaults = UserDefaults.standard
         detectionEnabled = defaults.object(forKey: Key.detectionEnabled.rawValue) as? Bool ?? true
         calendarEnabled = defaults.bool(forKey: Key.calendarEnabled.rawValue)
+        userDisplayName = defaults.string(forKey: Key.userDisplayName.rawValue) ?? ""
         excludedBundleIDs = Set(defaults.stringArray(forKey: Key.excludedBundleIDs.rawValue)
                                 ?? Array(Self.defaultExclusions))
         alwaysRecordBundleIDs = Set(defaults.stringArray(forKey: Key.alwaysRecord.rawValue) ?? [])
@@ -68,6 +77,7 @@ final class OraSettings {
     private enum Key: String {
         case detectionEnabled, excludedBundleIDs, alwaysRecord
         case calendarEnabled, selectedCalendars
+        case userDisplayName
     }
 
     private func store(_ value: Any, _ key: Key) {

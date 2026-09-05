@@ -36,7 +36,8 @@ final class RecordingController {
 
     private(set) var summary: Ozet?
     private(set) var topics: [TopicSegment] = []
-    private(set) var metrics: MeetingMetrics?
+    /// Aksiyonlar özetten ayrı taşınır: onay kutusu satır kimliği ister.
+    private(set) var actions: [MeetingAction] = []
     private(set) var summaryNotice: String?
     /// Veritabanı açılamadıysa kullanıcıya söylenecek not.
     private(set) var storageNotice: String?
@@ -57,7 +58,7 @@ final class RecordingController {
     private(set) var isAnswering = false
     /// Sözlük onayı bekleyen kelimeler dahil tüm sözlük.
     private(set) var vocabulary: [VocabularyStore.Word] = []
-    /// Takvimden gelen katılımcılar (Özet kartında gösterilir).
+    /// Takvimden gelen katılımcılar (Özet'te Kişiler bölümü).
     private(set) var calendarParticipants: [String] = []
     /// Menü barda gösterilecek sıradaki toplantı.
     private(set) var upcomingEvent: MeetingEvent?
@@ -307,6 +308,14 @@ final class RecordingController {
         selection != nil && !isRecording && !isTranscribing && !transcript.isEmpty
     }
 
+    /// Transkript var ama özet yok. Güç/termal ertelemesi dışında da olabilir:
+    /// özetleme başarısız olmuş ya da toplantı dışarıdan yüklenmiş olabilir.
+    /// Böyle bir toplantı elle özetlenebilmeli, yoksa çıkmaz sokak olur.
+    var canSummarize: Bool {
+        !isRecording && !isTranscribing && summary == nil && !transcript.isEmpty
+            && modelAvailability.isAvailable
+    }
+
     /// Yeniden deneme düğmesi görünür mü?
     var canRetry: Bool {
         retryableAudio != nil && !isRecording && !isTranscribing
@@ -317,7 +326,9 @@ final class RecordingController {
               !transcript.isEmpty || summary != nil else { return nil }
         return MeetingExport.Payload(title: meeting.title, date: meeting.date,
                                      duration: meeting.duration, segments: transcript,
-                                     summary: summary, topics: topics, metrics: metrics)
+                                     summary: summary, topics: topics,
+                                     actions: actions,
+                                     participants: calendarParticipants)
     }
 
     // MARK: - Liste
@@ -351,7 +362,7 @@ final class RecordingController {
             liveSegments = []
             summary = loaded.summary
             topics = loaded.topics
-            metrics = loaded.metrics
+            actions = loaded.actions
             summaryNotice = nil
             transcriptionStage = loaded.segments.isEmpty ? .idle : .done
             retryableAudio = loaded.segments.isEmpty ? Self.existingAudio(loaded.meeting) : nil
@@ -504,7 +515,7 @@ final class RecordingController {
         liveNotice = nil
         summary = nil
         topics = []
-        metrics = nil
+        actions = []
         summaryNotice = nil
         deferReason = nil
         chatTurns = []
@@ -626,14 +637,12 @@ final class RecordingController {
 
     private func runIntelligence(meetingID: Int64, segments: [Segment],
                                  duration: TimeInterval) async {
-        metrics = MeetingMetrics.compute(segments: segments, duration: duration)
-
         // Kayıt bitince işlem hemen başlar. **Tek istisna:** düşük güç modu veya
         // termal baskı — o zaman otomatik başlatılmaz, kullanıcıya sorulur.
         if let reason = PowerState.deferReason() {
             deferReason = reason
             summaryNotice = reason.turkishMessage + ". " + reason.turkishDetail
-            try? await store.saveSummary(meetingID, ozet: nil, topics: [], metrics: metrics)
+            try? await store.saveSummary(meetingID, ozet: nil, topics: [])
             try? await store.markReady(meetingID)
             transcriptionStage = .done
             Log.info(.pipeline, "Özetleme ertelendi: \(reason.turkishMessage)")
@@ -644,7 +653,7 @@ final class RecordingController {
         let availability = intelligence.availability
         guard availability.isAvailable else {
             summaryNotice = availability.turkishMessage + ". " + availability.turkishDetail
-            try? await store.saveSummary(meetingID, ozet: nil, topics: [], metrics: metrics)
+            try? await store.saveSummary(meetingID, ozet: nil, topics: [])
             try? await store.markReady(meetingID)
             transcriptionStage = .done
             Log.warning(.intelligence, "Özetleme atlandı: \(availability.turkishMessage)")
@@ -658,7 +667,6 @@ final class RecordingController {
                 Task { @MainActor in self?.transcriptionStage = .punctuating(value) }
             }
             transcript = punctuated
-            metrics = MeetingMetrics.compute(segments: punctuated, duration: duration)
             try? await store.replaceTranscript(meetingID, segments: punctuated)
         } catch {
             Log.warning(.intelligence, "Noktalama atlandı: \(error.localizedDescription)")
@@ -667,13 +675,25 @@ final class RecordingController {
         // 5 — Map-reduce özetleme
         transcriptionStage = .summarizing(0)
         do {
-            let (ozet, konular) = try await intelligence.summarize(transcript) { [weak self] value in
+            let context = SummaryContext(
+                meetingDate: selectedMeeting?.date ?? Date(),
+                participants: calendarParticipants + [settings.userDisplayName]
+                    .compactMap { $0.isEmpty ? nil : $0 },
+                userName: settings.userDisplayName.isEmpty ? nil : settings.userDisplayName)
+            let result = try await intelligence.summarize(transcript,
+                                                          context: context) { [weak self] value in
                 Task { @MainActor in self?.transcriptionStage = .summarizing(value) }
             }
-            summary = ozet
-            topics = konular
-            Log.info(.intelligence, "Özet hazır — \(ozet.kararlar.count) karar, "
-                     + "\(ozet.aksiyonlar.count) aksiyon, \(konular.count) konu")
+            summary = result.ozet
+            topics = result.topics
+            if result.skippedChunks > 0 {
+                // Sessiz kalite düşüşü yok: bir bölüm özetlenemediyse söylenir.
+                summaryNotice = "\(result.skippedChunks) bölüm özetlenemedi; "
+                    + "özet eksik olabilir. Transkript tam."
+            }
+            Log.info(.intelligence, "Özet hazır — \(result.ozet.kararlar.count) karar, "
+                     + "\(result.ozet.aksiyonlar.count) aksiyon, "
+                     + "\(result.topics.count) konu, \(result.skippedChunks) atlanan parça")
         } catch let error as OraError {
             summaryNotice = error.turkishMessage + ". " + error.turkishDetail
             Log.error(.intelligence, "Özetleme başarısız", error)
@@ -684,13 +704,15 @@ final class RecordingController {
 
         // Başlık önceliği: takvim etkinlik adı → Foundation Models'ın ürettiği
         // başlık → tarih/saat. Pencere başlığı **okunmaz**.
-        if activeEvent == nil, let title = await intelligence.generateTitle(from: transcript) {
+        if activeEvent == nil,
+           let title = await intelligence.generateTitle(from: transcript, topics: topics) {
             try? await store.updateTitle(meetingID, title: title)
         }
 
         // 6 — SQLite güncelle
-        try? await store.saveSummary(meetingID, ozet: summary, topics: topics, metrics: metrics)
+        try? await store.saveSummary(meetingID, ozet: summary, topics: topics)
         try? await store.markReady(meetingID)
+        if let reloaded = try? await store.load(meetingID) { actions = reloaded.actions }
         transcriptionStage = .done
         await refresh()
 
@@ -700,13 +722,24 @@ final class RecordingController {
         }
     }
 
+    /// Aksiyonu tamamlandı olarak işaretler. Ekran hemen güncellenir,
+    /// yazma arkada yapılır — kutuya basınca beklemek gerekmez.
+    func setActionDone(_ actionID: Int64, _ done: Bool) {
+        guard let index = actions.firstIndex(where: { $0.id == actionID }) else { return }
+        actions[index].isDone = done
+        Task { [store] in
+            do { try await store.setActionDone(actionID, done) }
+            catch { Log.error(.store, "Aksiyon durumu yazılamadı", error) }
+        }
+    }
+
     /// Ertelenen özetlemeyi kullanıcı elle başlatır.
     func summarizeNow() async {
         guard let meetingID = selection, !transcript.isEmpty else { return }
         deferReason = nil
         summaryNotice = nil
-        let duration = metrics?.totalDuration ?? 0
-        await runIntelligence(meetingID: meetingID, segments: transcript, duration: duration)
+        await runIntelligence(meetingID: meetingID, segments: transcript,
+                              duration: TimeInterval(selectedMeeting?.duration ?? 0))
     }
 
     private static func duration(of url: URL) -> TimeInterval {

@@ -17,6 +17,15 @@ struct ChatInspector: View {
             && !recorder.isAnswering && recorder.modelAvailability.isAvailable
     }
 
+    /// Soru kutusu toplantının adını taşır — panelin neyin hakkında olduğu
+    /// başlık şeridi olmadan da bellidir.
+    private var placeholder: String {
+        guard let title = recorder.selectedMeeting?.title, !title.isEmpty else {
+            return "Soru sorun"
+        }
+        return "\(title) hakkında sorun"
+    }
+
     /// Boş sohbette gösterilen başlangıç soruları — kullanıcı ne sorabileceğini
     /// bilmeden boş bir kutuya bakmasın.
     private let starters = [
@@ -91,8 +100,12 @@ struct ChatInspector: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
-                        .background(Color.oraAccentSoft)
+                        .background(Color.oraSurface)
                         .clipShape(RoundedRectangle(cornerRadius: OraStyle.cornerRadius))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: OraStyle.cornerRadius)
+                                .stroke(Color.oraBorder, lineWidth: 1)
+                        )
                 }
                 .buttonStyle(.plain)
             }
@@ -103,8 +116,8 @@ struct ChatInspector: View {
     private var emptyIcon: String {
         if isDisabledDuringRecording { "pause.circle" }
         else if !recorder.modelAvailability.isAvailable { "sparkles" }
-        else if recorder.transcript.isEmpty { "text.bubble" }
-        else { "bubble.left.and.text.bubble.right" }
+        else if recorder.transcript.isEmpty { "text.alignleft" }
+        else { "bubble.left.and.bubble.right" }
     }
 
     private var emptyTitle: String {
@@ -132,7 +145,7 @@ struct ChatInspector: View {
         VStack(spacing: 0) {
             if !isEmpty { Divider().overlay(Color.oraBorder) }
             HStack(alignment: .bottom, spacing: 8) {
-                TextField("Soru sorun", text: $question, axis: .vertical)
+                TextField(placeholder, text: $question, axis: .vertical)
                     .textFieldStyle(.plain)
                     .lineLimit(1...4)
                     .font(.system(size: 13))
@@ -144,17 +157,19 @@ struct ChatInspector: View {
                     .clipShape(RoundedRectangle(cornerRadius: OraStyle.cornerRadius))
                     .overlay(
                         RoundedRectangle(cornerRadius: OraStyle.cornerRadius)
-                            .stroke(isInputFocused ? Color.oraBlue : Color.oraBorder,
+                            .stroke(isInputFocused ? Color.oraInk.opacity(0.35) : Color.oraBorder,
                                     lineWidth: 1)
                     )
                     .onSubmit(ask)
                     .disabled(!canAsk)
 
                 Button(action: ask) {
-                    Image(systemName: "arrow.up.circle.fill")
+                    Image(systemName: canAsk && !question.isEmpty
+                          ? "arrow.up.circle.fill" : "arrow.up.circle")
                         .font(.system(size: 22))
+                        .symbolRenderingMode(.monochrome)
                         .foregroundStyle(canAsk && !question.isEmpty
-                                         ? Color.oraBlue : Color.oraInkMuted.opacity(0.4))
+                                         ? Color.oraInk : Color.oraInkMuted.opacity(0.4))
                 }
                 .buttonStyle(.plain)
                 .disabled(!canAsk || question.isEmpty)
@@ -184,7 +199,7 @@ private struct TurnView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 8) {
                 RoundedRectangle(cornerRadius: 1.5)
-                    .fill(Color.oraBlue)
+                    .fill(Color.oraCarmine)
                     .frame(width: 3)
                 Text(question)
                     .font(.system(size: 13, weight: .medium))

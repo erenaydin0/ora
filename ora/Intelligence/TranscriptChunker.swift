@@ -6,14 +6,21 @@ import Foundation
 /// 60 dakikalık toplantının %75'i sessizce çöpe gidiyordu. Burada her karakter
 /// bir parçaya girer; hiçbir şey atılmaz.
 ///
-/// Bağlam penceresi 4096 token, Türkçe'de kabaca 4 karakter ≈ 1 token
-/// (RESEARCH.md §3). Sınırlar talimat ve üretilecek çıktı için pay bırakır.
+/// Bağlam penceresi 4096 token. RESEARCH.md §3'teki "4 karakter ≈ 1 token"
+/// oranı **iyimserdi**: gerçek bir Türkçe toplantı transkriptinde (teknik terim,
+/// kesme işareti, yoğun ek) ölçülen oran **2,45 karakter/token** (RESEARCH.md
+/// §23). 10.000 karakterlik parça 4.089 token ediyor ve `ParcaOzeti` istemiyle
+/// birlikte pencereyi taşırıyordu — 60 dakikalık bir toplantıda **her parça**
+/// düşüyordu.
+///
+/// Sınırlar bu ölçülen orandan hesaplanır ve üretilecek çıktıya pay bırakır.
 enum TranscriptChunker {
 
-    /// Özetleme parçası — girdi büyük, çıktı kısa.
-    static let summaryLimit = 10_000
-    /// Noktalama parçası — çıktı girdiyle **aynı boyutta** olacağı için yarısı kadar.
-    static let punctuationLimit = 4_000
+    /// Özetleme parçası: 6.000 krk ≈ 2.450 token; istem ~300, çıktıya ~1.300 pay.
+    static let summaryLimit = 6_000
+    /// Noktalama parçası — çıktı girdiyle **aynı boyutta** olacağı için daha dar:
+    /// 3.500 krk ≈ 1.430 token girdi + aynı kadar çıktı + istem.
+    static let punctuationLimit = 3_500
 
     /// Segmentleri, birleşik metni `limit`i aşmayan gruplara böler.
     static func chunks(of segments: [Segment], limit: Int) -> [[Segment]] {

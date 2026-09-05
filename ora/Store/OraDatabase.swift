@@ -189,6 +189,22 @@ final class OraDatabase: Storing {
                 """)
         }
 
+        // Circleback referanslı çıktı yapısı: konu bölümlerine gövde,
+        // aksiyonlara gerekçe. Kaldırılan sütunlar hiç doldurulmuyordu ya da
+        // yazılıp hiç okunmuyordu (konuşma payı arayüzden kaldırıldı).
+        migrator.registerMigration("v4_notes") { db in
+            try db.execute(sql: """
+                ALTER TABLE action_items   ADD COLUMN context TEXT;
+                ALTER TABLE topic_segments ADD COLUMN bullets TEXT;
+
+                ALTER TABLE meetings  DROP COLUMN health_score;
+                ALTER TABLE summaries DROP COLUMN next_meeting;
+                ALTER TABLE summaries DROP COLUMN sentiment;
+                ALTER TABLE summaries DROP COLUMN talk_share;
+                ALTER TABLE summaries DROP COLUMN dead_air_pct;
+                """)
+        }
+
         return migrator
     }
 }

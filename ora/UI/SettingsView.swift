@@ -8,7 +8,7 @@ struct SettingsView: View {
 
     var body: some View {
         TabView {
-            GeneralSettings(recorder: recorder)
+            GeneralSettings(recorder: recorder, settings: settings)
                 .tabItem { Label("Genel", systemImage: "gearshape") }
             DetectionSettings(recorder: recorder, settings: settings)
                 .tabItem { Label("Algılama", systemImage: "waveform.badge.mic") }
@@ -25,9 +25,23 @@ struct SettingsView: View {
 /// Genel ayarlar: transkripsiyon dili.
 private struct GeneralSettings: View {
     let recorder: RecordingController
+    @Bindable var settings: OraSettings
 
     var body: some View {
         Form {
+            Section("Adınız") {
+                TextField("Adınız", text: $settings.userDisplayName)
+                    .textFieldStyle(.roundedBorder)
+                    .labelsHidden()
+                Text("Özetlemede mikrofon kanalındaki kişinin kim olduğunu söyler; "
+                     + "aksiyonlar \"Ben\" yerine adınızla yazılır. Boş bırakılabilir. "
+                     + "Transkriptteki konuşmacı etiketi değişmez ve bu ad "
+                     + "cihazdan çıkmaz.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Section("Toplantı dili") {
                 Picker("Dil", selection: Binding(get: { recorder.language },
                                                  set: { recorder.language = $0 })) {
@@ -57,8 +71,9 @@ private struct GeneralSettings: View {
                 HStack(spacing: 8) {
                     Image(systemName: recorder.modelAvailability.isAvailable
                           ? "checkmark.circle.fill" : "exclamationmark.circle")
+                        .symbolRenderingMode(.monochrome)
                         .foregroundStyle(recorder.modelAvailability.isAvailable
-                                         ? Color.oraBlue : Color.oraInkMuted)
+                                         ? Color.oraCarmine : Color.oraInkMuted)
                     Text(recorder.modelAvailability.isAvailable
                          ? "Hazır — özet, noktalama ve sohbet çalışıyor."
                          : recorder.modelAvailability.turkishMessage)
@@ -227,10 +242,7 @@ private struct VocabularySettings: View {
                         if word.isPending {
                             Text("onay bekliyor")
                                 .font(.system(size: 11))
-                                .padding(.horizontal, 6).padding(.vertical, 1)
-                                .background(Color.oraAccentSoft)
-                                .foregroundStyle(Color.oraInk)
-                                .clipShape(Capsule())
+                                .foregroundStyle(Color.oraInkMuted)
                         }
                         Text(word.sourceLabel)
                             .font(.system(size: 11))

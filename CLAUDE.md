@@ -52,12 +52,17 @@ Python yok, Node yok, Electron yok, model dosyası indirme yok.
 8. BRAND.md paletinin dışında renk kullanma. Uygulama ikonu da bu paletten
    çizilir (`scripts/make-icon.swift`) ve **kenardan kenara dolu** olmalıdır —
    yuvarlatılmış köşeyi ve gölgeyi macOS 26 kendisi uygular; kendi kabuğunu
-   çizen sanat eseri Dock'ta boş bir çerçeve gibi görünür (RESEARCH.md §20)
-9. Active Red (#E53935) yalnızca kayıt butonu ve menü bar noktası için
-9b. Uygulamanın vurgu rengi (`AccentColor` asset'i) `.oraAccentSoft`'tur
-    (Soft Apricot) — macOS'un varsayılan sistem mavisi hiçbir yerde görünmez.
-    Seçim, anahtarlar, sekmeler ve varsayılan butonlar bunu kullanır.
-    Vurgu turuncusu Active Red'den açıkça ayırt edilebilir kalmalı.
+   çizen sanat eseri Dock'ta boş bir çerçeve gibi görünür (RESEARCH.md §20).
+   İkon: konuşan ağız — Carmine zemin, Carmine Deep dudak, krem açıklık
+   ve söz damlası. `.oraCarmine` kimlik ve AccentColor’dır; kenar çubuğu
+   seçimi ve kayıt değildir. `.oraCarmineDeep` yalnızca işaret.
+9. Active Red (#E53935) yalnızca kayıt butonu, menü bar noktası ve kenar
+   çubuğundaki canlı kayıt noktası için
+9b. Uygulamanın vurgu rengi (`AccentColor`) `.oraCarmine`’dir — sistem
+    mavisi ve eski Soft Apricot kullanılmaz. Anahtarlar, sekmeler ve
+    varsayılan butonlar Carmine alır. Kenar çubuğu seçimi `.oraChrome`
+    şerittir; sohbet araç çubuğu kapalıyken mürekkep, açıkken Carmine. Active Red
+    Carmine’den açıkça ayırt edilebilir kalmalı.
 10. Uygulama adı her zaman küçük harf "ora"
 11. Kayıt **stereo** yazılır: kanal 0 = mikrofon, kanal 1 = sistem sesi.
     Kanallar asla tek kanala karıştırılmaz. Kısa kalan kanal sessizlikle
@@ -81,7 +86,9 @@ Bu sıra asla değişmez:
    bölümleri kapatır ve güncel vocabulary'yi uygular. Canlı sonuç zaten
    tamsa bu adım hızla biter.
 4. Foundation Models ile **noktalama restorasyonu** (zorunlu adım)
-5. Foundation Models ile map-reduce özetleme → özet, kararlar, aksiyonlar
+5. Foundation Models ile map-reduce özetleme → konu blokları (başlık +
+   maddeler) ve aksiyonlar parça aşamasında; genel bakış ve kararlar
+   birleştirme aşamasında
 6. SQLite güncelle (summaries + action_items + topic_segments)
 7. Kullanıcıya bildir
 
@@ -167,11 +174,25 @@ Bu sıra asla değişmez:
 - **Bağlam penceresi 4096 token.** Ölçüm: ~15.600 Türkçe karakter (≈3.800 token)
   geçti, ~31.200 karakter `exceededContextWindowSize` verdi. Türkçe'de kabaca
   **4 karakter ≈ 1 token**.
-- Bu yüzden **map-reduce zorunludur**: transkripti ~10.000 karakterlik parçalara
-  böl (talimat + çıktı için pay bırak), her parçayı ayrı özetle, sonra kısmi
-  özetleri birleştirip nihai özeti üret. Transkripti asla kırpma —
+- Bu yüzden **map-reduce zorunludur**: transkripti **6.000 karakterlik**
+  parçalara böl, her parçayı ayrı özetle, sonra kısmi özetleri birleştirip nihai
+  özeti üret. "4 karakter ≈ 1 token" oranı **iyimserdi**: gerçek bir toplantı
+  transkriptinde ölçülen oran **2,45 karakter/token** (RESEARCH.md §23) ve
+  10.000 karakterlik parça 4.089 token ederek pencereyi taşırıyordu. Transkripti asla kırpma —
   önceki ora'da `MAX_TRANSCRIPT_CHARS = 14_000` yüzünden 60 dakikalık
   toplantının %75'i sessizce çöpe gidiyordu. **Bu hatayı tekrarlama.**
+- **Parça çıktısı `ParcaOzeti`'dir: konu blokları (başlık + maddeler) **ve**
+  o parçada üstlenilen aksiyonlar.** Konu yalnızca başlık değildir — gövdesi
+  notun kendisidir. Birleştirme adımı yalnızca genel bakış ve kararları üretir;
+  **aksiyon üretmez**, çünkü konu notlarında konuşmacı bilgisi yoktur.
+- **Katılımcı listesi isteme yazılmaz.** A/B ölçüldü (RESEARCH.md §23): kapalı
+  isim listesi verildiğinde model onu kısıt değil *menü* gibi kullanıyor,
+  görevler belirsizleşiyor ve son tarihlere toplantı tarihi sızıyor. Liste
+  yalnızca **doğrulamada** kullanılır.
+- **Model, içeriği olmayan alanı istemdeki en yakın metinle doldurur.** "Şunu
+  yazma" demek 3B modelde işe yaramıyor, tetikliyor. İki sızıntı kodda kesilir
+  (`FoundationIntelligence.validated`): bağlam konu başlığını tekrarlıyorsa
+  düşürülür, son tarih toplantı tarihinin kendisiyse "belirtilmedi" olur.
 - Yapılandırılmış çıktı için **`@Generable` + `@Guide` kullan**, elle JSON
   ayrıştırma yazma. Ölçüldü: aksiyon maddelerini `kisi`/`gorev`/`sonTarih`
   alanlarıyla doğru üretiyor. `sonTarih` alanını şemadan çıkarma — önceki
@@ -189,7 +210,12 @@ Bu sıra asla değişmez:
   korunur** — model kelime değiştirirse o satır reddedilir (normalize edilmiş
   karşılaştırma). Noktalama bir iyileştirmedir, kelime kaybetme pahasına yapılmaz.
 - Özetleme isteminde **"'Ben' bu kaydı tutan kişidir"** cümlesi bulunmalı;
-  yoksa `kisi` alanı hep "belirtilmedi" geliyor.
+  yoksa `kisi` alanı hep "belirtilmedi" geliyor. Kullanıcı adını ayarlardan
+  verdiyse cümleye eklenir (`OraSettings.userDisplayName`).
+- **Diarization olmadığı için uzaktaki katılımcılar ayırt edilemez.** Kanal
+  ayrımı yalnızca "Ben" ve "Katılımcı" verir; `kisi` çoğu zaman
+  "belirtilmedi" olur. Bu bilinçlidir — kendinden emin yanlış bir ad, boş bir
+  alandan kötüdür.
 - Konu başlıkları `@Generable` şema ile alınır; düz metin istenirse model
   numaralı liste ve açıklama döküyor.
 - Model karar/aksiyonları tekrarlayabiliyor — çıktı normalize edilmiş
@@ -280,12 +306,14 @@ Türkçe bir bildirimle sor. Şarj durumu izleme, `IOPSCopyPowerSourcesInfo`,
 
 ## Database Schema (açık talimat olmadan değiştirme)
 ```sql
-meetings(id, title, date, duration, health_score, status, template, audio_path,
+meetings(id, title, date, duration, status, template, audio_path,
          calendar_event_id, created_at)
   -- calendar_event_id: EKEvent.eventIdentifier, takvim kapalıysa NULL
 transcripts(id, meeting_id, speaker, channel, text, start_time, end_time, confidence, created_at)
   -- transcripts.channel: 'mic' | 'system'
-action_items(id, meeting_id, person, task, deadline, status, created_at)
+action_items(id, meeting_id, person, task, context, deadline, status, created_at)
+  -- context: işin neden çıktığı, tek cümle. Boşsa NULL
+  -- status: 'pending' | 'done' — kullanıcı arayüzden işaretler
 vocabulary(id, word, source, status, rejected_until, added_date)
   -- vocabulary.status: 'active' | 'pending' | 'rejected'
 corrections(id, mistake, correct, meeting_id, created_at)
@@ -296,13 +324,19 @@ participants(id, name, email, meeting_count, last_seen)
 meeting_participants(meeting_id, participant_id, source, role)
   -- source: 'calendar' | 'transcript'   role: 'organizer' | 'attendee' | NULL
   -- PRIMARY KEY(meeting_id, participant_id)
-topic_segments(id, meeting_id, title, start_time, end_time)
-summaries(id, meeting_id UNIQUE, overview, decisions JSON, next_meeting, sentiment,
-          talk_share JSON, dead_air_pct, created_at)
+topic_segments(id, meeting_id, title, bullets JSON, start_time, end_time)
+  -- bullets: konunun maddeleri. Konu **başlık listesi değil**, notun gövdesi
+summaries(id, meeting_id UNIQUE, overview JSON, decisions JSON, created_at)
+  -- overview: madde listesi (v4 öncesi düz metin; tek maddelik listeye düşer)
 transcripts_fts -- FTS5 virtual table (text, speaker), insert/delete/update trigger'ları
 ```
 **Tarih sütunları** GRDB'nin varsayılan biçiminde yazılır
 (`YYYY-MM-DD HH:MM:SS.SSS`, UTC).
+
+**v4'te kaldırılan sütunlar:** `meetings.health_score`, `summaries.next_meeting`,
+`summaries.sentiment`, `summaries.talk_share`, `summaries.dead_air_pct`. İlk üçü
+hiç doldurulmuyordu; son ikisi yazılıp hiç okunmuyordu (konuşma payı arayüzden
+kaldırıldı, bkz. UI Kuralları).
 
 **Silme davranışı:** `meetings` satırı silinince `transcripts`, `summaries`,
 `action_items`, `topic_segments` cascade ile gider ve FTS trigger'ı indeksi
@@ -337,8 +371,11 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 - SwiftUI; ikonlar SF Symbols
 - Düzen: 3 sütun — `NavigationSplitView` kenar çubuğu 240-300pt, orta panel esnek
   (sekmeler: **Özet | Transkript**), sağ sohbet paneli `.inspector` ile katlanabilir.
-  "Konuşmacılar" sekmesi yoktur; kanal ayrımı sayesinde konuşmacı sayısı pratikte
-  ikidir ve istatistikler Özet içindeki kompakt kartta durur (DESIGN.md §4)
+  "Konuşmacılar" sekmesi yoktur (DESIGN.md §4)
+- **Özet sırası: Kişiler → Aksiyonlar → Genel bakış → Kararlar → Konular.**
+  Aksiyon önce gelir; kullanıcının toplantı notuna ilk sorusu "bana ne düştü"
+- **Konuşma payı / ölü hava kartı yoktur.** Kanal başına iki kova kişi bilgisi
+  taşımıyordu ve okuma akışını kesiyordu; `MeetingMetrics` kaldırıldı
 - Gradyan yok
 - Gölge en fazla: `.shadow(color: .black.opacity(0.08), radius: 3, y: 1)`
 - Köşe yarıçapı en fazla 8
@@ -380,6 +417,12 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 - **ARCHITECTURE.md** — modüller arası sözleşmeler
 - **FALLBACK.md** — Apple yığını yetmezse ne yapılacağı (whisper.cpp yolu)
 - **BRAND.md** — UI kodu yazmadan önce
+
+### Geliştirme Verisi
+Gerçek bir toplantıyla denetim için `probes/bordro_toplanti.json` (29 dk'lık
+Teams dökümü) `scripts/seed-transcript.swift` ile veritabanına yüklenir.
+Uygulamada içe aktarma **yoktur**; bu yalnızca geliştirme aracıdır. Yükledikten
+sonra toplantıyı seçip "Şimdi özetle" demek uygulamanın kendi hattını koşturur.
 
 ### Bu Dosyayı Güncel Tutma Kuralı
 CLAUDE.md'de yazan bir yaklaşımdan **daha iyisi için** vazgeçildiyse
@@ -423,6 +466,11 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       şeridi, otomatik durdurma önerisi, toplantı sohbeti, otomatik başlık,
       güç/termal ertelemesi, EventKit takvim entegrasyonu (opt-in).
       Ölçümler RESEARCH.md §17.
+      **Çıktı yapısı Circleback referansına göre yenilendi (RESEARCH.md §23):**
+      konu blokları artık gövdeli (başlık + maddeler) — eskiden gövde üretilip
+      birleştirmede çöpe gidiyordu; genel bakış madde listesi; aksiyonlarda
+      gerekçe satırı ve onay kutusu; parça sınırı 10.000 → 6.000 karakter
+      (gerçek oran 2,45 krk/token, eski sınır pencereyi taşırıyordu).
       **Faz 7 — Paketleme** tamam: uygulama ikonu, `MenuBarExtra` (taşıyıcı yüzey),
       kayıt sırasında kırmızı nokta ve kanal seviyeleri, ilk açılış onboarding'i,
       `scripts/build-release.sh` ile 3,7 MB .dmg (RESEARCH.md §18).

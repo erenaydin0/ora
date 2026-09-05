@@ -12,6 +12,8 @@ struct OraApp: App {
         Window("ora", id: "main") {
             RootView(recorder: recorder)
                 .frame(minWidth: 900, minHeight: 560)
+                .tint(Color.oraCarmine)
+                .containerBackground(Color.oraPaper, for: .window)
         }
         .defaultSize(width: 1100, height: 700)
         .windowToolbarStyle(.unified)
@@ -27,6 +29,8 @@ struct OraApp: App {
 
         Settings {
             SettingsView(recorder: recorder, settings: settings)
+                .tint(Color.oraCarmine)
+                .containerBackground(Color.oraPaper, for: .window)
         }
     }
 }

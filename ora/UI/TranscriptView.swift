@@ -8,6 +8,9 @@ struct TranscriptView: View {
     let segments: [Segment]
     var volatileText: [Int: String] = [:]
     var notice: String?
+    /// Özet'teki konu başlığından gelen atlama hedefi (saniye). Kaydırma
+    /// yapıldıktan sonra `nil`'e çekilir ki aynı konuya tekrar basılabilsin.
+    var jumpTarget: Binding<TimeInterval?> = .constant(nil)
     /// Nil ise düzeltme kapalıdır (canlı modda düzeltme yapılmaz).
     var onCorrect: ((Segment, String) -> Void)?
 
@@ -61,10 +64,28 @@ struct TranscriptView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .onChange(of: segments.count) { _, _ in
+                    // Canlı akışta en alta yapış; konuya atlarken bunu ezme.
+                    guard jumpTarget.wrappedValue == nil else { return }
                     withAnimation(OraStyle.transition) { proxy.scrollTo("son", anchor: .bottom) }
+                }
+                .onChange(of: jumpTarget.wrappedValue) { _, target in
+                    guard let target, let id = segmentID(at: target) else { return }
+                    withAnimation(OraStyle.transition) { proxy.scrollTo(id, anchor: .top) }
+                    jumpTarget.wrappedValue = nil
+                }
+                .onAppear {
+                    guard let target = jumpTarget.wrappedValue,
+                          let id = segmentID(at: target) else { return }
+                    proxy.scrollTo(id, anchor: .top)
+                    jumpTarget.wrappedValue = nil
                 }
             }
         }
+    }
+
+    /// Verilen anı içeren ya da ondan sonraki ilk segment.
+    private func segmentID(at time: TimeInterval) -> Segment.ID? {
+        (segments.first { $0.end >= time } ?? segments.last)?.id
     }
 
     private var volatileLines: [(Channel, String)] {

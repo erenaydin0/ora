@@ -14,8 +14,12 @@ struct MeetingSidebar: View {
             ForEach(groups) { group in
                 Section {
                     ForEach(group.meetings) { meeting in
-                        row(meeting)
+                        MeetingRow(meeting: meeting,
+                                   isSelected: recorder.selection == meeting.id)
                             .tag(meeting.id)
+                            .listRowInsets(EdgeInsets(top: 2, leading: 10, bottom: 2, trailing: 10))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                             .contextMenu {
                                 Button("Yeniden adlandır") {
                                     draftTitle = meeting.title
@@ -90,27 +94,76 @@ struct MeetingSidebar: View {
         return result
     }
 
-    private func row(_ meeting: MeetingListItem) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            HStack(spacing: 6) {
-                if meeting.status != MeetingRecord.Status.ready.rawValue {
-                    Image(systemName: meeting.status == MeetingRecord.Status.recording.rawValue
-                          ? "record.circle" : "clock")
-                        .font(.system(size: 10))
-                        .foregroundStyle(meeting.status == MeetingRecord.Status.recording.rawValue
-                                         ? Color.oraRed : Color.oraInkMuted)
-                }
+}
+
+/// Saat omurgası: solda hizalı saat, sağda başlık. Sahte kart yok;
+/// seçili satır krem şerit (BRAND: kenar çubuğu Carmine yıkanmaz).
+private struct MeetingRow: View {
+    let meeting: MeetingListItem
+    let isSelected: Bool
+    @State private var isHovered = false
+
+    private var isRecording: Bool {
+        meeting.status == MeetingRecord.Status.recording.rawValue
+    }
+    private var isProcessing: Bool {
+        meeting.status == MeetingRecord.Status.processing.rawValue
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            timeColumn
+            VStack(alignment: .leading, spacing: 2) {
                 Text(meeting.title)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color.oraInk)
                     .lineLimit(1)
+                if let meta {
+                    Text(meta)
+                        .font(.system(size: 11))
+                        .foregroundStyle(isRecording ? Color.oraRed : Color.oraInkMuted)
+                        .lineLimit(1)
+                }
             }
-            Text(secondaryLine(meeting))
-                .font(.system(size: 11))
-                .foregroundStyle(Color.oraInkMuted)
-                .lineLimit(1)
+            Spacer(minLength: 0)
         }
-        .padding(.vertical, 3)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background {
+            RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous)
+                .fill(stripFill)
+        }
+        .onHover { isHovered = $0 }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var timeColumn: some View {
+        Text(meeting.timeLabel)
+            .font(.system(size: 12, design: .monospaced))
+            .monospacedDigit()
+            .foregroundStyle(Color.oraInkMuted)
+            .lineLimit(1)
+            .frame(width: 44, alignment: .leading)
+    }
+
+    private var meta: String? {
+        if isRecording { return "Kayıt sürüyor" }
+        if isProcessing { return "İşleniyor" }
+        if meeting.duration > 0 { return meeting.durationLabel }
+        return nil
+    }
+
+    private var stripFill: Color {
+        if isSelected { return Color.oraChrome }
+        if isHovered { return Color.oraChrome.opacity(0.45) }
+        return Color.clear
+    }
+
+    private var accessibilityLabel: String {
+        var parts = [meeting.timeLabel, meeting.title]
+        if let meta { parts.append(meta) }
+        return parts.joined(separator: ", ")
     }
 }
 
@@ -118,15 +171,6 @@ struct MeetingSidebar: View {
 private struct MeetingGroup: Identifiable {
     let id: String
     var meetings: [MeetingListItem]
-}
-
-private extension MeetingSidebar {
-    /// Saat · süre. Gün bilgisi grup başlığında, satırda tekrar edilmez.
-    func secondaryLine(_ meeting: MeetingListItem) -> String {
-        meeting.duration > 0
-            ? "\(meeting.timeLabel) · \(meeting.durationLabel)"
-            : meeting.timeLabel
-    }
 }
 
 private struct RenameTarget: Identifiable { let id: Int64 }

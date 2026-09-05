@@ -41,6 +41,15 @@ enum IntelligenceStage: Sendable, Equatable {
     case summarizing(Double)
 }
 
+/// Özetleme sonucu. Atlanan parça sayısı da döner — bir bölüm özetlenemediğinde
+/// bunu **sessizce yutmak** eski davranıştı (ham 600 karakter birleştirmeye
+/// giriyordu); artık kullanıcıya söylenir.
+struct SummaryResult: Sendable {
+    var ozet: Ozet
+    var topics: [TopicSegment]
+    var skippedChunks: Int
+}
+
 protocol Intelligent: Sendable {
     var availability: ModelAvailability { get }
 
@@ -50,8 +59,13 @@ protocol Intelligent: Sendable {
                             progress: @Sendable @escaping (Double) -> Void) async throws -> [Segment]
 
     /// Map-reduce özetleme. Transkript asla kırpılmaz.
+    ///
+    /// `context` toplantı tarihini ve sorumlu kişi için kapalı isim listesini
+    /// taşır; ikisi de isteğe bağlıdır (takvim kapalıysa liste boştur).
     func summarize(_ segments: [Segment],
-                   progress: @Sendable @escaping (Double) -> Void) async throws -> (Ozet, [TopicSegment])
+                   context: SummaryContext,
+                   progress: @Sendable @escaping (Double) -> Void) async throws
+        -> SummaryResult
 
     /// Toplantı sohbeti: transkript üzerinde soru-cevap, map-reduce ile.
     func answer(question: String, over segments: [Segment]) async throws -> String
@@ -59,4 +73,9 @@ protocol Intelligent: Sendable {
     /// Transkriptten başlık üretir. Pencere başlığı **okunmaz** — sandbox'lı
     /// uygulamada ekran kaydı izni ister (RESEARCH.md §11).
     func generateTitle(from segments: [Segment]) async -> String?
+
+    /// Konu başlıkları varsa başlık onlardan üretilir — ilk parça toplantının
+    /// tamamını temsil etmiyor.
+    func generateTitle(from segments: [Segment],
+                       topics: [TopicSegment]) async -> String?
 }

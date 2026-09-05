@@ -1,9 +1,19 @@
 // ora uygulama ikonu — BRAND.md paletiyle çizilir, gradyan yok.
-// Marka: küçük harf "ora"nın "o"su; Core Blue halka, Paper Cream zemin.
+//
+// Hikâye: bir ağız konuşur. Koyu karmen dudak hacim verir; krem badem
+// açıklık sözün çıktığı yerdir; içteki koyu oval kavitedir (dinleme).
+// Ağızdan sağa kaçan küçük krem damla, sesin bilgiye dönüşmesidir.
+// Yuvarlatılmış köşeyi macOS 26 kendi çizer.
 import AppKit
 import CoreGraphics
 
-let sizes = [16, 32, 64, 128, 256, 512, 1024]
+let slots: [(size: Int, scale: Int)] = [
+    (16, 1), (16, 2),
+    (32, 1), (32, 2),
+    (128, 1), (128, 2),
+    (256, 1), (256, 2),
+    (512, 1), (512, 2),
+]
 let outputDir = URL(fileURLWithPath: CommandLine.arguments.count > 1
                     ? CommandLine.arguments[1] : "ora.iconset")
 try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
@@ -13,9 +23,32 @@ func color(_ hex: UInt32) -> CGColor {
             green: CGFloat((hex >> 8) & 0xFF) / 255,
             blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
 }
-let paper = color(0xFAF6F0)   // Paper Cream
-let blue  = color(0x1A56A3)   // Core Blue
-let ink   = color(0x333333)   // Slate Black
+let paper = color(0xFAF6F0)
+let carmine = color(0xA61B2B)
+let deep = color(0x6B121C)
+
+/// Gülümseyen badem — köşeler biraz aşağıda, ağız okunur, göz değil.
+func almond(cx: CGFloat, cy: CGFloat, w: CGFloat, h: CGFloat) -> CGPath {
+    let path = CGMutablePath()
+    let left = CGPoint(x: cx - w / 2, y: cy + h * 0.12)
+    let right = CGPoint(x: cx + w / 2, y: cy + h * 0.12)
+    path.move(to: left)
+    path.addQuadCurve(to: right, control: CGPoint(x: cx, y: cy - h * 0.48))
+    path.addQuadCurve(to: left, control: CGPoint(x: cx, y: cy + h * 0.52))
+    path.closeSubpath()
+    return path
+}
+
+func teardrop(cx: CGFloat, cy: CGFloat, r: CGFloat) -> CGPath {
+    let path = CGMutablePath()
+    path.move(to: CGPoint(x: cx - r * 0.15, y: cy + r * 0.55))
+    path.addQuadCurve(to: CGPoint(x: cx + r * 0.85, y: cy - r * 0.55),
+                      control: CGPoint(x: cx + r * 0.95, y: cy + r * 0.25))
+    path.addQuadCurve(to: CGPoint(x: cx - r * 0.15, y: cy + r * 0.55),
+                      control: CGPoint(x: cx + r * 0.05, y: cy - r * 0.35))
+    path.closeSubpath()
+    return path
+}
 
 func draw(size: Int) -> CGImage? {
     let s = CGFloat(size)
@@ -24,59 +57,47 @@ func draw(size: Int) -> CGImage? {
                               bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
     else { return nil }
 
-    // macOS 26 ikon sanat eserini **kenardan kenara** ister: yuvarlatılmış köşeyi,
-    // gölgeyi ve kabuğu sistem kendi çizer. Kendi köşemizi çizersek ikon içinde
-    // ikon çıkar ve küçük boyutlarda marka kaybolur.
-    ctx.setFillColor(paper)
+    ctx.setFillColor(carmine)
     ctx.fill(CGRect(x: 0, y: 0, width: s, height: s))
+    ctx.translateBy(x: 0, y: s)
+    ctx.scaleBy(x: 1, y: -1)
 
-    // İçerik, sistem maskesinin kırpmayacağı orta alanda durur.
-    let safe = CGRect(x: 0, y: 0, width: s, height: s).insetBy(dx: s * 0.16, dy: s * 0.16)
+    let cx = s * 0.47
+    let cy = s * 0.52
 
-    // "o" halkası
-    let ringDiameter = safe.width * 0.66
-    let ringWidth = ringDiameter * 0.22
-    let barWidth = ringWidth * 0.58
-    let gap = ringWidth * 0.80
-    // Halka + iki çubuk birlikte yatayda ortalanır.
-    let barsWidth = size >= 32 ? (gap + barWidth) * 2 : 0
-    let totalWidth = ringDiameter + barsWidth
-    let originX = safe.midX - totalWidth / 2
+    // Dudak — alt daha dolgun durur diye açıklık biraz yukarı kayar.
+    ctx.setFillColor(deep)
+    ctx.addPath(almond(cx: cx, cy: cy + s * 0.02, w: s * 0.70, h: s * 0.42))
+    ctx.fillPath()
 
-    let ringRect = CGRect(x: originX, y: safe.midY - ringDiameter / 2,
-                          width: ringDiameter, height: ringDiameter)
-        .insetBy(dx: ringWidth / 2, dy: ringWidth / 2)
-    ctx.addEllipse(in: ringRect)
-    ctx.setStrokeColor(blue)
-    ctx.setLineWidth(ringWidth)
-    ctx.strokePath()
+    // Açıklık
+    ctx.setFillColor(paper)
+    ctx.addPath(almond(cx: cx, cy: cy - s * 0.02, w: s * 0.52, h: s * 0.24))
+    ctx.fillPath()
 
-    // Sesi temsil eden iki çubuk, azalan uzunlukta
-    if size >= 32 {
-        var x = originX + ringDiameter + gap
-        for factor in [0.60, 0.32] {
-            let height = ringDiameter * factor
-            let bar = CGRect(x: x, y: safe.midY - height / 2, width: barWidth, height: height)
-            ctx.addPath(CGPath(roundedRect: bar, cornerWidth: barWidth / 2,
-                               cornerHeight: barWidth / 2, transform: nil))
-            ctx.setFillColor(ink)
-            ctx.fillPath()
-            x += barWidth + gap
-        }
-    }
+    // Kavite — açıklığın alt kenarında, göz bebeği değil ağız boşluğu.
+    ctx.setFillColor(deep)
+    ctx.addPath(almond(cx: cx, cy: cy + s * 0.02, w: s * 0.36, h: s * 0.08))
+    ctx.fillPath()
+
+    // Söz — ağızdan çıkan damla (ses → bilgi).
+    ctx.setFillColor(paper)
+    ctx.addPath(teardrop(cx: s * 0.76, cy: s * 0.34, r: max(2.5, s * 0.055)))
+    ctx.fillPath()
+
     return ctx.makeImage()
 }
 
-for size in sizes {
-    for scale in [1, 2] {
-        let pixels = size * scale
-        guard pixels <= 1024, let image = draw(size: pixels) else { continue }
-        let name = scale == 1 ? "icon_\(size)x\(size).png" : "icon_\(size)x\(size)@2x.png"
-        let url = outputDir.appending(path: name)
-        guard let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil)
-        else { continue }
-        CGImageDestinationAddImage(dest, image, nil)
-        CGImageDestinationFinalize(dest)
-    }
+for slot in slots {
+    let pixels = slot.size * slot.scale
+    guard let image = draw(size: pixels) else { continue }
+    let name = slot.scale == 1
+        ? "icon_\(slot.size)x\(slot.size).png"
+        : "icon_\(slot.size)x\(slot.size)@2x.png"
+    let url = outputDir.appending(path: name)
+    guard let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil)
+    else { continue }
+    CGImageDestinationAddImage(dest, image, nil)
+    CGImageDestinationFinalize(dest)
 }
 print("iconset yazıldı: \(outputDir.path)")

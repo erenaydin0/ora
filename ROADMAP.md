@@ -126,10 +126,12 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
       bir kez daha denenir
 - [x] Map-reduce özetleyici: ~10.000 karakterlik parçalar, parça başına yeni oturum,
       kısmi özetler uzun kalırsa ek indirgeme turu
-- [x] `@Generable` şemalar: `Ozet` (genelBakis, kararlar, aksiyonlar[kisi/gorev/sonTarih])
-- [x] Konu segmentleri — başlık `@Generable KonuBasligi` ile, zaman aralığı
+- [x] `@Generable` şemalar: `Ozet` (genelBakis[], kararlar[],
+      aksiyonlar[kisi/gorev/baglam/sonTarih]), `ParcaOzeti` (konular[] + aksiyonlar[]),
+      `ToplantiOzeti` (birleştirme çıktısı)
+- [x] Konu blokları — başlık **ve maddeler** `@Generable KonuBlogu` ile, zaman aralığı
       parçanın segmentlerinden (LLM'e sorulmaz)
-- [x] Sağlık metrikleri: konuşma payı, ölü hava — zaman damgalarından **hesaplanır**;
+- [~] Sağlık metrikleri **kaldırıldı** (DESIGN.md §4). Eskiden: konuşma payı, ölü hava —
       üst üste binen aralıklar bir kez sayılır
 - [x] Model kullanılamıyorsa transkript yine gösterilir, yalnız özet devre dışı
 
@@ -215,7 +217,7 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
 
 ## Faz 7 — Paketleme ✅
 - [x] Uygulama ikonu — BRAND paletiyle çizilir (`scripts/make-icon.swift`):
-      Paper Cream zemin, Core Blue "o" halkası, iki Slate Black çubuk. Gradyan yok
+      konuşan ağız (Carmine zemin, Deep dudak, krem açıklık ve söz). Gradyan yok
 - [x] Menü bar öğesi (`MenuBarExtra`) — **taşıyıcı yüzey**. Popover'da geçen süre,
       iki kanalın seviye göstergesi, canlı transkriptin son satırı, Durdur,
       sıradaki toplantı, "Pencereyi aç"

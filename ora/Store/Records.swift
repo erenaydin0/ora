@@ -20,7 +20,6 @@ struct MeetingRecord: OraRecord, Identifiable, Hashable {
     var title: String
     var date: Date
     var duration: Int
-    var healthScore: Int?
     var status: String
     var template: String?
     var audioPath: String?
@@ -62,6 +61,9 @@ struct ActionItemRecord: OraRecord, Identifiable {
     var meetingId: Int64
     var person: String
     var task: String
+    /// Görevin **neden** çıktığı — tek cümle. Maddeyi tek başına anlaşılır
+    /// kılan alan budur.
+    var context: String?
     var deadline: String?
     var status: String
     var createdAt: Date?
@@ -76,13 +78,21 @@ struct TopicSegmentRecord: OraRecord {
     var id: Int64?
     var meetingId: Int64
     var title: String
+    /// Konunun maddeleri, JSON `[String]`. Eskiden konu yalnızca başlıktı;
+    /// gövde üretilip atılıyordu.
+    var bullets: String?
     var startTime: Double
     var endTime: Double
 
     mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+
+    var bulletList: [String] {
+        guard let bullets, let data = bullets.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+    }
 }
 
-/// `summaries` satırı. `decisions` ve `talk_share` JSON metni tutar.
+/// `summaries` satırı. `overview` ve `decisions` JSON metni tutar.
 struct SummaryRecord: OraRecord {
     static let databaseTableName = "summaries"
 
@@ -90,17 +100,25 @@ struct SummaryRecord: OraRecord {
     var meetingId: Int64
     var overview: String?
     var decisions: String?
-    var nextMeeting: String?
-    var sentiment: String?
-    var talkShare: String?
-    var deadAirPct: Double?
     var createdAt: Date?
 
     mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 
-    var decisionList: [String] {
-        guard let decisions, let data = decisions.data(using: .utf8) else { return [] }
-        return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+    var decisionList: [String] { Self.list(decisions) ?? [] }
+
+    /// `overview` artık madde listesi. v4 öncesi satırlar düz paragraf tutuyor;
+    /// **çözümlenemeyen** metin tek maddelik liste olarak okunur — eski
+    /// toplantılar boş görünmesin. Çözümlenip boş çıkan (`[]`) bir liste ise
+    /// gerçekten boştur; literal "[]" madde olarak gösterilmez.
+    var overviewList: [String] {
+        guard let overview, !overview.isEmpty else { return [] }
+        return Self.list(overview) ?? [overview]
+    }
+
+    /// `nil` = çözümlenemedi (JSON değil), `[]` = çözümlendi ve boş.
+    private static func list(_ json: String?) -> [String]? {
+        guard let json, let data = json.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode([String].self, from: data)
     }
 }
 
@@ -158,5 +176,17 @@ struct LoadedMeeting: Sendable {
     let segments: [Segment]
     let summary: Ozet?
     let topics: [TopicSegment]
-    let metrics: MeetingMetrics?
+    /// Aksiyonlar `summary.aksiyonlar`'dan **ayrı** taşınır: onay kutusu satır
+    /// kimliği ister, `Ozet.Aksiyon` ise LLM çıktı tipidir ve id taşımaz.
+    let actions: [MeetingAction]
+}
+
+/// Arayüzün gördüğü aksiyon: kalıcı kimlik ve tamamlanma durumu ile.
+struct MeetingAction: Sendable, Identifiable, Hashable {
+    let id: Int64
+    var person: String
+    var task: String
+    var context: String?
+    var deadline: String?
+    var isDone: Bool
 }
