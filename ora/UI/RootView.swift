@@ -6,16 +6,17 @@ struct RootView: View {
     let recorder: RecordingController
     @State private var isChatShown = false
 
-    /// Kenar çubuğu (240) + okunabilir bir orta panel. Ölçüldü: sohbet
-    /// kapalıyken 900 pt'de üç sütun da tam görünüyor.
+    /// Kenar çubuğu (240) + okunabilir bir orta panel. Sohbet açılınca bu
+    /// **değişmez**: panel pencereyi büyütmez, orta panelin içinden yer alır.
     static let minWidth: CGFloat = 900
-    static let inspectorMinWidth: CGFloat = 280
-    /// Sohbet açıkken gereken en küçük genişlik. **Ölçülerek** bulundu
-    /// (RESEARCH.md §24.5): 1255 pt'nin altında SwiftUI kenar çubuğunu
-    /// daraltmak yerine pencerenin dışına taşıyıp kırpıyor. Eski değer
-    /// `minWidth + inspectorMinWidth` (1180) idi ve **yetmiyordu** — panel
-    /// bildirilen minimumla değil, kendi ideal genişliğiyle yerleşiyor.
-    static let minWidthWithInspector: CGFloat = 1260
+    /// Sohbet panelinin genişliği. Sabit: `NavigationSplitView`'ın üçüncü
+    /// sütunu değil, orta panelin içinde bir bölme.
+    static let chatWidth: CGFloat = 320
+    /// Sohbet açıkken pencerenin inebileceği en küçük genişlik. **Ölçüldü**
+    /// (RESEARCH.md §26): 940 pt'nin altında kenar çubuğu yine kırpılıyor.
+    /// Pencere yalnızca en dar hâldeyken 40 pt büyür; normal boyutlarda hiç
+    /// değişmez.
+    static let minWidthWithChat: CGFloat = 940
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
@@ -23,25 +24,36 @@ struct RootView: View {
             MeetingSidebar(recorder: recorder)
                 .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 300)
         } detail: {
-            if recorder.isRecording {
-                RecordingView(recorder: recorder)
-            } else if recorder.showsActionBoard {
-                ActionBoardView(recorder: recorder)
-            } else {
-                MeetingDetail(recorder: recorder)
+            // Sohbet **orta panelin içinde** bir bölmedir, `.inspector` değil.
+            // Neden: `.inspector` üçüncü bir sütun açıyor ve orta sütun kendi
+            // alt sınırının (ölçüldü: ~655 pt) altına inmediği için SwiftUI
+            // fazlalığı kenar çubuğuyla paneli pencerenin dışına iterek
+            // çözüyordu — kenar çubuğu kırpılıyordu (RESEARCH.md §26).
+            // Notlar uygulamasının davranışı da budur: panel açılınca pencere
+            // büyümez, okuma alanı daralır.
+            HStack(spacing: 0) {
+                Group {
+                    if recorder.isRecording {
+                        RecordingView(recorder: recorder)
+                    } else if recorder.showsActionBoard {
+                        ActionBoardView(recorder: recorder)
+                    } else {
+                        MeetingDetail(recorder: recorder)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+
+                if isChatShown {
+                    Divider().overlay(Color.oraBorder)
+                    ChatInspector(recorder: recorder,
+                                  isDisabledDuringRecording: recorder.isRecording)
+                        .frame(width: Self.chatWidth)
+                        .transition(.move(edge: .trailing))
+                }
             }
+            .clipped()
         }
-        .inspector(isPresented: $isChatShown) {
-            ChatInspector(recorder: recorder, isDisabledDuringRecording: recorder.isRecording)
-                .inspectorColumnWidth(min: Self.inspectorMinWidth,
-                                      ideal: 300, max: 420)
-        }
-        // Pencerenin alt sınırı sohbet paneline **göre değişir**. Sabit 900 pt
-        // iken panel açılınca üç sütun sığmıyor ve SwiftUI kenar çubuğunu
-        // daraltmak yerine pencerenin soluna taşırıp kırpıyordu.
-        // `Window` sahnesindeki `.windowResizability(.contentMinSize)` bu
-        // minimumu sert sınır yapıyor; panel açılırken pencere gerekirse büyür.
-        .frame(minWidth: isChatShown ? Self.minWidthWithInspector : Self.minWidth,
+        .frame(minWidth: isChatShown ? Self.minWidthWithChat : Self.minWidth,
                minHeight: 560)
         .animation(OraStyle.transition, value: isChatShown)
         .toolbar {
@@ -69,7 +81,7 @@ struct RootView: View {
             }
             ToolbarItem {
                 Button {
-                    isChatShown.toggle()
+                    withAnimation(OraStyle.transition) { isChatShown.toggle() }
                 } label: {
                     Image(systemName: isChatShown
                           ? "bubble.left.and.bubble.right.fill"

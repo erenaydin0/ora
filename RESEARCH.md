@@ -1227,6 +1227,10 @@ açılınca kendiliğinden 1260'a büyüyor ve kenar çubuğu tam görünüyor.
 
 **Ders:** üç sütunlu yerleşimde minimum genişlik hesaplanmaz, ölçülür.
 
+> Bu yaklaşım (pencereyi büyütmek) **§26'da bırakıldı**: panel artık üçüncü bir
+> sütun değil, orta panelin içinde bir bölme. Ölçümler kayıtta duruyor çünkü
+> `.inspector`'ın davranışını gösteriyorlar.
+
 ---
 
 ## 25. Faz 8 ölçümleri — oynatıcı, alıntı bağı, depolama
@@ -1353,3 +1357,53 @@ Yine de sıkıştırma **kayıp verendir** ve varsayılan **kapalıdır**; yaln�
 transkripsiyon ve özet bittikten sonra çalışır. Saklama süresi (varsayılan
 süresiz) dolduğunda **yalnızca ses** silinir; transkript, özet ve aksiyonlar
 kalır.
+
+
+---
+
+## 26. Faz 8 tasarım turu — kenar çubuğu geometrisi ve sohbet paneli
+
+Ekran görüntüsünden göz kararı ayar yapmak yerine pikseller ölçüldü:
+`probes` dışında kalan tek seferlik betikler ekran görüntüsünde carmine kartın
+sol/sağ kenarını ve bölüm başlığının sol kenarını okur.
+
+### 26.1 Kenar çubuğu kartının girintisi
+
+`listRowInsets(leading: 0)` bırakıldığında kart pencerenin solundan **24 pt**
+içeride başlıyordu; sağda ise yalnızca 7 pt boşluk vardı — asimetrik ve fazla.
+Listenin `.sidebar` biçimi kendi başlık/satır girintisini uyguluyor ve
+`listRowInsets` bunu **azaltmıyor**, ancak negatif değer veriliyorsa çekiyor:
+
+| leading | kart sol kenarı | kart metni | bölüm başlığı |
+|---|---|---|---|
+| 0    | 24 pt | 32 pt | 31 pt |
+| −12  | 12 pt | 21 pt | 31 pt |
+| −16  | **9 pt** | **17 pt** | 16 pt (başlık −7 pt ile) |
+
+Sonuç: `leading: -16`, `trailing: 0`, kart iç boşluğu 8 pt. Kartın solunda 9 pt,
+sağında 7 pt boşluk kalıyor. Bölüm başlığı (`BUGÜN`) kartın **metniyle** aynı
+hizada durması için `-7 pt` ile kaydırılıyor — listenin başlık girintisi
+satır girintisinden 7 pt fazla.
+
+### 26.2 Sohbet paneli: `.inspector` yerine orta panelin içinde bölme
+
+`.inspector` üçüncü bir sütun açıyor. Ölçüldü: orta sütun **~655 pt**'nin
+altına inmiyor, dolayısıyla panel açıldığında SwiftUI fazlalığı kenar çubuğunu
+**ve** paneli pencerenin dışına iterek çözüyor; ikisi birden kırpılıyor.
+Orta panele `.frame(minWidth: 420)` vermek bunu **düzeltmiyor** — frame yalnızca
+alt sınırı yükseltir, sütunun kendi alt sınırını düşürmez.
+
+Çözüm, Notlar uygulamasının yaptığı: panel ayrı bir sütun değil, orta panelin
+içinde sabit genişlikte (320 pt) bir bölme. Açılınca **pencere büyümez, okuma
+alanı daralır**.
+
+Kalan tek sınır dar pencerede: 900 pt'de kenar çubuğu yine kırpılıyor.
+Genişlik taranarak eşik ölçüldü (kart sol kenarı, tam yerleşim 9 pt):
+
+| Genişlik | 905 | 915 | 925 | **940** | 980 | 1020 |
+|---|---|---|---|---|---|---|
+| Kart sol kenarı | 0 | 0 | 4 | **9** | 9 | 9 |
+
+Sohbet açıkken pencere minimumu 940 pt. Yani pencere yalnızca **en dar hâlde**
+40 pt büyüyor; 940 ve üstündeki her genişlikte hiç değişmiyor. Eski çözümde
+(üçüncü sütun) bu sıçrama 900 → 1260 idi.

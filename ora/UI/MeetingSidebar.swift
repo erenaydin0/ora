@@ -29,7 +29,7 @@ struct MeetingSidebar: View {
                                isSelected: recorder.showsActionBoard) {
                     recorder.showsActionBoard = true
                 }
-                .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 10))
+                .listRowInsets(EdgeInsets(top: 2, leading: -16, bottom: 2, trailing: 0))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
             }
@@ -45,7 +45,7 @@ struct MeetingSidebar: View {
                                        snippet: recorder.searchSnippets[meeting.id])
                         }
                             .buttonStyle(.plain)
-                            .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 10))
+                            .listRowInsets(EdgeInsets(top: 2, leading: -16, bottom: 2, trailing: 0))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                             .contextMenu {
@@ -61,13 +61,14 @@ struct MeetingSidebar: View {
                             }
                     }
                 } header: {
-                    // Başlık, kartın **metniyle** aynı hizada durur: kartın
-                    // kendi iç boşluğu (8) kadar sağa alınır.
+                    // Başlık kartın **metniyle** aynı hizada durur. Sayı
+                    // ölçümle bulundu: listenin kendi başlık girintisi kartın
+                    // girintisinden 7 pt fazla (RESEARCH.md §26).
                     Text(group.id.uppercased())
                         .font(.system(size: 11, weight: .semibold))
                         .kerning(0.5)
                         .foregroundStyle(Color.oraInkMuted)
-                        .padding(.leading, 8)
+                        .padding(.leading, -7)
                 }
             }
         }

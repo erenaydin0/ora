@@ -823,7 +823,11 @@ final class RecordingController {
 
         // Başlık önceliği: takvim etkinlik adı → Foundation Models'ın ürettiği
         // başlık → tarih/saat. Pencere başlığı **okunmaz**.
-        if activeEvent == nil,
+        //
+        // Yeniden özetlemede başlık **üretilmez**: toplantının adı zaten var ve
+        // kullanıcı onu elle değiştirmiş olabilir. Özeti beğenmeyip yeniden
+        // ürettiğinde adının da değişmesi beklenmedik bir kayıptır.
+        if activeEvent == nil, !variation,
            let title = await intelligence.generateTitle(from: transcript, topics: topics) {
             try? await store.updateTitle(meetingID, title: title)
         }

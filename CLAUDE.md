@@ -392,12 +392,15 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 ## UI Kuralları
 - UI kodu yazmadan önce **BRAND.md** oku
 - SwiftUI; ikonlar SF Symbols
-- Düzen: 3 sütun — `NavigationSplitView` kenar çubuğu 240-300pt, orta panel esnek
-  (sekmeler: **Özet | Transkript**), sağ sohbet paneli `.inspector` ile katlanabilir.
+- Düzen: `NavigationSplitView` kenar çubuğu 240-300pt + orta panel
+  (sekmeler: **Özet | Transkript**). Sohbet, orta panelin **içinde** 320 pt'lik
+  katlanabilir bir bölmedir — `.inspector` **kullanılmaz**: üçüncü sütun
+  açıldığında orta sütun ~655 pt'nin altına inmediği için SwiftUI kenar
+  çubuğunu pencerenin dışına itiyordu (RESEARCH.md §26.2).
   "Konuşmacılar" sekmesi yoktur (DESIGN.md §4)
 - **Özet sırası: Kişiler → Aksiyonlar → Genel bakış → Kararlar → Konular.**
   Aksiyon önce gelir; kullanıcının toplantı notuna ilk sorusu "bana ne düştü"
-- **Pencere minimumu sohbet paneline göre değişir** (900 → 1260, ölçüldü) ve `Window`
+- **Pencere minimumu sohbet paneline göre değişir** (900 → 940, ölçüldü) ve `Window`
   sahnesinde `.windowResizability(.contentMinSize)` ile sert sınır yapılır.
   Bu olmadan `NavigationSplitView` + `.inspector` sığmadığında kenar çubuğunu
   pencerenin dışına taşıyıp kırpıyor (§24.5)

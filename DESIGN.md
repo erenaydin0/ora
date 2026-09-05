@@ -96,7 +96,7 @@ sürekli duran bir kutu değil, yalnızca bir şey olurken beliren bir gösterge
 
 ## 4. Ana pencere — iki mod
 
-### Yapı: native `NavigationSplitView` + `.inspector`
+### Yapı: native `NavigationSplitView` + orta panelde katlanabilir sohbet bölmesi
 Araç çubuğu **kendi zeminini çizmez**
 (`.toolbarBackgroundVisibility(.hidden, for: .windowToolbar)`): aksi hâlde beyaz
 araç çubuğu ile krem tuval arasında yatay bir dikiş kalıyor. BRAND.md'nin
@@ -250,10 +250,14 @@ Bunun dışında BRAND.md aynen geçerli: gradyan yok, 8'den büyük köşe yok,
 
 ## 7. Bilinçli olarak yapılmayanlar
 - Ayrı sistem popup penceresi (eski `popup.html`) — yerine eylemli bildirim
-- Kalıcı sohbet sütunu (alt bara sabitlenmiş soru çubuğu dahil) — yerine
-  `.inspector`. Gerekçe aynı: transkript sürekli okunan metin, sohbet ara sıra
-  kullanılan araç. Soru kutusu toplantının adını taşır ("… hakkında sorun"),
-  panelin ne hakkında olduğu başlık şeridi olmadan bellidir
+- Kalıcı sohbet sütunu (alt bara sabitlenmiş soru çubuğu dahil) — sohbet
+  katlanabilir bir bölmedir. Gerekçe aynı: transkript sürekli okunan metin,
+  sohbet ara sıra kullanılan araç. Soru kutusu toplantının adını taşır
+  ("… hakkında sorun"), panelin ne hakkında olduğu başlık şeridi olmadan bellidir
+- `.inspector` (üçüncü sütun) — **bırakıldı**. Orta sütun ~655 pt'nin altına
+  inmediği için panel açılınca SwiftUI kenar çubuğunu pencerenin dışına
+  itiyordu (RESEARCH.md §26.2). Panel artık orta panelin içinde 320 pt'lik bir
+  bölme: açılınca pencere büyümez, okuma alanı daralır — Notlar'ın davranışı
 - Konuşma payı / ölü hava kartı — kanal başına iki kova kişi bilgisi taşımıyor
 - "Konuşmacılar" sekmesi — istatistikler Özet'in içinde
 - Boştayken görünen çentik göstergesi — yalnızca kayıt sırasında
