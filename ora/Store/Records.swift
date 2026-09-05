@@ -209,18 +209,20 @@ struct BoardAction: Identifiable, Hashable, FetchableRecord, Decodable, Sendable
 
     /// Kime düştüğü belli mi? Diarization olmadığı için `kisi` çoğu zaman
     /// "belirtilmedi" gelir; pano bunu gizlemez, ayrı bir grupta gösterir.
-    var isAssigned: Bool {
-        let trimmed = person.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty
-            && trimmed.lowercased(with: Locale(identifier: "tr_TR")) != "belirtilmedi"
+    var isAssigned: Bool { !MeetingStore.isUnspecified(person) }
+
+    /// Gerçek bir son tarih mi? Eski satırlarda "Belirtilmedi." metin olarak
+    /// yazılmış olabilir; pano onu tarih gibi göstermez.
+    var realDeadline: String? {
+        guard let deadline, !MeetingStore.isUnspecified(deadline) else { return nil }
+        return MeetingStore.cleaned(deadline)
     }
 
     /// Kullanıcının kendisine mi düşüyor? Özet isteminde "Ben" kaydı tutan
     /// kişidir; kullanıcı ayarlardan adını verdiyse o ad da sayılır.
     func isMine(userName: String) -> Bool {
         let turkish = Locale(identifier: "tr_TR")
-        let trimmed = person.trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased(with: turkish)
+        let trimmed = MeetingStore.cleaned(person).lowercased(with: turkish)
         if trimmed == "ben" { return true }
         let name = userName.trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased(with: turkish)

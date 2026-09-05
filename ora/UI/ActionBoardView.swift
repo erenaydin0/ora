@@ -133,13 +133,13 @@ private struct BoardRow: View {
             .accessibilityLabel(action.isDone ? "Tamamlandı" : "Tamamlanmadı")
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(action.task)
+                Text(MeetingStore.cleaned(action.task))
                     .font(.system(size: 13))
                     .foregroundStyle(action.isDone ? Color.oraInkMuted : Color.oraInk)
                     .strikethrough(action.isDone, color: Color.oraInkMuted)
                     .fixedSize(horizontal: false, vertical: true)
-                if let context = action.context, !context.isEmpty {
-                    Text(context)
+                if let context = action.context, !MeetingStore.isUnspecified(context) {
+                    Text(MeetingStore.cleaned(context))
                         .font(.system(size: 12))
                         .foregroundStyle(Color.oraInkMuted)
                         .fixedSize(horizontal: false, vertical: true)
@@ -152,7 +152,7 @@ private struct BoardRow: View {
                         Label(action.meetingTitle, systemImage: "text.alignleft")
                             .lineLimit(1)
                         Text(action.dateLabel)
-                        if let deadline = action.deadline, !deadline.isEmpty {
+                        if let deadline = action.realDeadline {
                             Label(deadline, systemImage: "calendar")
                         }
                     }

@@ -18,9 +18,15 @@ struct TranscriptView: View {
     var onRetry: (() -> Void)?
     /// Nil ise düzeltme kapalıdır (canlı modda düzeltme yapılmaz).
     var onCorrect: ((Segment, String) -> Void)?
+    /// Toplantı içi arama (⌘F). Kenar çubuğundaki arama toplantı **bulur**;
+    /// bu arama bulunan toplantının içinde gezdirir.
+    var find: Binding<String> = .constant("")
+    var isFinding: Binding<Bool> = .constant(false)
 
     @State private var editing: Segment.ID?
     @State private var draft = ""
+    @State private var matchIndex = 0
+    @FocusState private var findFocused: Bool
 
     var body: some View {
         if segments.isEmpty && volatileText.isEmpty {
@@ -33,6 +39,56 @@ struct TranscriptView: View {
                        actionTitle: onRetry == nil ? nil : "Yeniden dene",
                        action: onRetry)
         } else {
+            VStack(spacing: 0) {
+                if isFinding.wrappedValue { findBar }
+                transcript
+            }
+        }
+    }
+
+    /// ⌘F şeridi. Escape kapatır, Enter sonraki eşleşmeye gider.
+    private var findBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11))
+                .foregroundStyle(Color.oraInkMuted)
+            TextField("Bu transkriptte ara", text: find)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraInk)
+                .focused($findFocused)
+                .onSubmit { step(1) }
+            if !find.wrappedValue.isEmpty {
+                Text(matches.isEmpty ? "eşleşme yok"
+                                     : "\(matchIndex + 1)/\(matches.count)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.oraInkMuted)
+            }
+            Button { step(-1) } label: { Image(systemName: "chevron.up") }
+                .buttonStyle(.plain)
+                .disabled(matches.isEmpty)
+                .help("Önceki eşleşme")
+            Button { step(1) } label: { Image(systemName: "chevron.down") }
+                .buttonStyle(.plain)
+                .disabled(matches.isEmpty)
+                .help("Sonraki eşleşme")
+            Button { closeFind() } label: { Image(systemName: "xmark") }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
+                .help("Aramayı kapat")
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(Color.oraInkMuted)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
+        .background(Color.oraChrome)
+        .overlay(alignment: .bottom) { Divider().overlay(Color.oraBorder) }
+        .onAppear { findFocused = true }
+        .onExitCommand(perform: closeFind)
+    }
+
+    private var transcript: some View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {
@@ -53,7 +109,10 @@ struct TranscriptView: View {
                                 }
                             } else {
                                 SegmentRow(segment: segment,
-                                           isActive: segment.id == activeID,
+                                           isActive: segment.id == activeID
+                                               || segment.id == currentMatch,
+                                           highlight: isFinding.wrappedValue
+                                               ? find.wrappedValue : "",
                                            onPlay: playback.map { player in
                                                { player.play(from: segment.start) }
                                            })
@@ -99,8 +158,46 @@ struct TranscriptView: View {
                     guard let id, playback?.isPlaying == true else { return }
                     withAnimation(OraStyle.transition) { proxy.scrollTo(id, anchor: .center) }
                 }
+                // Yeni arama ilk eşleşmeye gider; gezinme odaklı eşleşmeyi taşır.
+                .onChange(of: find.wrappedValue) { _, _ in
+                    matchIndex = 0
+                    if let id = currentMatch {
+                        withAnimation(OraStyle.transition) { proxy.scrollTo(id, anchor: .center) }
+                    }
+                }
+                .onChange(of: matchIndex) { _, _ in
+                    guard let id = currentMatch else { return }
+                    withAnimation(OraStyle.transition) { proxy.scrollTo(id, anchor: .center) }
+                }
             }
-        }
+    }
+
+    // MARK: - Toplantı içi arama
+
+    /// Eşleşen segmentler. Karşılaştırma yerelleştirilmiş: büyük/küçük harf ve
+    /// diakritik farkı gözetmez ("bütçe" ~ "butce" değil ama "Bütçe" ~ "bütçe").
+    private var matches: [Segment.ID] {
+        let term = find.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isFinding.wrappedValue, !term.isEmpty else { return [] }
+        return segments.filter { $0.text.localizedStandardContains(term) }.map(\.id)
+    }
+
+    private var currentMatch: Segment.ID? {
+        guard !matches.isEmpty else { return nil }
+        return matches[min(matchIndex, matches.count - 1)]
+    }
+
+    /// Sonraki/önceki eşleşme; uçlarda başa döner.
+    private func step(_ delta: Int) {
+        guard !matches.isEmpty else { return }
+        matchIndex = (matchIndex + delta + matches.count) % matches.count
+    }
+
+    private func closeFind() {
+        isFinding.wrappedValue = false
+        find.wrappedValue = ""
+        matchIndex = 0
+        findFocused = false
     }
 
     /// O an çalınan satır — oynatıcı yoksa hiçbiri.
@@ -123,8 +220,10 @@ struct TranscriptView: View {
 
 private struct SegmentRow: View {
     let segment: Segment
-    /// Ses bu satırı çalıyor.
+    /// Ses bu satırı çalıyor ya da odaklı arama eşleşmesi burada.
     var isActive = false
+    /// Toplantı içi aramanın terimi — metinde kalın ve Carmine görünür.
+    var highlight: String = ""
     /// Ses varsa saat etiketi "buradan çal" düğmesine dönüşür.
     var onPlay: (() -> Void)?
 
@@ -159,7 +258,7 @@ private struct SegmentRow: View {
                         .foregroundStyle(Color.oraInkMuted)
                 }
             }
-            Text(segment.text)
+            Text(attributedText)
                 .font(.system(.body, design: .monospaced))
                 .lineSpacing(OraStyle.bodyLineSpacing)
                 .foregroundStyle(Color.oraInk)
@@ -177,6 +276,21 @@ private struct SegmentRow: View {
         .padding(.horizontal, -8)
         .onHover { isHovered = $0 }
         .accessibilityElement(children: .combine)
+    }
+
+    /// Arama terimi geçen yerler kalın ve Carmine; arama yoksa düz metin.
+    private var attributedText: AttributedString {
+        let term = highlight.trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = AttributedString(segment.text)
+        guard !term.isEmpty else { return text }
+        var searchRange = text.startIndex..<text.endIndex
+        while let range = text[searchRange].range(of: term, options: [.caseInsensitive]) {
+            text[range].font = .system(.body, design: .monospaced).weight(.semibold)
+            text[range].foregroundColor = Color.oraCarmine
+            guard range.upperBound < text.endIndex else { break }
+            searchRange = range.upperBound..<text.endIndex
+        }
+        return text
     }
 }
 

@@ -18,6 +18,10 @@ struct MeetingDetail: View {
     /// Kaydın sesi. Şerit iki sekmenin de altında durur — ses görünmeyen bir
     /// yüzeyden gelmez, özet maddesinden de çalınabilir.
     @State private var playback = AudioPlayback()
+    /// Toplantı içi arama (⌘F). Kenar çubuğundaki arama toplantıyı bulur;
+    /// bu, bulunan toplantının içinde gezdirir.
+    @State private var isFinding = false
+    @State private var findText = ""
 
     /// Gösterilecek bir toplantı içeriği var mı — seçim yokken de kayıt sonrası
     /// akış bu yoldan görünür.
@@ -52,7 +56,12 @@ struct MeetingDetail: View {
         VStack(spacing: 0) {
             // Başlık ve sekme aynı satırda: kimlik solda, görünüm anahtarı sağda.
             // İkisini alt alta koymak başlığa gereksiz yükseklik veriyordu.
-            MeetingHeader(meeting: meeting, tab: $tab)
+            MeetingHeader(meeting: meeting, tab: $tab,
+                          canFind: !recorder.displayedSegments.isEmpty,
+                          find: {
+                              tab = .transcript
+                              isFinding = true
+                          })
 
             Divider().overlay(Color.oraBorder)
 
@@ -92,7 +101,9 @@ struct MeetingDetail: View {
                                    ? { segment, text in
                                        Task { await recorder.correct(segment, to: text) }
                                      }
-                                   : nil)
+                                   : nil,
+                               find: $findText,
+                               isFinding: $isFinding)
             }
 
             if playback.isAvailable {
@@ -112,6 +123,9 @@ private struct MeetingHeader: View {
 
     let meeting: MeetingListItem?
     @Binding var tab: MeetingDetail.Tab
+    /// Transkript yoksa arama düğmesi görünmez.
+    var canFind = false
+    var find: () -> Void = {}
 
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
@@ -135,6 +149,20 @@ private struct MeetingHeader: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            if canFind {
+                Button(action: find) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.oraInkMuted)
+                }
+                .buttonStyle(.plain)
+                // Görünür düğme olduğu için kısayol menü çubuğu gerektirmeden
+                // çalışır; pencere ön plandayken ⌘F transkripte geçer.
+                .keyboardShortcut("f", modifiers: .command)
+                .help("Transkriptte ara (⌘F)")
+                .accessibilityLabel("Transkriptte ara")
+            }
 
             Picker("", selection: $tab) {
                 ForEach(MeetingDetail.Tab.allCases) { Text($0.rawValue).tag($0) }

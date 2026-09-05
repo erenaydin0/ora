@@ -26,6 +26,9 @@ final class RecordingController {
 
     /// Kenar çubuğu listesi ve seçim.
     private(set) var meetings: [MeetingListItem] = []
+    /// Arama sonucunun transkriptte nerede eşleştiği — toplantı başına bir
+    /// parçacık. Arama boşken boştur.
+    private(set) var searchSnippets: [Int64: String] = [:]
     var searchText = "" { didSet { scheduleRefresh() } }
     var selection: Int64? {
         didSet {
@@ -360,6 +363,7 @@ final class RecordingController {
             Log.error(.store, "Toplantı listesi okunamadı", error)
         }
         boardActions = (try? await store.allActions()) ?? boardActions
+        searchSnippets = (try? await store.snippets(search: searchText)) ?? [:]
     }
 
     /// Panodan kaynak toplantıya git.

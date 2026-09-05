@@ -89,7 +89,8 @@ struct MeetingStore: Sendable {
 
             for aksiyon in ozet?.aksiyonlar ?? [] {
                 var item = ActionItemRecord(
-                    id: nil, meetingId: meetingID, person: aksiyon.kisi, task: aksiyon.gorev,
+                    id: nil, meetingId: meetingID,
+                    person: Self.cleaned(aksiyon.kisi), task: Self.cleaned(aksiyon.gorev),
                     context: Self.normalizedContext(aksiyon.baglam),
                     deadline: Self.normalizedDeadline(aksiyon.sonTarih),
                     status: ActionStatus.pending.rawValue, createdAt: Date())
@@ -160,20 +161,40 @@ struct MeetingStore: Sendable {
         }
     }
 
-    /// Aramanın transkriptte geçtiği yerler — listede eşleşmenin nerede olduğunu
-    /// göstermek için.
-    func snippets(for meetingID: Int64, search: String, limit: Int = 3) async throws -> [String] {
+    /// Arama sonucunun **nerede** eşleştiği: toplantı başına ilk parçacık.
+    ///
+    /// Tek sorgu — toplantı başına ayrı sorgu atmak liste kaydırılırken
+    /// gereksiz yük olurdu. Eşleşen kelime `Self.mark` ile işaretlenir; arayüz
+    /// bu işareti kalın yazıya çevirir.
+    func snippets(search: String, limit: Int = 300) async throws -> [Int64: String] {
         let term = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !term.isEmpty else { return [] }
-        return try await database.read { db in
-            try String.fetchAll(db, sql: """
-                SELECT snippet(transcripts_fts, 0, '', '', '…', 12) FROM transcripts_fts f
+        guard !term.isEmpty else { return [:] }
+        let rows: [SnippetRow] = try await database.read { db in
+            try SnippetRow.fetchAll(db, sql: """
+                SELECT t.meeting_id AS meetingID,
+                       snippet(transcripts_fts, 0, ?, ?, '…', 10) AS text
+                FROM transcripts_fts f
                 JOIN transcripts t ON t.id = f.rowid
-                WHERE transcripts_fts MATCH ? AND t.meeting_id = ?
+                WHERE transcripts_fts MATCH ?
+                ORDER BY rank
                 LIMIT ?
-                """, arguments: [Self.ftsPattern(term), meetingID, limit])
+                """, arguments: [Self.mark, Self.mark, Self.ftsPattern(term), limit])
         }
+        var result: [Int64: String] = [:]
+        for row in rows where result[row.meetingID] == nil {
+            result[row.meetingID] = row.text
+        }
+        return result
     }
+
+    private struct SnippetRow: FetchableRecord, Decodable, Sendable {
+        var meetingID: Int64
+        var text: String
+    }
+
+    /// Eşleşmeyi saran işaret. Transkript metninde geçmeyecek bir kontrol
+    /// karakteri seçildi; HTML benzeri bir etiket kullanıcı metnine karışabilirdi.
+    static let mark = "\u{2}"
 
     /// Tüm toplantıların aksiyonları — kaynak toplantısıyla birlikte.
     ///
@@ -278,19 +299,31 @@ struct MeetingStore: Sendable {
     /// Model bağlam alanını boş ya da "belirtilmedi" bırakabiliyor; o zaman
     /// satırda ikinci bir satır çizilmesin diye NULL yazılır.
     static func normalizedContext(_ value: String) -> String? {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty,
-              trimmed.lowercased(with: Locale(identifier: "tr_TR")) != "belirtilmedi"
-        else { return nil }
-        return trimmed
+        let cleaned = Self.cleaned(value)
+        return cleaned.isEmpty || Self.isUnspecified(cleaned) ? nil : cleaned
     }
 
     static func normalizedDeadline(_ value: String) -> String? {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty,
-              trimmed.lowercased(with: Locale(identifier: "tr_TR")) != "belirtilmedi"
-        else { return nil }
-        return trimmed
+        let cleaned = Self.cleaned(value)
+        return cleaned.isEmpty || Self.isUnspecified(cleaned) ? nil : cleaned
+    }
+
+    /// Model çıktısının uçlarındaki artıklar: kaçış çizgisi ve boşluk.
+    /// Gerçek veride görüldü — "…belirledim.\" (RESEARCH.md §25.2).
+    /// **Kelime düşürmez**, yalnızca uçtaki noktalama artığını alır.
+    static func cleaned(_ value: String) -> String {
+        value.trimmingCharacters(in: CharacterSet(charactersIn: " \t\n\r\\"))
+    }
+
+    /// "belirtilmedi", "Belirtilmedi." ve benzerleri bir değer değildir.
+    /// Sondaki noktalama yüzünden eşleşmeyi kaçırmak, arayüzde "Son tarih:
+    /// Belirtilmedi." satırı olarak görünüyordu.
+    static func isUnspecified(_ value: String) -> Bool {
+        let stripped = Self.cleaned(value)
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!"))
+            .trimmingCharacters(in: .whitespaces)
+            .lowercased(with: Locale(identifier: "tr_TR"))
+        return stripped.isEmpty || stripped == "belirtilmedi"
     }
 }
 

@@ -308,8 +308,7 @@ private struct OwnerChip: View {
     private static let turkish = Locale(identifier: "tr_TR")
 
     private var isSpecified: Bool {
-        person.lowercased(with: Self.turkish) != "belirtilmedi"
-            && !person.trimmingCharacters(in: .whitespaces).isEmpty
+        !MeetingStore.isUnspecified(person)
     }
 
     var body: some View {
@@ -327,8 +326,8 @@ private struct OwnerChip: View {
                         .lineLimit(1)
                 }
             }
-            if let deadline, !deadline.isEmpty {
-                Text(sentenceCased(deadline))
+            if let deadline, !MeetingStore.isUnspecified(deadline) {
+                Text(sentenceCased(MeetingStore.cleaned(deadline)))
                     .font(.system(size: 11))
                     .foregroundStyle(Color.oraInkMuted)
                     .lineLimit(1)

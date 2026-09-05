@@ -26,7 +26,8 @@ struct MeetingSidebar: View {
                 Section {
                     ForEach(group.meetings) { meeting in
                         MeetingRow(meeting: meeting,
-                                   isSelected: recorder.selection == meeting.id)
+                                   isSelected: recorder.selection == meeting.id,
+                                   snippet: recorder.searchSnippets[meeting.id])
                             .tag(meeting.id)
                             .listRowInsets(EdgeInsets(top: 2, leading: 10, bottom: 2, trailing: 10))
                             .listRowSeparator(.hidden)
@@ -157,6 +158,9 @@ private struct ActionBoardRow: View {
 private struct MeetingRow: View {
     let meeting: MeetingListItem
     let isSelected: Bool
+    /// Arama transkriptte eşleştiyse eşleşmenin geçtiği yer. Başlıkta eşleşen
+    /// bir sonucun parçacığı olmaz; o zaman satır bugünküyle aynı kalır.
+    var snippet: String?
     @State private var isHovered = false
 
     private var isRecording: Bool {
@@ -179,6 +183,12 @@ private struct MeetingRow: View {
                         .font(.system(size: 11))
                         .foregroundStyle(isRecording ? Color.oraRed : Color.oraInkMuted)
                         .lineLimit(1)
+                }
+                if let snippet {
+                    Text(Self.highlighted(snippet))
+                        .font(.system(size: 11))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer(minLength: 0)
@@ -219,7 +229,23 @@ private struct MeetingRow: View {
     private var accessibilityLabel: String {
         var parts = [meeting.timeLabel, meeting.title]
         if let meta { parts.append(meta) }
+        if let snippet { parts.append(snippet.replacingOccurrences(of: MeetingStore.mark, with: "")) }
         return parts.joined(separator: ", ")
+    }
+
+    /// FTS5'in `snippet()` çıktısı: eşleşen kelimeler `MeetingStore.mark` ile
+    /// sarılı gelir. İşaretli parçalar mürekkep ve kalın, gerisi soluk.
+    private static func highlighted(_ text: String) -> AttributedString {
+        var result = AttributedString()
+        for (index, part) in text.components(separatedBy: MeetingStore.mark).enumerated() {
+            guard !part.isEmpty else { continue }
+            var piece = AttributedString(part)
+            let isMatch = index % 2 == 1
+            piece.foregroundColor = isMatch ? Color.oraInk : Color.oraInkMuted
+            if isMatch { piece.font = .system(size: 11, weight: .semibold) }
+            result += piece
+        }
+        return result
     }
 }
 
