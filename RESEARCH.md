@@ -1380,10 +1380,19 @@ Listenin `.sidebar` biçimi kendi başlık/satır girintisini uyguluyor ve
 | −12  | 12 pt | 21 pt | 31 pt |
 | −16  | **9 pt** | **17 pt** | 16 pt (başlık −7 pt ile) |
 
-Son değerler: `leading: -18`, `trailing: -7`, kart iç boşluğu 8 pt → kartın
-solunda ~8 pt, sağında ~7 pt boşluk. Bölüm başlığı (`BUGÜN`) kartın **metniyle**
-hizalı dursun diye `-6 pt` ile kaydırılıyor: listenin başlık girintisi satır
-girintisinden 6 pt fazla.
+Son değerler: `leading: -14`, `trailing: -5`, kart iç boşluğu 8 pt → kartın
+solunda **10,5 pt**, sağında **10,0 pt** boşluk. Bölüm başlığı (`BUGÜN`) kartın
+**metniyle** hizalı dursun diye `-4 pt` ile kaydırılıyor.
+
+**Ölçüm yöntemi (önemli):** renk eşiğiyle "kenar" arayan betikler iki kez
+yanılttı — biri kartın yuvarlak köşesini, diğeri yarı saydam kenar çubuğunun
+başka bir geçişini kenar sandı. Güvenilir yol: ekran görüntüsünün ham piksel
+boyutunu al (1100 pt'lik pencere → 2200 px, yani 2 px/pt) ve kartın **düz**
+satırındaki ilk/son carmine pikseli oku:
+```
+kart 21…472 px · kenar çubuğu sınırı 492 px
+→ sol 10,5 pt · sağ 10,0 pt
+```
 
 **Sütun genişliği de ölçümle bulundu.** `navigationSplitViewColumnWidth`'in
 `ideal` değeri **uygulanmıyor**: macOS kenar çubuğu genişliğini
