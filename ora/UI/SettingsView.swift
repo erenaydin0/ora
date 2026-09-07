@@ -133,6 +133,28 @@ private struct DetectionSettings: View {
                      + "Bu izlemenin izin gereksinimi yoktur ve ekranınız okunmaz.")
                     .font(.system(size: 12))
                     .foregroundStyle(Color.oraInkMuted)
+
+                // Bildirim izni yoksa öneri **gelmeye devam eder**, yalnızca
+                // yüzeyi değişir. Sessizce yutulursa kullanıcı algılamanın
+                // bozuk olduğunu sanıyor.
+                if let problem = recorder.notificationProblem {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Image(systemName: "bell.slash")
+                            .foregroundStyle(Color.oraInkMuted)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(problem)
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.oraInkMuted)
+                            Button("Bildirim ayarlarını aç") {
+                                if let url = URL(string:
+                                    "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }
+                            .buttonStyle(.link)
+                        }
+                    }
+                }
             }
 
             Section("Her zaman kaydedilen uygulamalar") {
@@ -171,6 +193,7 @@ private struct DetectionSettings: View {
         .onChange(of: settings.detectionEnabled) { _, enabled in
             enabled ? recorder.detector.start() : recorder.detector.stop()
         }
+        .task { await recorder.refreshNotificationPermission() }
     }
 }
 

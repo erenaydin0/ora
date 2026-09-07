@@ -1503,3 +1503,58 @@ aşaması), yetki kapıları `isTranscribing`'e (herhangi bir toplantı işleniy
 Ek olarak: özetleme başarısız olduğunda artık `saveSummary` **çağrılmaz**.
 Eskiden yeniden üretim denemesi başarısız olsa bile satır silinip yeniden
 yazılıyordu; işaretlenmiş aksiyonların durumu böyle kayboluyordu.
+
+## 28. Algılama→bildirim zinciri neden hiç çalışmadı
+
+Kullanıcı bir Teams toplantısı başlattı, kayıt önerisi gelmedi. Zincirin iki
+halkası da kopuktu; ikisi de ölçüldü.
+
+### 28.1 Ad-hoc imzalı uygulama bildirim izni **alamıyor**
+
+Uygulama günlüğünde her açılışta, istisnasız:
+```
+[UYARI] [ui] Bildirim izni alınamadı: Notifications are not allowed for this application
+```
+`defaults read com.apple.ncprefs` içinde `com.orameetings.ora` için **hiç kayıt
+yok** — sistem uygulamayı bildirim gönderebilecek bir uygulama olarak hiç
+tanımamış.
+
+Bunun ora'ya özel bir hata olmadığını doğrulamak için sıfırdan, daha önce hiç
+görülmemiş bir bundle ID ile minik bir `.app` yazıldı, **ad-hoc** imzalandı ve
+`requestAuthorization` çağrıldı:
+
+| Nasıl çalıştırıldı | Sonuç |
+|---|---|
+| Doğrudan çalıştırılabilir | `HATA — Notifications are not allowed for this application` |
+| `open` ile (LaunchServices) | `HATA — Notifications are not allowed for this application` |
+
+Yani sebep kod değil, **imza**: `Signature=adhoc`, `TeamIdentifier=not set`.
+Bu, §20 (her derlemede TCC istemi, yer tutucu Dock ikonu) ve §21 (kendinden
+imzalı sertifika Gatekeeper'ı geçmiyor) ile aynı kökten üçüncü sonuçtur ve
+çözümü de aynıdır: Apple Developer Program üyeliği.
+
+**Koda yansıyanlar:** bildirim izni yoksa ora artık sessiz kalmıyor —
+Ayarlar → Algılama bölümünde Türkçe not ve "Bildirim ayarlarını aç" düğmesi
+görünür, öneri penceredeki şeritte sunulur (§17.2'nin vaadi buydu). Bildirim
+kategorileri izinden bağımsız kaydedilir ve izin sonradan verilirse
+`refresh()` ile görülür; yeniden başlatma gerekmez.
+
+### 28.2 Öneri hiç üretilmedi: Electron yardımcı süreci
+
+Günlüğün tamamında (5 günlük, 92 KB) tek bir `Toplantı önerisi:` satırı yok.
+Algılama açılıyor ("38 süreç izleniyor") ama aday hiç oluşmuyor.
+
+En olası sebep §13.3'te tarayıcılar için ölçülüp Electron uygulamaları için
+"ölçülmedi" notuyla bırakılan bulgu: **mikrofonu ana süreç değil yardımcı süreç
+tutuyor.** Algılama `MeetingApps.all.contains(bundleID)` ile **tam eşitlik**
+aradığı için `com.microsoft.teams2.helper` hiçbir zaman toplantı sayılmaz.
+
+`MeetingApps.resolve(_:)` eklendi: gözlenen kimlik bilinen uygulamaya eşitse ya
+da **`bilinen + "."`** ile başlıyorsa o uygulamaya çözülür. Nokta sınırı şart —
+`com.microsoft.teams2`, `com.microsoft.teams` kuralına takılmamalı. CLAUDE.md'deki
+"alt-dize eşleşmesi kullanma" kuralının gerekçesi *"uygulama açık mı"* testiydi;
+buradaki test *"mikrofonu tutuyor mu"* olduğu için yardımcı sürecin sayılması
+doğru davranıştır.
+
+**Kesinleştirmek için:** `probes/mikrofon_sahibi.swift` canlı bir toplantıda
+mikrofonu tutan bundle ID'yi yazdırır ve tam eşitliğin tutup tutmadığını söyler.

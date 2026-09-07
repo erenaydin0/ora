@@ -257,6 +257,12 @@ Bu sıra asla değişmez:
   (pid → bundleID, görünen ad, ikon). İzin gerekmez. **Alt-dize eşleşmesi
   kullanma** — tam bundle ID karşılaştır (eski ora'da `if app not in output`
   Slack Helper süreçlerinde bile tutuyordu).
+- **Tek istisna, mikrofon sahibi:** Electron/WebView uygulamalarında mikrofonu
+  ana süreç değil yardımcı süreç tutar. `MeetingApps.resolve(_:)` gözlenen
+  kimliği **`bilinen + "."`** ön ekiyle ana uygulamaya çözer. Bu alt-dize
+  eşleşmesi değildir (nokta sınırı zorunlu) ve yukarıdaki kuralla çelişmez:
+  o kural "uygulama açık mı" testi içindi, bu test "mikrofonu tutuyor mu"
+  (RESEARCH.md §28.2).
 - **Dışlama listesi zorunlu.** Gözlenen yanlış pozitif: `com.apple.CoreSpeech`
   sistem TTS/dikte sırasında mikrofonu açık gösteriyor. Varsayılan dışlananlar:
   `com.apple.CoreSpeech`, Siri, kendi bundle ID'miz. Liste ayarlardan düzenlenebilir.
@@ -553,8 +559,12 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
     - **Sparkle (otomatik güncelleme) kullanıcı kararıyla eklenmedi.** Tek
       bağımlılık GRDB olarak kalıyor.
     - **Bilinen geliştirme engeli:** uygulama ad-hoc imzalı. İmza her derlemede
-      değiştiği için TCC mikrofon iznini **her derlemede** yeniden soruyor ve
-      Dock/Cmd+Tab ikonu yer tutucu gösteriyor (RESEARCH.md §20).
+      değiştiği için TCC mikrofon iznini **her derlemede** yeniden soruyor,
+      Dock/Cmd+Tab ikonu yer tutucu gösteriyor (RESEARCH.md §20) ve
+      **bildirim izni hiç alınamıyor** — `Notifications are not allowed for
+      this application`; sıfırdan yazılmış ad-hoc bir uygulamayla doğrulandı
+      (RESEARCH.md §28.1). Bu yüzden geliştirme derlemelerinde öneri yalnızca
+      penceredeki şeritte görünür.
       **Kendinden imzalı sertifika çözüm değil** — Gatekeeper reddediyor ve
       uygulama hiç açılmıyor (§21). Çözüm Apple Developer Program üyeliğidir.
 

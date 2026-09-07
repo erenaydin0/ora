@@ -70,6 +70,10 @@ final class RecordingController {
     /// `retryableAudio`'dan ayrı: ses transkript **varken de** durur.
     private(set) var audioURL: URL?
 
+    /// Bildirim izni yoksa Türkçe not. Öneri yine gelir ama yalnızca
+    /// penceredeki şeritte görünür; kullanıcı bunu bilmeli.
+    private(set) var notificationProblem: String?
+
     /// Kayıtlar dizininin toplam boyutu — Ayarlar'daki Depolama bölümü.
     private(set) var audioBytes: Int64 = 0
 
@@ -246,7 +250,18 @@ final class RecordingController {
         await refreshUpcoming()
         await purgeExpiredAudio()
         refreshStorage()
-        Task { await notifications.prepare() }
+        Task { [weak self] in
+            guard let self else { return }
+            await notifications.prepare()
+            notificationProblem = notifications.problem
+        }
+    }
+
+    /// Kullanıcı Sistem Ayarları'ndan bildirimi açmış olabilir — pencere öne
+    /// geldiğinde ve Ayarlar açıldığında yeniden bakılır.
+    func refreshNotificationPermission() async {
+        await notifications.refresh()
+        notificationProblem = notifications.problem
     }
 
     // MARK: - Depolama

@@ -39,6 +39,25 @@ enum MeetingApps {
     /// Algılama ve tap kapsamı için bilinen tüm uygulamalar.
     static var all: Set<String> { native.union(browsers) }
 
+    /// Ses kullanan bir sürecin bundle ID'sini bilinen toplantı uygulamasına
+    /// çözer; bilinmiyorsa `nil`.
+    ///
+    /// **Neden gerekli:** Electron/WebView tabanlı uygulamalarda mikrofonu ana
+    /// süreç değil **yardımcı süreç** tutar (Teams'te `com.microsoft.teams2`
+    /// yerine onun yardımcısı). Tam eşitlik arayan algılama bu yüzden Teams
+    /// toplantısını hiç görmüyordu — aynı bulgu tarayıcılar için RESEARCH.md
+    /// §13.3'te ölçülmüştü, Electron için "ölçülmedi" notu düşülmüştü.
+    ///
+    /// Nokta sınırı şart: alt-dize eşleşmesi değil, **ön ek + `.`**. Böylece
+    /// `com.microsoft.teams2` kimliği `com.microsoft.teams` kuralına takılmaz.
+    /// CLAUDE.md'deki "alt-dize eşleşmesi kullanma" kuralının gerekçesi
+    /// "uygulama açık" testiydi; burada test "mikrofonu **tutuyor**" olduğu için
+    /// yardımcı sürecin sayılması doğrudur.
+    static func resolve(_ bundleID: String) -> String? {
+        if all.contains(bundleID) { return bundleID }
+        return all.first { bundleID.hasPrefix($0 + ".") }
+    }
+
     /// Tap'in hedefleyeceği, şu anda çalışan yerel toplantı uygulamaları.
     /// Boş dönerse çağıran global tap'e düşer.
     static func tapTargets() -> [String] {

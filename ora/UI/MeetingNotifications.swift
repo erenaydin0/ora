@@ -22,18 +22,43 @@ final class MeetingNotifications: NSObject {
     var onDismiss: ((String) -> Void)?
     var onAlways: ((String) -> Void)?
 
-    private var isAuthorized = false
+    private(set) var isAuthorized = false
+    /// İzin alınamadıysa kullanıcıya söylenecek Türkçe not. Sessiz kalmak
+    /// yasak: bildirim gelmeyeceğini kullanıcı ancak toplantıyı kaçırınca
+    /// anlıyordu.
+    private(set) var problem: String?
 
-    func prepare() async {
+    /// - Returns: bildirim gönderilebilir mi.
+    @discardableResult
+    func prepare() async -> Bool {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
+        // Kategoriler izinden **bağımsız** kurulur: kullanıcı izni sonradan
+        // verirse eylemli bildirim yeniden başlatma gerektirmesin.
+        registerCategories(center)
         do {
             isAuthorized = try await center.requestAuthorization(options: [.alert, .sound])
+            problem = isAuthorized ? nil
+                : "Bildirim izni verilmedi. Öneriler yalnızca ora penceresinde görünür."
         } catch {
             Log.warning(.ui, "Bildirim izni alınamadı: \(error.localizedDescription)")
             isAuthorized = false
-            return
+            problem = "Bildirim izni alınamadı. Öneriler yalnızca ora penceresinde görünür."
         }
+        return isAuthorized
+    }
+
+    /// Kullanıcı Sistem Ayarları'ndan izni sonradan açmış olabilir.
+    @discardableResult
+    func refresh() async -> Bool {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        isAuthorized = settings.authorizationStatus == .authorized
+            || settings.authorizationStatus == .provisional
+        if isAuthorized { problem = nil }
+        return isAuthorized
+    }
+
+    private func registerCategories(_ center: UNUserNotificationCenter) {
         let record = UNNotificationAction(identifier: Action.record.rawValue,
                                           title: "Kaydet", options: [.foreground])
         let dismiss = UNNotificationAction(identifier: Action.dismiss.rawValue,
