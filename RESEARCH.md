@@ -1558,3 +1558,48 @@ doğru davranıştır.
 
 **Kesinleştirmek için:** `probes/mikrofon_sahibi.swift` canlı bir toplantıda
 mikrofonu tutan bundle ID'yi yazdırır ve tam eşitliğin tutup tutmadığını söyler.
+
+### 28.3 Teams'te mikrofonu **ve sesi** yardımcı süreç tutuyor (ölçüldü)
+
+Canlı bir Teams toplantısında `probes/mikrofon_sahibi.swift`:
+```
+com.microsoft.teams2.helper       mikrofon:hayır çıkış:EVET
+com.microsoft.teams2.modulehost   mikrofon:EVET  çıkış:EVET
+```
+`com.microsoft.teams2` listede **hiç yok**. §13.3'te tarayıcılar için ölçülen
+bulgu Electron tabanlı Teams için de geçerli; oradaki "ölçülmedi" notu kapandı.
+
+Bunun **iki** sonucu vardı:
+
+1. **Algılama hiç çalışmıyordu** — tam bundle ID eşitliği arayan kural
+   `com.microsoft.teams2.modulehost`'u tanımıyordu (§28.2).
+2. **Tap sessizlik yakalıyordu.** `probes/tap_hedefi.swift` ile aynı anda,
+   aynı ses kaynağıyla iki hedef karşılaştırıldı (Chrome, çünkü Teams o an
+   sessizdi — mekanizma aynı):
+
+| Tap hedefi | frame | tepe genlik |
+|---|---|---|
+| `com.google.Chrome` (ana süreç) | **0** | 0.0 |
+| `com.google.Chrome.helper` (yardımcı) | **287.232** | **0,99** |
+
+Yani `CATapDescription.bundleIDs` yardımcı süreç kimliklerini **kabul ediyor ve
+eşleştiriyor**; ana bundle ID ise tek bir frame bile vermiyor. Teams kaydında
+sistem kanalı ancak 3 saniyelik gözcü global tap'e düştükten sonra ses
+görüyordu — yani "yalnızca toplantı uygulamasını yakala, Spotify'ı alma"
+kazancı Teams'te **hiç gerçekleşmiyordu** ve ilk 3 saniye kayıptı.
+
+**Çözüm:** `MeetingApps.tapTargets(preferring:)` hedefleri `NSWorkspace`'ten
+değil CoreAudio süreç listesinden toplar; uygulamanın yardımcı süreçleri de
+listeye girer. Teams için üretilen hedef:
+```
+["com.microsoft.teams2", "com.microsoft.teams2.helper",
+ "com.microsoft.teams2.modulehost", "com.microsoft.teams2.notificationcenter"]
+```
+Ana uygulama da listede kalır: yardımcı süreç toplantı başlarken doğabilir.
+Gözcü yerinde duruyor ama artık normal yol değil, emniyet kemeri.
+
+**Yan bulgu:** yardımcı süreç hedeflemesi çalıştığına göre tarayıcı toplantıları
+da kapsamlı tap'e alınabilir (`com.google.Chrome.helper`). Kural şimdilik
+değişmedi: tarayıcı yardımcı süreci **tüm sekmelere** hizmet ediyor, yani
+"yalnızca toplantı" garantisi vermiyor — global tap'ten iyi ama yerel
+uygulamalardaki kadar temiz değil.

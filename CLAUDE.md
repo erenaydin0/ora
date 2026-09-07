@@ -100,10 +100,17 @@ Bu sıra asla değişmez:
 ## Ses Yakalama Kuralları — ölçülmüş davranış
 - Sistem sesi: `CATapDescription` + `AudioHardwareCreateProcessTap`.
   Doğrulandı: `OSStatus 0`, 48 kHz stereo float32, **ekran kaydı izni istenmedi**.
-- Tercih edilen kurulum — toplantı uygulamasını **adıyla** yakala:
+- Tercih edilen kurulum — toplantı uygulamasını **adıyla** yakala. Hedef
+  listesi `MeetingApps.tapTargets(preferring:)`'ten gelir ve uygulamanın
+  **yardımcı süreçlerini de** içerir: ölçüldü (RESEARCH.md §28.3) — Teams'te
+  sesi `com.microsoft.teams2` değil `...helper` / `...modulehost` üretiyor;
+  ana bundle ID'yi hedefleyen tap tek frame bile vermiyor. Liste
+  `NSWorkspace`'ten değil **CoreAudio süreç listesinden** toplanır.
   ```swift
   let desc = CATapDescription()
-  desc.bundleIDs = ["com.microsoft.teams2", "us.zoom.xos"]  // macOS 26+
+  desc.bundleIDs = MeetingApps.tapTargets(preferring: "com.microsoft.teams2")
+  // → ["com.microsoft.teams2", "com.microsoft.teams2.helper",
+  //    "com.microsoft.teams2.modulehost", "com.microsoft.teams2.notificationcenter"]
   desc.isExclusive = false          // yalnızca bunları yakala
   desc.isMono     = true            // mono mixdown — WAV'ın ch1'i tek kanal
   desc.isMixdown  = true
@@ -117,6 +124,9 @@ Bu sıra asla değişmez:
   tarayıcı sesi ana uygulamadan değil yardımcı süreçten çıkıyor
   (Safari → `com.apple.WebKit.GPU`). `com.apple.Safari`'yi hedefleyen bir tap
   **sessizlik** yakalar. Tarayıcı toplantıları doğrudan global tap'e gider.
+  Yardımcı süreci hedeflemek teknik olarak **çalışıyor** (§28.3) ama tarayıcı
+  yardımcısı tüm sekmelere hizmet ettiği için "yalnızca toplantı" garantisi
+  vermez; kural bu yüzden değişmedi.
 - Toplantı uygulaması tespit edilemiyorsa global tap'e düş:
   `desc.processes = [kendi süreç nesnemiz]; desc.isExclusive = true`
   (kendimizi hariç tut — geri besleme döngüsünü önler).
@@ -555,7 +565,10 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
       2. **İmzalama ve notarizasyon** — makinede kod imzalama kimliği yok;
          Apple Developer üyeliği gerekiyor. Betik hazır, ek kod gerekmiyor.
-      3. Gerçek bir Teams/Zoom toplantısıyla algılama→kayıt akışı denenmedi.
+      3. Gerçek bir Teams toplantısında mikrofon ve ses sahipliği **ölçüldü**
+         (§28.3): ikisini de yardımcı süreç tutuyor; algılama ve tap hedefleme
+         buna göre düzeltildi. Uçtan uca kayıt (sistem kanalında gerçek ses,
+         gözcü devreye girmeden) hâlâ gerçek bir toplantıda denenmedi.
     - **Sparkle (otomatik güncelleme) kullanıcı kararıyla eklenmedi.** Tek
       bağımlılık GRDB olarak kalıyor.
     - **Bilinen geliştirme engeli:** uygulama ad-hoc imzalı. İmza her derlemede

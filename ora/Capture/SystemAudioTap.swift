@@ -47,10 +47,10 @@ final class SystemAudioTap: @unchecked Sendable {
     /// - Parameter preferredApp: takvimden bilinen toplantı uygulaması.
     ///   Tarayıcılar hedef olamaz (RESEARCH.md §13.3).
     func start(preferredApp: String? = nil, sink: @escaping Sink) throws {
-        var targets = MeetingApps.tapTargets()
-        if let preferredApp, MeetingApps.native.contains(preferredApp) {
-            targets = [preferredApp]
-        }
+        // Hedef listesi uygulamanın **yardımcı süreçlerini de** içerir; ses
+        // Teams'te oradan çıkıyor (RESEARCH.md §28.3).
+        let preferred = preferredApp.flatMap { MeetingApps.native.contains($0) ? $0 : nil }
+        let targets = MeetingApps.tapTargets(preferring: preferred)
         try start(scope: targets.isEmpty ? .globalExcludingSelf : .apps(targets), sink: sink)
     }
 

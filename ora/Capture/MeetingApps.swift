@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import CoreAudio
 
 /// Bilinen toplantı uygulamaları.
 ///
@@ -58,11 +59,37 @@ enum MeetingApps {
         return all.first { bundleID.hasPrefix($0 + ".") }
     }
 
-    /// Tap'in hedefleyeceği, şu anda çalışan yerel toplantı uygulamaları.
+    /// Tap'in hedefleyeceği bundle ID'ler — **yardımcı süreçler dahil**.
     /// Boş dönerse çağıran global tap'e düşer.
-    static func tapTargets() -> [String] {
+    ///
+    /// Liste `NSWorkspace`'ten değil **CoreAudio süreç listesinden** toplanır.
+    /// Ölçüldü (RESEARCH.md §28.3): Teams toplantısında sesi ana süreç değil
+    /// `com.microsoft.teams2.helper` ve `com.microsoft.teams2.modulehost`
+    /// üretiyor; `com.microsoft.teams2`'yi hedefleyen tap **sessizlik**
+    /// yakalıyordu ve kayıt ancak 3 saniyelik gözcü global tap'e düştükten
+    /// sonra ses görüyordu — yani "yalnızca toplantı uygulamasını yakala"
+    /// kazancı Teams'te hiç gerçekleşmiyordu.
+    ///
+    /// - Parameter app: yalnızca bu uygulama (ve yardımcıları) hedeflensin.
+    ///   `nil` ise çalışan tüm yerel toplantı uygulamaları.
+    static func tapTargets(preferring app: String? = nil) -> [String] {
+        let wanted: Set<String> = app.map { [$0] } ?? native
+        var targets: Set<String> = []
+
+        // Ses üreten süreçler — yardımcı süreçler yalnızca burada görünür.
+        if let processes = try? AudioHardwareSystem.shared.processes {
+            for process in processes {
+                guard let bundleID = (try? process.bundleID) ?? nil,
+                      let parent = resolve(bundleID), wanted.contains(parent) else { continue }
+                targets.insert(bundleID)
+            }
+        }
+
+        // Ana uygulama da listeye girer: yardımcı süreç toplantı başlarken
+        // doğabilir ve bazı uygulamalarda sesi ana süreç üretir.
         let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
-        return running.intersection(native).sorted()
+        targets.formUnion(running.intersection(wanted).intersection(native))
+        return targets.sorted()
     }
 
     /// Çalışan tarayıcılar — yalnızca kullanıcıya durum anlatmak için.
