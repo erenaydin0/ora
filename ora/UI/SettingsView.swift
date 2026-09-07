@@ -44,6 +44,10 @@ private struct GeneralSettings: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            Section("Başlangıç") {
+                LaunchAtLoginToggle()
+            }
+
             Section("Toplantı dili") {
                 Picker("Dil", selection: Binding(get: { recorder.language },
                                                  set: { recorder.language = $0 })) {
@@ -117,6 +121,60 @@ private struct GeneralSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// "Başlangıçta çalıştır". Durumun tek kaynağı sistemdir (`LoginItem`),
+/// bu yüzden `OraSettings`'te bir alanı yok ve pencere her açılışta durumu
+/// yeniden okur — kullanıcı kaydı Sistem Ayarları'ndan kaldırmış olabilir.
+private struct LaunchAtLoginToggle: View {
+    @State private var enabled = LoginItem.isEnabled
+    @State private var needsApproval = LoginItem.requiresApproval
+    @State private var failure: String?
+
+    var body: some View {
+        Toggle("ora'yı girişte başlat", isOn: Binding(
+            get: { enabled },
+            set: { apply($0) }
+        ))
+
+        Text("Oturum açıldığında ora menü barda sessizce başlar; pencere "
+             + "açılmaz ve toplantı algılama ilk dakikadan itibaren çalışır.")
+            .font(.system(size: 12))
+            .foregroundStyle(Color.oraInkMuted)
+            .fixedSize(horizontal: false, vertical: true)
+
+        if needsApproval {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("macOS onayınızı bekliyor — onaylanana kadar ora girişte "
+                     + "başlamaz.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Giriş öğelerini aç") { LoginItem.openSystemSettings() }
+                    .buttonStyle(.link)
+            }
+        }
+
+        if let failure {
+            Text(failure)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraRed)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func apply(_ on: Bool) {
+        do {
+            try LoginItem.setEnabled(on)
+            failure = nil
+        } catch {
+            Log.error(.app, "Girişte başlatma değiştirilemedi", error)
+            failure = LoginItem.turkishMessage(for: error)
+        }
+        // Sistemden yeniden oku: kayıt onay bekliyorsa açık sayılmaz.
+        enabled = LoginItem.isEnabled || LoginItem.requiresApproval
+        needsApproval = LoginItem.requiresApproval
     }
 }
 

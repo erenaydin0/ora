@@ -61,6 +61,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // BRAND.md tek bir açık palet tanımlar; karanlık mod paleti yoktur.
         NSApp.appearance = NSAppearance(named: .aqua)
 
+        // Girişte başlatıldıysa pencere açılmaz: taşıyıcı yüzey menü bardır
+        // ve her oturum açılışında pencereyi yüze fırlatmak kabul edilemez.
+        // Sistem tarafından açıldığımızda bu anahtar `false` gelir; kullanıcı
+        // uygulamayı kendi açtığında gelmez veya `true` olur.
+        let isDefaultLaunch = notification
+            .userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool ?? true
+        if !isDefaultLaunch {
+            // Pencere `Window` sahnesiyle bu çağrıdan sonra da kurulabiliyor;
+            // kapatma bir sonraki döngüye bırakılır.
+            DispatchQueue.main.async {
+                for window in NSApp.windows where window.canBecomeMain {
+                    window.close()
+                }
+            }
+            Log.info(.app, "Girişte başlatıldı — pencere açılmadı")
+        }
+
 
         do {
             // Dizinler ve göç `OraApp.init()`'te yapıldı (sıra oradaki yorumda);

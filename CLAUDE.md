@@ -612,7 +612,8 @@ Config/ora.entitlements— sandbox KAPALI (§29.4); ağ girişi YOK (kural #3'ü
 ora/oraApp.swift       — @main + AppDelegate (dizin hazırlığı, açık mod sabiti)
 ora/Core/              — AppPaths, Log, OraError, MeetingMetrics, OraSettings,
                          PowerState, AudioArchive (boyut/sıkıştırma/silme),
-                         GlobalHotKey (⌘⇧R, Carbon)
+                         GlobalHotKey (⌘⇧R, Carbon),
+                         LoginItem (SMAppService — girişte başlat)
 ora/Detect/            — MeetingDetector (CoreAudio olay dinleyicileri)
 ora/Calendar/          — CalendarReader (EventKit, opt-in)
 ora/Capture/           — AudioCapture (orkestra), MicrophoneCapture,
