@@ -1,8 +1,15 @@
-probe
-locales
-transcribe
-summarize
-context_limit
+# Probe ikilileri — kaynak .swift depoda, derlenmiş hâli değil.
+#
+# **Yol vererek** yazılır. Eskiden çıplak `detect` / `calendar` / `transcribe`
+# yazıyordu; macOS'ta ignore eşleşmesi büyük-küçük harf duyarsız olduğu için bu
+# desenler `ora/Detect/`, `ora/Calendar/` ve `ora/Transcribe/` **kaynak
+# dizinlerini** de eliyordu: 7 kaynak dosya (algılama, takvim ve tüm
+# transkripsiyon katmanı) depoya hiç girmemişti, temiz bir klon derlenmiyordu.
+probes/probe
+probes/locales
+probes/transcribe
+probes/summarize
+probes/context_limit
 *.wav
 *.aiff
 *.dSYM/
@@ -14,14 +21,15 @@ DerivedData/
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcworkspace/xcuserdata/
-tap_record
-tap_bundleid
-whoplays
-detect
-live
-notch
-calendar
-wintitle
+probes/tap_record
+probes/tap_bundleid
+probes/whoplays
+probes/detect
+probes/live
+probes/notch
+probes/calendar
+probes/wintitle
+probes/mikrofon_sahibi
 build/
 scripts/make-icon
 
