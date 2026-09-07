@@ -412,6 +412,13 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 - **İlerleme çubuğu yoktur.** İşlem sürerken Özet sekmesinin tamamı ortalanmış
   `ProcessingState` olur: `CurveLoader` + yalnızca yüzde. Boş durumların düğmesi
   (Yeniden dene / Şimdi özetle) metnin altında ortalanır, tepede şerit yok
+- **İşlem durumu toplantı başınadır** (`stages: [Int64: Stage]`), uygulama
+  genelinde tek bir aşama değil. Animasyon yalnızca **işlenen toplantı
+  seçiliyken** görünür (`isProcessingSelected`); yetki kapıları "herhangi bir
+  toplantı işleniyor mu"ya bakar (`isTranscribing`). Hattın ürettiği içerik
+  arayüze yalnızca o toplantı ekrandayken yazılır, veritabanına her hâlükârda.
+  Aşama **veritabanından türetilmez** — tek kaynağı hattın kendisidir
+  (RESEARCH.md §27)
 - **Konuşma payı / ölü hava kartı yoktur.** Kanal başına iki kova kişi bilgisi
   taşımıyordu ve okuma akışını kesiyordu; `MeetingMetrics` kaldırıldı
 - Gradyan yok
@@ -529,6 +536,10 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       saklama süresi), gerçek global kısayol, satır silme ve konuşmacı
       etiketi düzeltme, kayıt bildirimi hatırlatıcısı. Yeni bağımlılık, yeni
       izin ve **şema değişikliği yok**. Ölçümler RESEARCH.md §25.
+      **Toplantı geçişi düzeltildi (RESEARCH.md §27):** işlem durumu artık
+      toplantı başına tutuluyor; A özetlenirken B'ye geçince animasyon B'ye
+      taşınmıyor, A'ya dönünce hemen görünüyor ve A'nın özeti B'nin ekranına
+      düşmüyor. `probes/meeting_switch.swift` bunu gerçek denetleyiciyle ölçer.
       **Gerçek kayıtla uçtan uca doğrulandı (RESEARCH.md §22):** kayıt sonrası
       tam geçiş `AVAudioFile.read`'in dosya sonundaki `nilError`'ı yüzünden her
       kayıtta düşüyordu; düzeltildi. Başarısız veya yarım kalmış bir toplantı
@@ -579,6 +590,9 @@ ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
 ora/Resources/Assets.xcassets/Colors    — BRAND paletinin tek kaynağı
 ora/Resources/Assets.xcassets/AppIcon   — scripts/make-icon.swift üretir
 scripts/               — make-icon.swift (ikon), build-release.sh (arşiv → .dmg)
+probes/meeting_switch.swift — gerçek `RecordingController` ile toplantı geçişi
+                         denetimi (uygulama kaynaklarıyla derlenir; başlıkta
+                         komut var)
 ```
 Renkler asset kataloğundadır; `Color.oraPaper` gibi semboller derleme zamanında
 üretilir. Elle `Color("oraPaper")` yazma — yanlış isim derlenmez olsun.

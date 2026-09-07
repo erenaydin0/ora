@@ -1445,3 +1445,61 @@ Genişlik taranarak eşik ölçüldü (kart sol kenarı, tam yerleşim 9 pt):
 Sohbet açıkken pencere minimumu 940 pt. Yani pencere yalnızca **en dar hâlde**
 40 pt büyüyor; 940 ve üstündeki her genişlikte hiç değişmiyor. Eski çözümde
 (üçüncü sütun) bu sıçrama 900 → 1260 idi.
+
+## 27. Toplantı geçişi: işlem durumu toplantıya değil, uygulamaya bağlıydı
+
+Kullanıcı gözlemi: bir toplantı özetlenirken kenar çubuğundan başka bir
+toplantıya geçilince **animasyon oraya taşınıyor**; asıl işlenen toplantıya
+dönülünce animasyon **yok**; bir kez daha gidip gelince düzeliyor.
+
+**Ölçüm.** `probes/meeting_switch.swift` gerçek `RecordingController` ve gerçek
+`MeetingStore` (bellek içi SQLite) ile koşar; yalnızca `Intelligent` sahtedir
+(yavaş, ilerleme bildiren). İki toplantı hazırlanır: A'nın transkripti vardır,
+B'nin transkripti **ve kendi özeti** vardır. A özetlenirken B'ye geçilir,
+sonra A'ya dönülür.
+
+| Kontrol | Düzeltme öncesi | Sonrası |
+|---|---|---|
+| B'ye geçince B'nin aşaması `.idle` | ✗ (`.done`, sonra A'nın yüzdesi) | ✓ |
+| B'ye geçince hat hâlâ "koşuyor" görünüyor | ✗ (`isTranscribing` **false**) | ✓ |
+| A'ya dönünce animasyon **hemen** var | ✗ | ✓ |
+| B'nin ekranı A'nın özetiyle ezilmiyor | ✗ | ✓ |
+| A'nın özeti A'nın metninden üretiliyor | ✓ | ✓ |
+
+**Sebep tek:** `transcriptionStage` uygulama genelinde **tek** bir değerdi ve
+hattın ürettiği içerik (`transcript`, `summary`, `topics`, `actions`,
+`audioURL`, `retryableAudio`) doğrudan yayınlanan duruma yazılıyordu. İki yönlü
+bozuluyordu:
+
+1. Hattın ilerleme bildirimi, seçim ne olursa olsun tek aşamayı güncelliyordu →
+   animasyon B'ye taşınıyor, biten özet B'nin ekranına düşüyordu.
+2. `load(_:)` aşamayı **veritabanının yarım hâlinden** türetiyordu
+   (`segments.isEmpty ? .idle : .done`). Tam geçiş segmentleri çoktan yazdığı
+   için işlenen toplantıya dönüldüğünde `.done` çıkıyor, animasyon kayboluyordu.
+   Bu sırada `isTranscribing` de false olduğu için menü bar "işleniyor"
+   demeyi bırakıyor ve düzeltme/elle özetleme kapıları hat koşarken açılıyordu.
+   Bir sonraki ilerleme bildirimi aşamayı geri kuruyordu — "gidip gelince
+   düzeliyor" tam olarak buydu. Sahte modelin bildirim aralığı 120 ms'ye
+   düşürüldüğünde bu adım **geçiyor**: hatayı görünür kılan, gerçek hattaki
+   saniyelik boşluk.
+
+**Çözüm.** Aşama toplantı başına tutulur (`stages: [Int64: Stage]`), hattın
+ürettiği içerik arayüze yalnızca o toplantı ekrandayken yazılır
+(`onScreen(_:)`), veritabanına ise her hâlükârda yazılır. `load(_:)` aşamaya
+hiç dokunmaz. Arayüz `isProcessingSelected`'e bakar (seçili toplantının
+aşaması), yetki kapıları `isTranscribing`'e (herhangi bir toplantı işleniyor mu).
+
+**Aynı kökten çıkan üç sessiz hata da kapandı:**
+- Özetleme, yayınlanan `transcript` ile çağrılıyordu; başka toplantıya
+  geçildiğinde A'nın özeti **B'nin metninden** üretilirdi. Artık hat kendi
+  yerel metnini taşır. Toplantı tarihi ve katılımcı listesi de işlenen
+  toplantıdan okunur (seçili olandan değil) — son tarihler yanlış güne
+  bağlanıyordu.
+- `compressAudioIfNeeded` sıkıştırılacak dosyayı `audioURL`'den (seçili
+  toplantının sesi) alıyordu; artık işlenen toplantının kaydından alır.
+- Hata dalında `retryableAudio` seçili toplantıya iliştiriliyordu: "Yeniden
+  dene" düğmesi başka bir toplantının sesini işleyebilirdi.
+
+Ek olarak: özetleme başarısız olduğunda artık `saveSummary` **çağrılmaz**.
+Eskiden yeniden üretim denemesi başarısız olsa bile satır silinip yeniden
+yazılıyordu; işaretlenmiş aksiyonların durumu böyle kayboluyordu.

@@ -96,7 +96,16 @@ final class RecordingController {
             ?? liveSegments.last?.text
     }
 
-    private(set) var transcriptionStage: Stage = .idle
+    /// Aşama **toplantı başına** tutulur. Tek bir genel aşama, kullanıcı işlem
+    /// sürerken başka bir toplantıya geçtiğinde animasyonu o toplantının
+    /// ekranına taşıyordu; geri dönüldüğünde de aşama veritabanının yarım
+    /// hâlinden türetildiği için (segmentler yazılmış, özet henüz üretiliyor)
+    /// animasyon kayboluyordu. Sözlükte kayıt yoksa aşama `.idle`'dır.
+    private(set) var stages: [Int64: Stage] = [:]
+
+    /// Seçili toplantının aşaması — `ProcessingState` bunu gösterir.
+    var transcriptionStage: Stage { selection.flatMap { stages[$0] } ?? .idle }
+
     enum Stage: Equatable {
         case idle
         case preparingLanguage
@@ -105,6 +114,15 @@ final class RecordingController {
         case punctuating(Double)
         case summarizing(Double)
         case done
+
+        /// Hat koşuyor mu. `.idle` ve `.done` ikisi de "koşmuyor" demektir;
+        /// arayüz bu ikisini ayırt etmez.
+        var isActive: Bool {
+            switch self {
+            case .idle, .done: false
+            default: true
+            }
+        }
     }
 
     var language: TranscriptionLanguage {
@@ -270,14 +288,23 @@ final class RecordingController {
     /// Ayarlardaki sıkıştırma açıksa kayıt sonrası sesi AAC'ye çevirir.
     /// Transkripsiyon ve özet bittikten **sonra** çalışır; hata verirse
     /// ses olduğu gibi kalır.
-    private func compressAudioIfNeeded(meetingID: Int64) async {
-        guard settings.compressAudio, let url = audioURL,
+    ///
+    /// Dosya yolu toplantı kaydından okunur, `audioURL`'den değil: `audioURL`
+    /// **seçili** toplantıya aittir ve kullanıcı işlem sürerken başka bir
+    /// toplantıya geçtiyse yanlış dosyayı sıkıştırırdı.
+    private func compressAudioIfNeeded(_ meeting: MeetingRecord) async {
+        guard settings.compressAudio, let meetingID = meeting.id,
+              let url = Self.existingAudio(meeting),
               url.pathExtension.lowercased() == "wav" else { return }
         do {
             let compressed = try await AudioArchive.compress(url)
             try? await store.setAudioPath(meetingID, path: compressed.path(percentEncoded: false))
-            audioURL = compressed
-            if retryableAudio != nil { retryableAudio = compressed }
+            // Oynatıcı seçili toplantıya bağlıdır; yol yalnızca sıkıştırılan
+            // toplantı ekrandayken tazelenir.
+            if onScreen(meetingID) {
+                audioURL = compressed
+                if retryableAudio != nil { retryableAudio = compressed }
+            }
         } catch {
             Log.warning(.capture, "Ses sıkıştırılamadı, WAV korundu: \(error.localizedDescription)")
         }
@@ -373,12 +400,20 @@ final class RecordingController {
         transcript.isEmpty ? liveSegments : transcript
     }
 
-    var isTranscribing: Bool {
-        switch transcriptionStage {
-        case .idle, .done: false
-        default: true
-        }
-    }
+    /// Hat **herhangi bir** toplantı için koşuyor mu. Yetki kapıları (düzeltme,
+    /// elle özetleme, yeniden dene) buna bakar: ikinci bir hat aynı Speech ve
+    /// Foundation Models yolunu paylaşır.
+    var isTranscribing: Bool { stages.values.contains { $0.isActive } }
+
+    /// İşlem animasyonu ekranda görünür mü — yalnızca **işlenen toplantı
+    /// seçiliyken**. Arayüz buna bakar, kapılar `isTranscribing`'e; ikisi
+    /// ayrılmazsa A işlenirken B'nin ekranında A'nın animasyonu belirir.
+    var isProcessingSelected: Bool { transcriptionStage.isActive }
+
+    /// Hattın ürettiği içerik arayüze yazılmalı mı? Kullanıcı başka bir
+    /// toplantıya geçtiyse üretim yalnızca veritabanına gider; ekranda seçili
+    /// toplantı durmaya devam eder.
+    private func onScreen(_ meetingID: Int64) -> Bool { selection == meetingID }
 
     var selectedMeeting: MeetingListItem? {
         meetings.first { $0.id == selection }
@@ -395,6 +430,14 @@ final class RecordingController {
     var canSummarize: Bool {
         !isRecording && !isTranscribing && summary == nil && !transcript.isEmpty
             && modelAvailability.isAvailable
+    }
+
+    /// Başka bir toplantı işlenirken bu toplantı özetlenemez (tek hat). Düğmenin
+    /// sessizce kaybolması bir açıklama değildir; sebebi Türkçe söylenir.
+    var busyNotice: String? {
+        guard isTranscribing, !isProcessingSelected, summary == nil,
+              !transcript.isEmpty, modelAvailability.isAvailable else { return nil }
+        return "Başka bir toplantı işleniyor. O bitince bu toplantı özetlenebilir."
     }
 
     /// Yeniden deneme düğmesi görünür mü?
@@ -447,13 +490,22 @@ final class RecordingController {
     private func load(_ meetingID: Int64) async {
         do {
             guard let loaded = try await store.load(meetingID) else { return }
+            // Okuma asenkron: bu arada kullanıcı başka bir toplantıya geçmiş
+            // olabilir. Geç gelen sonuç yeni seçimin üstüne yazılmaz — hızlı
+            // git-gel'de iki yükleme yarışıyordu.
+            guard selection == meetingID else { return }
             transcript = loaded.segments
             liveSegments = []
             summary = loaded.summary
             topics = loaded.topics
             actions = loaded.actions
             summaryNotice = nil
-            transcriptionStage = loaded.segments.isEmpty ? .idle : .done
+            // Erteleme nedeni seçili toplantıya aittir; taşınırsa başka bir
+            // toplantının ekranında "Şimdi özetle" belirir.
+            deferReason = nil
+            // Aşama burada **kurulmaz**: hattın kendi kaydı (`stages`) tek
+            // kaynaktır. Eskiden veritabanının yarım hâlinden türetiliyordu ve
+            // işlenmekte olan toplantıya dönüldüğünde animasyon kayboluyordu.
             audioURL = Self.existingAudio(loaded.meeting)
             retryableAudio = loaded.segments.isEmpty ? audioURL : nil
             chatTurns = (try? await store.chatHistory(meetingID)) ?? []
@@ -467,6 +519,7 @@ final class RecordingController {
     func delete(_ meetingID: Int64) async {
         do {
             try await store.delete(meetingID)
+            stages[meetingID] = nil
             refreshStorage()
             if selection == meetingID {
                 selection = nil
@@ -634,7 +687,6 @@ final class RecordingController {
         deferReason = nil
         chatTurns = []
         calendarParticipants = []
-        transcriptionStage = .idle
         retryableAudio = nil
         audioURL = nil
     }
@@ -687,10 +739,14 @@ final class RecordingController {
     // MARK: - İşlem hattı (sıra CLAUDE.md'de sabittir)
 
     private func runFullPass(meetingID: Int64, url: URL, duration: TimeInterval) async {
+        // Hat hangi yoldan çıkarsa çıksın aşama açık kalmaz: takılı bir
+        // animasyon, hata mesajından daha kötü bir hata modudur.
+        defer { if stages[meetingID]?.isActive == true { stages[meetingID] = .done } }
         // Ses artık diskte; oynatıcı toplantıyı yeniden seçmeye gerek kalmadan
-        // bu kayda bağlanabilir.
-        audioURL = url
-        transcriptionStage = .preparingLanguage
+        // bu kayda bağlanabilir. Ekranda başka toplantı varsa oynatıcı onunkine
+        // bağlı kalır.
+        if onScreen(meetingID) { audioURL = url }
+        stages[meetingID] = .preparingLanguage
         let locale: Locale
         if let chosen = language.locale {
             locale = chosen
@@ -702,31 +758,35 @@ final class RecordingController {
             let module = SpeechTranscription.makeTranscriber(locale: locale, live: false)
             Log.debug(.transcribe, "Tam geçiş: dil hazırlanıyor (\(locale.identifier))")
             try await TranscriptionLocale.ensureInstalled(locale, module: module) { [weak self] value in
-                Task { @MainActor in self?.transcriptionStage = .downloadingLanguage(value) }
+                Task { @MainActor in self?.stages[meetingID] = .downloadingLanguage(value) }
             }
-            transcriptionStage = .transcribing(0)
+            stages[meetingID] = .transcribing(0)
             let words = (try? await vocabularyStore.activeWords()) ?? []
             Log.debug(.transcribe, "Tam geçiş: \(words.count) sözlük terimi, ses açılıyor")
             let segments = try await transcription.transcribe(
                 url: url, locale: locale, vocabulary: words
             ) { [weak self] value in
-                Task { @MainActor in self?.transcriptionStage = .transcribing(value) }
+                Task { @MainActor in self?.stages[meetingID] = .transcribing(value) }
             }
-            transcript = segments
-            liveSegments = []
+            if onScreen(meetingID) {
+                transcript = segments
+                liveSegments = []
+            }
             try? await store.replaceTranscript(meetingID, segments: segments)
             Log.info(.transcribe, "Tam geçiş bitti — \(segments.count) segment, "
                      + "\(locale.identifier)")
             await runIntelligence(meetingID: meetingID, segments: segments, duration: duration)
         } catch let error as OraError {
-            transcriptionStage = .idle
+            stages[meetingID] = .idle
             Log.error(.transcribe, "Tam geçiş başarısız (\(locale.identifier))", error)
-            retryableAudio = url
+            // "Yeniden dene" seçili toplantının sesini işler; başka toplantı
+            // ekrandayken bu yol oraya iliştirilirse düğme yanlış sesi işler.
+            if onScreen(meetingID) { retryableAudio = url }
             self.error = error
         } catch {
-            transcriptionStage = .idle
+            stages[meetingID] = .idle
             Log.error(.transcribe, "Tam geçiş başarısız (\(locale.identifier))", error)
-            retryableAudio = url
+            if onScreen(meetingID) { retryableAudio = url }
             self.error = .transcriptionFailed(underlying: error)
         }
     }
@@ -742,7 +802,7 @@ final class RecordingController {
         try? await store.markProcessing(meetingID, audioPath: url, duration: duration)
         await refresh()
         await runFullPass(meetingID: meetingID, url: url, duration: duration)
-        if transcript.isEmpty { retryableAudio = url }
+        if onScreen(meetingID), transcript.isEmpty { retryableAudio = url }
         await refresh()
     }
 
@@ -756,68 +816,99 @@ final class RecordingController {
     private func runIntelligence(meetingID: Int64, segments: [Segment],
                                  duration: TimeInterval,
                                  variation: Bool = false) async {
+        // Hangi yoldan çıkılırsa çıkılsın aşama açık kalmaz.
+        defer { if stages[meetingID]?.isActive == true { stages[meetingID] = .done } }
+
         // Kayıt bitince işlem hemen başlar. **Tek istisna:** düşük güç modu veya
         // termal baskı — o zaman otomatik başlatılmaz, kullanıcıya sorulur.
         if let reason = PowerState.deferReason() {
-            deferReason = reason
-            summaryNotice = reason.turkishMessage + ". " + reason.turkishDetail
+            if onScreen(meetingID) {
+                deferReason = reason
+                summaryNotice = reason.turkishMessage + ". " + reason.turkishDetail
+            }
             try? await store.saveSummary(meetingID, ozet: nil, topics: [])
             try? await store.markReady(meetingID)
-            transcriptionStage = .done
+            stages[meetingID] = .done
             Log.info(.pipeline, "Özetleme ertelendi: \(reason.turkishMessage)")
             return
         }
-        deferReason = nil
+        if onScreen(meetingID) { deferReason = nil }
 
         let availability = intelligence.availability
         guard availability.isAvailable else {
-            summaryNotice = availability.turkishMessage + ". " + availability.turkishDetail
+            if onScreen(meetingID) {
+                summaryNotice = availability.turkishMessage + ". "
+                    + availability.turkishDetail
+            }
             try? await store.saveSummary(meetingID, ozet: nil, topics: [])
             try? await store.markReady(meetingID)
-            transcriptionStage = .done
+            stages[meetingID] = .done
             Log.warning(.intelligence, "Özetleme atlandı: \(availability.turkishMessage)")
             return
         }
 
         // 4 — Noktalama restorasyonu
-        transcriptionStage = .punctuating(0)
+        //
+        // Hattın beslendiği metin **yereldir**. Yayınlanan `transcript` seçili
+        // toplantınındır: kullanıcı işlem sürerken başka bir toplantıya geçerse
+        // o değişir ve özet yanlış toplantının metninden üretilirdi.
+        var working = segments
+        stages[meetingID] = .punctuating(0)
         do {
             let punctuated = try await intelligence.restorePunctuation(segments) { [weak self] value in
-                Task { @MainActor in self?.transcriptionStage = .punctuating(value) }
+                Task { @MainActor in self?.stages[meetingID] = .punctuating(value) }
             }
-            transcript = punctuated
+            working = punctuated
+            if onScreen(meetingID) { transcript = punctuated }
             try? await store.replaceTranscript(meetingID, segments: punctuated)
         } catch {
             Log.warning(.intelligence, "Noktalama atlandı: \(error.localizedDescription)")
         }
 
         // 5 — Map-reduce özetleme
-        transcriptionStage = .summarizing(0)
+        stages[meetingID] = .summarizing(0)
+        // Tarih ve katılımcılar da **işlenen** toplantıdan okunur; ekrandaki
+        // toplantıdan alınırsa son tarihler yanlış güne bağlanır.
+        let processed = meetings.first { $0.id == meetingID }
+        let people = (try? await store.calendarParticipants(meetingID)) ?? []
+        var produced: Ozet?
+        var producedTopics: [TopicSegment] = []
         do {
             let context = SummaryContext(
-                meetingDate: selectedMeeting?.date ?? Date(),
-                participants: calendarParticipants + [settings.userDisplayName]
+                meetingDate: processed?.date ?? Date(),
+                participants: people + [settings.userDisplayName]
                     .compactMap { $0.isEmpty ? nil : $0 },
                 userName: settings.userDisplayName.isEmpty ? nil : settings.userDisplayName)
             let result = try await intelligence.summarize(
-                transcript, context: context, variation: variation) { [weak self] value in
-                Task { @MainActor in self?.transcriptionStage = .summarizing(value) }
+                working, context: context, variation: variation) { [weak self] value in
+                Task { @MainActor in self?.stages[meetingID] = .summarizing(value) }
             }
-            summary = result.ozet
-            topics = result.topics
-            if result.skippedChunks > 0 {
-                // Sessiz kalite düşüşü yok: bir bölüm özetlenemediyse söylenir.
-                summaryNotice = "\(result.skippedChunks) bölüm özetlenemedi; "
-                    + "özet eksik olabilir. Transkript tam."
+            produced = result.ozet
+            producedTopics = result.topics
+            // Üretim ekrana yalnızca o toplantı seçiliyken yazılır; başka
+            // toplantıya geçilmişse sonuç veritabanına gider ve kullanıcı geri
+            // döndüğünde oradan okunur.
+            if onScreen(meetingID) {
+                summary = result.ozet
+                topics = result.topics
+                if result.skippedChunks > 0 {
+                    // Sessiz kalite düşüşü yok: bir bölüm özetlenemediyse söylenir.
+                    summaryNotice = "\(result.skippedChunks) bölüm özetlenemedi; "
+                        + "özet eksik olabilir. Transkript tam."
+                }
             }
             Log.info(.intelligence, "Özet hazır — \(result.ozet.kararlar.count) karar, "
                      + "\(result.ozet.aksiyonlar.count) aksiyon, "
                      + "\(result.topics.count) konu, \(result.skippedChunks) atlanan parça")
         } catch let error as OraError {
-            summaryNotice = error.turkishMessage + ". " + error.turkishDetail
+            if onScreen(meetingID) {
+                summaryNotice = error.turkishMessage + ". " + error.turkishDetail
+            }
             Log.error(.intelligence, "Özetleme başarısız", error)
         } catch {
-            summaryNotice = "Özet oluşturulamadı. Transkript korundu."
+            if onScreen(meetingID) {
+                summaryNotice = "Özet oluşturulamadı. Transkript korundu."
+            }
             Log.error(.intelligence, "Özetleme başarısız", error)
         }
 
@@ -828,17 +919,25 @@ final class RecordingController {
         // kullanıcı onu elle değiştirmiş olabilir. Özeti beğenmeyip yeniden
         // ürettiğinde adının da değişmesi beklenmedik bir kayıptır.
         if activeEvent == nil, !variation,
-           let title = await intelligence.generateTitle(from: transcript, topics: topics) {
+           let title = await intelligence.generateTitle(from: working, topics: producedTopics) {
             try? await store.updateTitle(meetingID, title: title)
         }
 
-        // 6 — SQLite güncelle
-        try? await store.saveSummary(meetingID, ozet: summary, topics: topics)
+        // 6 — SQLite güncelle. Üretim başarısızsa (`produced == nil`) eldeki
+        // özet **korunur**: yeniden üretim denemesi var olan özeti, konuları ve
+        // işaretlenmiş aksiyonları silmez. `variation` yalnızca özeti olan bir
+        // toplantıda açılabilir (`canResummarize`).
+        if produced != nil || !variation {
+            try? await store.saveSummary(meetingID, ozet: produced, topics: producedTopics)
+        }
         try? await store.markReady(meetingID)
+        let reloaded = try? await store.load(meetingID)
         // Ses ancak transkript ve özet hazırken sıkıştırılır (opt-in).
-        await compressAudioIfNeeded(meetingID: meetingID)
-        if let reloaded = try? await store.load(meetingID) { actions = reloaded.actions }
-        transcriptionStage = .done
+        // Sıkıştırılacak dosya **işlenen toplantınındır**; `audioURL` seçili
+        // toplantıya ait olduğu için oradan okunmaz.
+        if let record = reloaded?.meeting { await compressAudioIfNeeded(record) }
+        if onScreen(meetingID), let reloaded { actions = reloaded.actions }
+        stages[meetingID] = .done
         await refresh()
 
         // 7 — Kullanıcıya bildir
@@ -867,7 +966,10 @@ final class RecordingController {
 
     /// Ertelenen özetlemeyi kullanıcı elle başlatır.
     func summarizeNow() async {
-        guard let meetingID = selection, !transcript.isEmpty else { return }
+        // Hat koşarken ikinci bir hat başlatılmaz: ikisi aynı aşamayı ve aynı
+        // Foundation Models yolunu paylaşıyor.
+        guard let meetingID = selection, !transcript.isEmpty,
+              !isRecording, !isTranscribing else { return }
         deferReason = nil
         summaryNotice = nil
         await runIntelligence(meetingID: meetingID, segments: transcript,

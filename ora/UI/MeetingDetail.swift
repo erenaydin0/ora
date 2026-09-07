@@ -40,7 +40,7 @@ struct MeetingDetail: View {
     /// Gösterilecek bir toplantı içeriği var mı — seçim yokken de kayıt sonrası
     /// akış bu yoldan görünür.
     private var hasContent: Bool {
-        !recorder.displayedSegments.isEmpty || recorder.isTranscribing
+        !recorder.displayedSegments.isEmpty || recorder.isProcessingSelected
             || recorder.summary != nil
     }
 
@@ -85,7 +85,11 @@ struct MeetingDetail: View {
                     // İşlem sürerken Özet'te gösterilecek bir şey yok; beklenen
                     // şeyin yerinde beklemek doğrusu. Transkript sekmesi bu
                     // sırada canlı metni göstermeye devam eder.
-                    if recorder.isTranscribing {
+                    //
+                    // Animasyon **işlenen toplantı seçiliyken** görünür: hat
+                    // arkada başka bir toplantı için koşuyorsa bu ekran kendi
+                    // özetini göstermeye devam eder.
+                    if recorder.isProcessingSelected {
                         ProcessingState(stage: recorder.transcriptionStage)
                     } else {
                         SummaryView(
@@ -93,6 +97,7 @@ struct MeetingDetail: View {
                             topics: recorder.topics,
                             actions: recorder.actions,
                             notice: recorder.summaryNotice
+                                ?? recorder.busyNotice
                                 ?? (recorder.canSummarize
                                     ? "Bu toplantının özeti yok." : nil),
                             participants: recorder.calendarParticipants,
