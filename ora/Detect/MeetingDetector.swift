@@ -54,6 +54,10 @@ final class MeetingDetector {
     /// bozuk" ile "soğuma sürüyor" ayırt edilemiyor (30 dk sessizlik).
     /// Kayıt sürerken izlenen uygulama ve mikrofonu bıraktığı an.
     private var cooldownLogged: Set<String> = []
+    /// bundleID → mikrofonu bıraktığı an. Soğuma **aynı mikrofon oturumu**
+    /// içindir: uygulama mikrofonu bırakıp yeniden aldıysa bu yeni bir
+    /// toplantıdır ve yeniden önerilmelidir.
+    private var micReleasedAt: [String: Date] = [:]
     private var recordingBundleID: String?
     private var releasedAt: Date?
 
@@ -171,6 +175,29 @@ final class MeetingDetector {
         for bundleID in micSince.keys where !usingMic.contains(bundleID) {
             micSince[bundleID] = nil
             cooldownLogged.remove(bundleID)
+            if micReleasedAt[bundleID] == nil { micReleasedAt[bundleID] = now }
+        }
+        for bundleID in usingMic { micReleasedAt[bundleID] = nil }
+
+        // Mikrofonu yeterince uzun bırakan uygulamanın soğuması sıfırlanır:
+        // sonraki toplantı yeni bir olaydır, 30 dakikalık sessizliğe kurban
+        // gitmemeli. Kısa kesintiler (bir saniyelik düşüşler) eşiği geçmez.
+        let longReleased = micReleasedAt.filter {
+            now.timeIntervalSince($0.value) >= OraSettings.autoStopGrace
+        }
+        for bundleID in longReleased.keys {
+            if lastSuggestion.removeValue(forKey: bundleID) != nil {
+                Log.debug(.pipeline, "\(MeetingApps.displayName(bundleID)) mikrofonu bıraktı — "
+                          + "öneri soğuması sıfırlandı")
+            }
+            micReleasedAt[bundleID] = nil
+        }
+
+        // Öneri, toplantı bittikten sonra ekranda **kalmaz**: uygulama
+        // mikrofonu bıraktıysa teklif de geçersizdir.
+        if let pending = pendingSignal, longReleased[pending.bundleID] != nil {
+            Log.debug(.pipeline, "Öneri düştü: \(pending.displayName) mikrofonu bıraktı")
+            pendingSignal = nil
         }
 
         // Kayıt sürerken: izlenen uygulama mikrofonu bıraktı mı?
