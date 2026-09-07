@@ -33,6 +33,9 @@ final class AudioCapture: AudioCapturing, @unchecked Sendable {
     /// Kapsamlı tap'in sessizliğinin "kimse konuşmuyor" değil "yanlış süreci
     /// hedefliyoruz" demek olduğuna karar vermeden önce beklenen süre.
     private static let scopedTapGrace: TimeInterval = 3.0
+    /// Global tap'e düştükten sonra da ses gelmiyorsa kullanıcıya söylenir.
+    private static let silentTapWarning: TimeInterval = 12.0
+    private static let silentTapReason = "Sistem sesi yakalanamıyor" 
 
     private let lock = NSLock()
     private let microphone = MicrophoneCapture()
@@ -156,6 +159,12 @@ final class AudioCapture: AudioCapturing, @unchecked Sendable {
             }
             Log.info(.capture, "Kayıt bitti — \(finished.lastPathComponent), "
                      + String(format: "%.1f sn", writer.writtenDuration))
+            // Sistem kanalının neden boş kaldığı sonradan tartışılmasın:
+            // tap'in gerçekten frame verip vermediği ve sesin duyulur olup
+            // olmadığı kayda geçer (RESEARCH.md §28.4).
+            Log.info(.capture, "Sistem sesi tap'i — kapsam: \(tap.scopeDescription), "
+                     + "\(tap.framesReceived) frame, tepe "
+                     + String(format: "%.4f", tap.peakReceived))
             return finished
         } catch {
             let wrapped = error as? OraError ?? .audioWriteFailed(underlying: error)
@@ -230,24 +239,44 @@ final class AudioCapture: AudioCapturing, @unchecked Sendable {
         emitState()
     }
 
-    /// Kapsamlı tap sessizse ve sistemde başka bir şey ses çalıyorsa, hedeflediğimiz
-    /// bundle ID sesi üretmiyordur (Electron/tarayıcı yardımcı süreçleri) — global
-    /// tap'e geçilir. Sessizce boş kanal kaydetmek bir toplantı kaydedicisi için
-    /// kabul edilemez bir hata modudur.
+    /// Kapsamlı tap sessizse ve sistemde başka bir şey ses çalıyorsa,
+    /// hedeflediğimiz bundle ID sesi üretmiyordur (Electron/tarayıcı yardımcı
+    /// süreçleri) — global tap'e geçilir. Global tap de sessiz kalıyorsa
+    /// **kullanıcıya söylenir**: sessizce boş kanal kaydetmek bir toplantı
+    /// kaydedicisi için kabul edilemez bir hata modudur.
+    ///
+    /// Ölçüt **genliktir, frame sayısı değil** (RESEARCH.md §28.4): tap sessiz
+    /// frame de üretebiliyor; frame sayan gözcü o zaman "akıyor" sanıp boş
+    /// kanalı sessizce kaydediyordu.
     private func checkScopedTap(elapsed: TimeInterval) {
-        let (active, checked) = lock.withLock { (tapIsActive, scopeChecked) }
-        guard active, !checked, elapsed >= Self.scopedTapGrace else { return }
-        guard case .apps = tap.scope else {
-            lock.withLock { scopeChecked = true }
+        guard lock.withLock({ tapIsActive }) else { return }
+
+        // **Ölçüt frame'dir, genlik değil.** Genliğe bakmak cazip ama yanlış:
+        // toplantıda kimse konuşmuyorken hedef uygulama sessizdir, oysa tap
+        // doğru bağlanmıştır. Frame akmıyorsa tap hiçbir şeye bağlanmamış
+        // demektir — ayırt eden budur. Genlik yalnızca **günlüğe** yazılır
+        // (RESEARCH.md §28.4).
+        if tap.framesReceived > 0 {
+            lock.withLock {
+                scopeChecked = true
+                if micOnlyReason == Self.silentTapReason { micOnlyReason = nil }
+            }
             return
         }
-        guard tap.framesReceived == 0 else {
+        // Sistemde hiç ses çalmıyorsa frame gelmemesi doğrudur.
+        guard SystemAudioTap.systemIsProducingOutput() else { return }
+
+        let checked = lock.withLock { scopeChecked }
+        if !checked, case .apps = tap.scope, elapsed >= Self.scopedTapGrace {
             lock.withLock { scopeChecked = true }
+            tap.fallBackToGlobal()
             return
         }
-        guard SystemAudioTap.systemIsProducingOutput() else { return }  // gerçekten sessiz, beklemeye devam
-        lock.withLock { scopeChecked = true }
-        tap.fallBackToGlobal()
+        // Global tap'te frame hiç gelmiyorsa gerçek arıza: global tap kendimiz
+        // hariç her şeyi yakalar. Kullanıcı bunu kayıt sürerken bilmeli.
+        if case .globalExcludingSelf = tap.scope, elapsed >= Self.silentTapWarning {
+            lock.withLock { micOnlyReason = Self.silentTapReason }
+        }
     }
 
     private func emitState() {

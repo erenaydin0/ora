@@ -1603,3 +1603,40 @@ da kapsamlı tap'e alınabilir (`com.google.Chrome.helper`). Kural şimdilik
 değişmedi: tarayıcı yardımcı süreci **tüm sekmelere** hizmet ediyor, yani
 "yalnızca toplantı" garantisi vermiyor — global tap'ten iyi ama yerel
 uygulamalardaki kadar temiz değil.
+
+### 28.4 Boş sistem kanalı: teşhis edilebilir olmalı
+
+Düzeltmeden sonraki ilk gerçek kayıt (2 dk, Teams): algılama çalıştı
+(`Toplantı önerisi: Microsoft Teams`), tap doğru kapsamla açıldı
+(`yalnızca com.microsoft.teams2, …helper, …modulehost, …notificationcenter`),
+gözcü devreye girmedi — ama sistem kanalı **tam sıfır** çıktı:
+
+```
+ch0 mic    tepe 0.7872   sesli saniye 124/124
+ch1 sistem tepe 0.0000   sesli saniye   0/124
+```
+
+Bu iki şeyden biri olabilir ve **kayıt sonrası ayırt edilemiyordu**: (a) karşı
+taraf hiç konuşmadı, (b) tap yanlış yere bağlandı. Kontrol edilerek ölçüldü —
+Teams açık ama toplantıda değilken kapsamlı tap kurulup başka bir süreç
+(`afplay`) ses çalarken:
+
+| Kapsam | frame | tepe |
+|---|---|---|
+| Teams (+yardımcıları), Teams sessiz | **0** | 0,0 |
+| global (kendimiz hariç) | 66.384 | **0,41** |
+
+Yani hedef uygulama ses üretmiyorken tap **hiç frame vermiyor**; sessiz frame
+üretmiyor. Kayıtta gözcü tetiklenmediğine göre tap frame alıyordu → sistem
+kanalı, karşı taraf konuşmadığı için boştu (a).
+
+**Koda yansıyanlar:**
+- Kayıt sonunda tap'in kapsamı, frame sayısı ve **tepe genliği** günlüğe yazılır.
+  Aynı soru bir daha tahminle tartışılmasın.
+- Gözcünün ölçütü **frame olarak kaldı, genliğe çevrilmedi.** Genlik cazipti ama
+  yanlış: toplantıda kimse konuşmuyorken hedef uygulama sessizdir, tap ise
+  doğru bağlıdır — genliğe bakan gözcü o anda kapsamlı tap'i bırakıp global'e
+  düşer ve "yalnızca toplantıyı yakala" kazancını sessizce çöpe atardı.
+- Global tap'te 12 saniye boyunca hiç frame gelmezken sistemde ses varsa bu
+  gerçek arızadır; artık kullanıcıya kayıt sürerken söylenir
+  ("Sistem sesi yakalanamıyor — kayıt yalnızca mikrofonunuzla sürüyor").

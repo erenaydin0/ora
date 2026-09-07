@@ -31,11 +31,17 @@ final class SystemAudioTap: @unchecked Sendable {
     private(set) var scope: Scope = .globalExcludingSelf
     private let counterLock = NSLock()
     private var receivedFrames: Int64 = 0
+    private var receivedPeak: Float = 0
     private var sink: Sink?
 
     /// Tap açıldığından beri gelen frame sayısı. Kapsamlı tap'in gerçekten
     /// çalışıp çalışmadığını anlamak için kullanılır.
     var framesReceived: Int64 { counterLock.withLock { receivedFrames } }
+
+    /// Tap açıldığından beri görülen en yüksek genlik. **Frame saymak
+    /// yetmiyor:** tap sessiz frame de üretiyor, o zaman gözcü "akıyor" sanıp
+    /// boş kanal kaydediyor (RESEARCH.md §28.4).
+    var peakReceived: Float { counterLock.withLock { receivedPeak } }
 
     // MARK: - Yaşam döngüsü
 
@@ -71,7 +77,7 @@ final class SystemAudioTap: @unchecked Sendable {
     private func start(scope: Scope, sink: @escaping Sink) throws {
         self.scope = scope
         self.sink = sink
-        counterLock.withLock { receivedFrames = 0 }
+        counterLock.withLock { receivedFrames = 0; receivedPeak = 0 }
 
         let description = CATapDescription()
         description.name = "ora"
@@ -148,7 +154,12 @@ final class SystemAudioTap: @unchecked Sendable {
 
             let resampled = resampler.resample(mono)
             guard !resampled.isEmpty else { return }
-            self.counterLock.withLock { self.receivedFrames += Int64(resampled.count) }
+            var peak: Float = 0
+            for sample in resampled { peak = max(peak, abs(sample)) }
+            self.counterLock.withLock {
+                self.receivedFrames += Int64(resampled.count)
+                self.receivedPeak = max(self.receivedPeak, peak)
+            }
             sink(resampled, inputTime.pointee.mHostTime)
         }
         guard procStatus == noErr, let proc else {
