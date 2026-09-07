@@ -50,7 +50,10 @@ final class MeetingDetector {
     private var micSince: [String: Date] = [:]
     /// bundleID → son öneri zamanı (soğuma için).
     private var lastSuggestion: [String: Date] = [:]
+    /// Soğuma yüzünden atlanan aday bir kez günlüğe yazılır. Yoksa "algılama
+    /// bozuk" ile "soğuma sürüyor" ayırt edilemiyor (30 dk sessizlik).
     /// Kayıt sürerken izlenen uygulama ve mikrofonu bıraktığı an.
+    private var cooldownLogged: Set<String> = []
     private var recordingBundleID: String?
     private var releasedAt: Date?
 
@@ -167,6 +170,7 @@ final class MeetingDetector {
         }
         for bundleID in micSince.keys where !usingMic.contains(bundleID) {
             micSince[bundleID] = nil
+            cooldownLogged.remove(bundleID)
         }
 
         // Kayıt sürerken: izlenen uygulama mikrofonu bıraktı mı?
@@ -192,7 +196,15 @@ final class MeetingDetector {
             else { continue }
 
             if let last = lastSuggestion[app],
-               now.timeIntervalSince(last) < OraSettings.suggestionCooldown { continue }
+               now.timeIntervalSince(last) < OraSettings.suggestionCooldown {
+                if cooldownLogged.insert(app).inserted {
+                    let remaining = Int((OraSettings.suggestionCooldown
+                                         - now.timeIntervalSince(last)) / 60)
+                    Log.debug(.pipeline, "\(MeetingApps.displayName(app)) toplantı adayı ama "
+                              + "soğuma sürüyor — \(remaining) dk kaldı")
+                }
+                continue
+            }
 
             let signal = MeetingSignal(
                 bundleID: app,
