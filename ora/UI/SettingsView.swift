@@ -220,6 +220,12 @@ private struct CalendarSettings: View {
             }
 
             if settings.calendarEnabled {
+                // Çakışan toplantı ayrımı takvim özelliğinin bir parçası;
+                // takvim kapalıyken anlamı yok, o yüzden burada duruyor.
+                Section("Çakışan toplantılar") {
+                    WindowTitleAccess(settings: settings)
+                }
+
                 Section("Hangi takvimler") {
                     if calendars.isEmpty {
                         Text("Takvim listesi için erişim izni gerekiyor.")

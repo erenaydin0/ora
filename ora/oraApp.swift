@@ -5,8 +5,22 @@ import AppKit
 struct OraApp: App {
 
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @State private var recorder = RecordingController()
-    @State private var settings = OraSettings.shared
+    @State private var recorder: RecordingController
+    @State private var settings: OraSettings
+
+    /// Dizin hazırlığı ve sandbox göçü **burada** yapılır, `AppDelegate`'te
+    /// değil: `RecordingController()` veritabanını açıyor ve `@State`
+    /// varsayılanları `applicationDidFinishLaunching`'den önce değerlendiriliyor.
+    /// Göç sonra çalışırsa boş bir `ora.sqlite` oluşmuş oluyor ve göç kendini
+    /// atlıyor — kullanıcı bütün toplantılarını kaybetmiş görünüyordu.
+    init() {
+        try? AppPaths.prepare()
+        if let bundleID = Bundle.main.bundleIdentifier {
+            AppPaths.migrateFromSandboxContainer(bundleID: bundleID)
+        }
+        _recorder = State(initialValue: RecordingController())
+        _settings = State(initialValue: OraSettings.shared)
+    }
 
     var body: some Scene {
         Window("ora", id: "main") {
@@ -49,6 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 
         do {
+            // Dizinler ve göç `OraApp.init()`'te yapıldı (sıra oradaki yorumda);
+            // burada yalnızca doğrulanır.
             try AppPaths.prepare()
             Log.info(.app, "ora başladı — veri dizini: \(AppPaths.base.path(percentEncoded: false))")
         } catch {

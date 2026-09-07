@@ -34,8 +34,13 @@ enum WindowTitle {
     ///
     /// Yardımcı süreçler de taranır: pencereyi Electron uygulamalarında ana
     /// süreç açmayabilir — mikrofon ve sesle aynı hikâye (RESEARCH.md §28.3).
-    static func titles(for bundleID: String) -> [String] {
-        guard isAvailable else { return [] }
+    ///
+    /// **Ayar kapalıysa hiçbir şey okunmaz.** Özellik opt-in'dir; kullanıcı
+    /// açmadıkça başka uygulamaların penceresine bakılmaz.
+    @MainActor
+    static func titles(for bundleID: String,
+                       settings: OraSettings = .shared) -> [String] {
+        guard settings.windowTitleEnabled, isAvailable else { return [] }
         var found: [String] = []
         for app in NSWorkspace.shared.runningApplications {
             guard let id = app.bundleIdentifier,

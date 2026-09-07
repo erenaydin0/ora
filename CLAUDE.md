@@ -291,8 +291,10 @@ Bu sıra asla değişmez:
   toplantı değil. Düşük güvenli algılama say ve öyle sun ("Chrome mikrofonu
   kullanıyor"). Sekme başlığı okumak ekran kaydı/erişilebilirlik izni ister —
   **isteme**.
-- **Pencere başlığı yalnızca takvim eşleştirmesi için okunabilir** ve bugün
-  okunamıyor: AX sandbox'ta çalışmıyor (§29.2). Kod başlıksız da çalışır.
+- **Pencere başlığı yalnızca takvim eşleştirmesi için okunur**, opt-in
+  (`windowTitleEnabled`, varsayılan kapalı) ve yalnızca Erişilebilirlik izni
+  verilmişse. Başlık hiçbir yere yazılmaz. Kapalıyken eşleştirme başlıksız
+  çalışır, belirsizlikte sorar (§29.2-29.4).
 - **Otomatik başlık pencere başlığından ÜRETİLMEZ.** `kCGWindowName` sandbox'lı
   uygulamada ekran kaydı izni ister — tap sayesinde kurtulduğumuz izni geri
   getirir. Başlık transkriptten Foundation Models ile üretilir; takvim
@@ -460,11 +462,19 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 - `NSCalendarsFullAccessUsageDescription` — yalnızca takvim özelliği açıksa
   istenir; metin "yazmaz, veri çıkmaz" güvencesini içerir
 - `NSAudioCaptureUsageDescription` — sistem sesi tap'i için (ekran kaydı izni DEĞİL)
-- Sandbox girişleri: `com.apple.security.device.audio-input`,
-  **`com.apple.security.personal-information.calendars`** (takvim için).
-  Ölçüldü (RESEARCH.md §19): takvim yetkisi olmadan `requestFullAccessToEvents`
-  sandbox'lı uygulamada **istem çıkarmadan** başarısız oluyor. Yeni bir izin
-  eklerken TCC metniyle birlikte entitlement'ı da yaz.
+- **App Sandbox KAPALI** (RESEARCH.md §29.4). Çakışan takvim toplantılarını
+  ayırmanın tek yerel yolu pencere başlığını okumak ve Erişilebilirlik API'si
+  sandbox'ta başka süreçler için çalışmıyor — izin istemi bile çıkmıyor.
+  Dolayısıyla `com.apple.security.*` yetkileri kaldırıldı; mikrofon ve takvim
+  TCC ile (yukarıdaki Info.plist metinleri) sorulmaya devam ediyor.
+  Eski kural — "takvim için `personal-information.calendars` yetkisi şart"
+  (§19) — yalnızca sandbox'lı derlemeler için geçerliydi.
+- **Ağ girişi yok ve eklenmeyecek.** Kural #3'ün (hiçbir veri cihazı terk
+  etmez) yapısal garantisi buydu; sandbox kalksa da entitlement listesinde ağ
+  yok. Dağıtım .dmg + Developer ID, Mac App Store hedeflenmiyor.
+- **Erişilebilirlik izni opt-in.** `OraSettings.windowTitleEnabled` varsayılan
+  **kapalı**; kapalıyken `WindowTitle`'a hiç dokunulmaz ve izin istenmez.
+  Onboarding'de ve Ayarlar → Takvim'de açılabilir.
 - Sistem sesi izni reddedilirse yalnız-mikrofon moduna düş, çökme
 
 ## Hata Yönetimi
@@ -598,7 +608,7 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
 ora.xcodeproj          — senkronize klasör grubu: ora/ altına eklenen dosya
                          otomatik derlemeye girer, pbxproj elle düzenlenmez
 Config/Info.plist      — izin metinleri (INFOPLIST_FILE ile bağlı)
-Config/ora.entitlements— sandbox + audio-input; ağ girişi YOK (kural #3'ün garantisi)
+Config/ora.entitlements— sandbox KAPALI (§29.4); ağ girişi YOK (kural #3'ün garantisi)
 ora/oraApp.swift       — @main + AppDelegate (dizin hazırlığı, açık mod sabiti)
 ora/Core/              — AppPaths, Log, OraError, MeetingMetrics, OraSettings,
                          PowerState, AudioArchive (boyut/sıkıştırma/silme),

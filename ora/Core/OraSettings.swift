@@ -36,6 +36,15 @@ final class OraSettings {
     /// Kullanıcının seçtiği takvimler. Varsayılan: hiçbiri.
     var selectedCalendarIDs: Set<String> { didSet { store(Array(selectedCalendarIDs), .selectedCalendars) } }
 
+    /// Çakışan takvim toplantılarını ayırmak için toplantı uygulamasının
+    /// **pencere başlığı** okunsun mu. **Opt-in, varsayılan kapalı.**
+    ///
+    /// Kapalıyken `WindowTitle`'a hiç dokunulmaz ve Erişilebilirlik izni
+    /// istenmez; eşleştirme diğer sinyallerle çalışır, belirsizlik kalırsa
+    /// kullanıcıya sorulur (RESEARCH.md §29.3). Açıkken başlık toplantının
+    /// adını verir ve çakışma çoğu durumda sorulmadan çözülür.
+    var windowTitleEnabled: Bool { didSet { store(windowTitleEnabled, .windowTitleEnabled) } }
+
     // MARK: - Kayıt bildirimi
 
     /// Kayıt başlarken katılımcıları bilgilendirmeyi hatırlat.
@@ -88,6 +97,9 @@ final class OraSettings {
         let defaults = UserDefaults.standard
         detectionEnabled = defaults.object(forKey: Key.detectionEnabled.rawValue) as? Bool ?? true
         calendarEnabled = defaults.bool(forKey: Key.calendarEnabled.rawValue)
+        // Varsayılan kapalı: pencere başlığı okumak Erişilebilirlik izni ister,
+        // kullanıcı istemedikçe istenmez.
+        windowTitleEnabled = defaults.bool(forKey: Key.windowTitleEnabled.rawValue)
         userDisplayName = defaults.string(forKey: Key.userDisplayName.rawValue) ?? ""
         excludedBundleIDs = Set(defaults.stringArray(forKey: Key.excludedBundleIDs.rawValue)
                                 ?? Array(Self.defaultExclusions))
@@ -107,7 +119,7 @@ final class OraSettings {
 
     private enum Key: String {
         case detectionEnabled, excludedBundleIDs, alwaysRecord
-        case calendarEnabled, selectedCalendars
+        case calendarEnabled, selectedCalendars, windowTitleEnabled
         case userDisplayName
         case compressAudio, audioRetentionDays, announceRecording
     }

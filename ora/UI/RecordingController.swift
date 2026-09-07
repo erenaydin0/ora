@@ -246,6 +246,11 @@ final class RecordingController {
     func startServices() async {
         detector.start()
         observeSignals()
+        // Veri dizini değiştiyse (sandbox göçü) ses yolları eski konumu
+        // gösterir; dosya yeni yerdeyse satır düzeltilir.
+        if let repaired = try? await store.repairAudioPaths(), repaired > 0 {
+            await refresh()
+        }
         await refreshVocabulary()
         await refreshUpcoming()
         await purgeExpiredAudio()

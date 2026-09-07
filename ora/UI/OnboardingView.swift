@@ -5,6 +5,60 @@ import AppKit
 ///
 /// Tek sayfa; sihirbaz değil. Kullanıcı isterse izin vermeden de devam edebilir —
 /// ora yalnız-mikrofon veya özetsiz modda çalışmaya devam eder.
+/// Pencere başlığı okuma: opt-in izin satırı. Hem onboarding hem Ayarlar
+/// aynı bileşeni kullanır — iki yerde iki farklı metin olmasın.
+struct WindowTitleAccess: View {
+    @Bindable var settings: OraSettings
+    /// Erişilebilirlik izni bu oturumda değişmiş olabilir; pencere öne
+    /// geldiğinde tazelenir.
+    @State private var granted = WindowTitle.isAvailable
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle("Çakışan toplantıları pencere başlığından ayır", isOn: $settings.windowTitleEnabled)
+            Text(detail)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraInkMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            if settings.windowTitleEnabled && !granted {
+                HStack(spacing: 8) {
+                    Button("Erişilebilirlik izni ver") {
+                        WindowTitle.requestPermission()
+                    }
+                    Button("Ayarları aç") {
+                        let url = URL(string: "x-apple.systempreferences:com.apple.preference"
+                                      + ".security?Privacy_Accessibility")
+                        if let url { NSWorkspace.shared.open(url) }
+                    }
+                    .buttonStyle(.link)
+                }
+            }
+        }
+        .onChange(of: settings.windowTitleEnabled) { _, enabled in
+            granted = WindowTitle.isAvailable
+            // Açar açmaz istem gösterilir; kullanıcı iki adım aramasın.
+            if enabled && !granted { WindowTitle.requestPermission() }
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification)) { _ in
+            granted = WindowTitle.isAvailable
+        }
+    }
+
+    private var detail: String {
+        if !settings.windowTitleEnabled {
+            return "Aynı saatte iki toplantınız varsa ora hangisinde olduğunuzu "
+                + "bilemez ve size sorar. Açarsanız toplantı uygulamasının pencere "
+                + "başlığını okuyup doğru toplantıyı kendisi seçer."
+        }
+        return granted
+            ? "Açık. ora yalnızca toplantı uygulamalarının pencere başlığını okur; "
+              + "başlık hiçbir yere yazılmaz, yalnızca takvim eşleştirmesinde kullanılır."
+            : "Erişilebilirlik izni gerekiyor. Sistem Ayarları → Gizlilik ve Güvenlik → "
+              + "Erişilebilirlik listesinden ora'yı işaretleyin."
+    }
+}
+
 struct OnboardingView: View {
 
     let recorder: RecordingController
@@ -86,6 +140,17 @@ struct OnboardingView: View {
                     .labelsHidden()
                     .frame(width: 120)
                 }
+
+                // Çakışan takvim toplantılarını ayırmak için pencere başlığı.
+                // **İsteğe bağlı** — kapalı bırakılırsa ora çakışmada sorar.
+                Row(icon: "calendar.badge.questionmark",
+                    title: "Çakışan toplantılar",
+                    detail: "",
+                    isDone: OraSettings.shared.windowTitleEnabled) {
+                    EmptyView()
+                }
+                WindowTitleAccess(settings: OraSettings.shared)
+                    .padding(.leading, 30)
             }
             .padding(24)
 

@@ -296,6 +296,36 @@ struct MeetingStore: Sendable {
 
     // MARK: - Ses dosyası
 
+    /// `meetings.audio_path` mutlak yazılır; veri dizini değişince (sandbox
+    /// göçü) eski konumu gösterir. Dosya yeni `recordings/` altında aynı adla
+    /// duruyorsa yol düzeltilir. Idempotent — düzeltilecek bir şey yoksa
+    /// hiç yazma yapmaz.
+    @discardableResult
+    func repairAudioPaths() async throws -> Int {
+        let files = try await audioFiles()
+        let home = AppPaths.recordings.path(percentEncoded: false)
+        var repaired: [(Int64, String)] = []
+        // Ölçüt "dosya kayıp mı" **değil**, "yol güncel veri dizininde mi":
+        // göç kopyalayarak yapıldığı için eski yol da açılmaya devam ediyor ve
+        // uygulama sessizce konteynerdeki dosyayı kullanmaya devam ederdi.
+        for file in files where !file.path.hasPrefix(home) {
+            let name = URL(fileURLWithPath: file.path).lastPathComponent
+            let candidate = AppPaths.recordings.appending(path: name, directoryHint: .notDirectory)
+            let path = candidate.path(percentEncoded: false)
+            if FileManager.default.fileExists(atPath: path) { repaired.append((file.id, path)) }
+        }
+        guard !repaired.isEmpty else { return 0 }
+        let updates = repaired
+        try await database.write { db in
+            for (id, path) in updates {
+                try db.execute(sql: "UPDATE meetings SET audio_path = ? WHERE id = ?",
+                               arguments: [path, id])
+            }
+        }
+        Log.info(.store, "\(repaired.count) kaydın ses yolu yeni veri dizinine göre düzeltildi")
+        return repaired.count
+    }
+
     /// Sıkıştırma sonrası uzantı değişir; satır yeni dosyayı göstermeli.
     func setAudioPath(_ meetingID: Int64, path: String?) async throws {
         try await database.write { db in

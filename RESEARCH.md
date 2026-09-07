@@ -1728,3 +1728,44 @@ kalıyor (→ soruluyor) ve pencere başlığı geldiğinde belirsizlik kalkıyo
 Yanlış eşleşme sonradan düzeltilebilir: kenar çubuğunda sağ tık → **Takvim
 toplantısını değiştir**. Eski takvim katılımcıları silinir (`source='calendar'`
 satırları), yenisi yazılır; `source='transcript'` satırlarına dokunulmaz.
+
+### 29.4 Sandbox kaldırıldı ve veri göçü ölçüldü
+
+Karar: pencere başlığı yolu için **App Sandbox kapatıldı** (`ENABLE_APP_SANDBOX
+= NO`, entitlement dosyasından `com.apple.security.*` girişleri silindi).
+Alternatifler elendi — ekran kaydı izni tap mimarisinin kaçındığı iznin ta
+kendisi; Apple Events geçici istisnası sandbox'ta belirsiz ve Apple'ın
+önermediği bir yol. **Ağ girişi yok**, yani "hiçbir veri cihazı terk etmez"
+garantisi aynen duruyor.
+
+**Göç şart:** sandbox'lı uygulamanın "Application Support" dizini konteynerin
+içinde (`~/Library/Containers/<bundle>/Data/…`); sandbox kalkınca `FileManager`
+gerçek dizini döndürüyor ve veritabanı, ses kayıtları, sözlük **görünmez
+oluyor**. İlk denemede iki hata çıktı, ikisi de ölçümle yakalandı:
+
+1. **Sıra hatası.** Göç `applicationDidFinishLaunching` içindeydi ama
+   `@State private var recorder = RecordingController()` veritabanını **daha
+   önce** açıyor. Günlük sırası ele verdi: `Veritabanı hazır` satırı
+   `ora başladı` satırından önce yazılmıştı. Boş bir `ora.sqlite` oluşuyor,
+   göç kendini atlıyor, kullanıcı bütün toplantılarını kaybetmiş görünüyordu.
+   Göç `OraApp.init()`'e alındı.
+2. **`copyItem` dizin birleştirmiyor.** Hedefte uygulamanın kendi oluşturduğu
+   boş `recordings/` dizini olduğu için ses dosyaları sessizce atlanıyordu.
+   Yerine özyinelemeli birleştirme yazıldı.
+
+Düzeltildikten sonra ölçülen göç:
+```
+[app]   Sandbox konteynerinden 25 dosya taşındı — eski veri yerinde bırakıldı
+[store] Veritabanı hazır: /Users/user/Library/Application Support/ora/ora.sqlite
+[store] 5 kaydın ses yolu yeni veri dizinine göre düzeltildi
+→ 6 toplantı, 7 ses dosyası, sözlük dizini yeni konumda
+```
+Kopyalanır, taşınmaz: göç yarıda kalırsa eski veri konteynerde durur.
+`meetings.audio_path` mutlak yazıldığı için ayrıca düzeltilir; ölçüt "dosya
+kayıp mı" değil **"yol güncel veri dizininde mi"** — kopya olduğu için eski yol
+da açılmaya devam ediyor ve uygulama sessizce konteynerdeki dosyayı
+kullanmaya devam ederdi.
+
+Özellik **opt-in**: `OraSettings.windowTitleEnabled` varsayılan kapalı,
+onboarding'de ve Ayarlar → Takvim'de açılıyor. Kapalıyken `WindowTitle`
+çağrılmaz, Erişilebilirlik izni istenmez.

@@ -2,15 +2,23 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>com.apple.security.app-sandbox</key>
-	<true/>
-	<key>com.apple.security.device.audio-input</key>
-	<true/>
-	<!-- Takvim: sandbox'lı uygulamada bu yetki olmadan requestFullAccessToEvents
-	     istem çıkarmadan başarısız olur. ora takvime yalnızca OKUR. -->
-	<key>com.apple.security.personal-information.calendars</key>
-	<true/>
-	<key>com.apple.security.files.user-selected.read-write</key>
-	<true/>
+	<!-- App Sandbox **kapalı** (eskiden açıktı).
+
+	     Gerekçe: çakışan iki takvim toplantısını ayırmanın tek yerel yolu
+	     toplantı uygulamasının pencere başlığını okumaktır ve Erişilebilirlik
+	     API'si sandbox'ta başka süreçler için çalışmıyor — izin istemi bile
+	     çıkmıyor, `AXIsProcessTrusted()` her zaman false (RESEARCH.md §29.2).
+	     Bulut alternatifi yok: Microsoft Graph "bir toplantıdasın" der, hangisi
+	     olduğunu söylemez (§29.1).
+
+	     Sandbox kalkınca `com.apple.security.*` yetkileri anlamsızlaşır ve
+	     silindi; mikrofon ve takvim erişimi TCC ile (Info.plist metinleri)
+	     sorulmaya devam eder.
+
+	     **Ağ girişi hâlâ yok ve olmayacak:** kural #3'ün (hiçbir veri cihazı
+	     terk etmez) garantisi buydu, aynen duruyor. Dağıtım .dmg + Developer ID;
+	     Mac App Store hedeflenmiyor, sandbox oradan da gerekmiyor. -->
+	<key>com.apple.security.automation.apple-events</key>
+	<false/>
 </dict>
 </plist>
