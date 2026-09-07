@@ -14,7 +14,22 @@ struct MeetingEvent: Sendable, Identifiable, Equatable {
     /// Hangi uygulamanın tap'leneceğini söylemek için hesaplanır, **saklanmaz**.
     let meetingApp: String?
 
+    /// Organizatör etkinliği iptal etti. Aday havuzundan tamamen çıkarılır.
+    let isCancelled: Bool
+    /// Kullanıcının bu etkinliğe verdiği yanıt. Çakışan iki toplantıyı
+    /// ayırmanın en ucuz sinyali: kabul ettiğim toplantıdayımdır.
+    let myStatus: Response
+    /// Etkinliği ben düzenledim.
+    let organizerIsMe: Bool
+
+    enum Response: Sendable, Equatable {
+        case accepted, tentative, pending, declined, unknown
+    }
+
     var id: String { eventID }
+
+    /// Etkinlik bu anda sürüyor mu (tolerans yok — puanlama için).
+    func isRunning(at date: Date) -> Bool { date >= start && date <= end }
 
     var timeLabel: String {
         start.formatted(date: .omitted, time: .shortened)
@@ -74,16 +89,114 @@ final class CalendarReader {
         }
     }
 
-    /// Mikrofon sinyalinin geldiği ana denk gelen etkinlik (±10 dk tolerans).
-    func event(overlapping date: Date) -> MeetingEvent? {
+    /// Mikrofon sinyalinin geldiği ana denk gelen etkinlikler — **puanlı**.
+    ///
+    /// Eskiden başlangıca göre sıralı listeden `.first` alınıyordu; çakışan iki
+    /// toplantıda bu **her zaman erken başlayanı** seçiyor ve yanlış toplantıya
+    /// katılımcı yazıyordu. Artık adaylar elenir, puanlanır ve karar
+    /// çağırana bırakılır: tepe aday açık ara öndeyse bağlanır, değilse
+    /// kullanıcıya sorulur (tahmin edilmez).
+    ///
+    /// - Parameters:
+    ///   - app: mikrofonu tutan toplantı uygulamasının bundle ID'si.
+    ///   - windowTitles: toplantı uygulamasının pencere başlıkları, okunabiliyorsa.
+    ///     En güçlü sinyal budur — başlık toplantının adını taşır.
+    func candidates(at date: Date, app: String? = nil,
+                    windowTitles: [String] = []) -> [EventMatch] {
         let tolerance: TimeInterval = 10 * 60
-        return upcoming(from: date.addingTimeInterval(-tolerance - 3600),
-                        to: date.addingTimeInterval(tolerance + 3600))
-            .first { event in
+        let window = upcoming(from: date.addingTimeInterval(-tolerance - 3600),
+                              to: date.addingTimeInterval(tolerance + 3600))
+        return window
+            .filter { event in
+                // İptal edilen etkinlik aday değildir: takvimde durmaya devam
+                // ediyor ve erken başladığı için gerçek toplantıyı yeniyordu.
+                guard !event.isCancelled else { return false }
                 let started = event.start.addingTimeInterval(-tolerance)
                 let ended = event.end.addingTimeInterval(tolerance)
                 return date >= started && date <= ended
             }
+            .map { Self.score($0, at: date, app: app, windowTitles: windowTitles) }
+            .sorted { ($0.score, $1.event.start) > ($1.score, $0.event.start) }
+    }
+
+    /// Puanlanmış aday. `reasons` yalnızca günlük içindir.
+    struct EventMatch: Sendable, Equatable {
+        let event: MeetingEvent
+        let score: Int
+        let reasons: [String]
+    }
+
+    /// Tepe aday ikinciyi bu farkla geçiyorsa sormadan bağlanır.
+    static let decisiveMargin = 3
+
+    static func score(_ event: MeetingEvent, at date: Date,
+                      app: String?, windowTitles: [String]) -> EventMatch {
+        var score = 0
+        var reasons: [String] = []
+
+        // 1 — Pencere başlığı: toplantının **adını** taşır, en güçlü sinyal.
+        if windowTitles.contains(where: { Self.titleMatches($0, event.title) }) {
+            score += 6
+            reasons.append("pencere başlığı eşleşti")
+        }
+
+        // 2 — Uygulama eşleşmesi: Teams daveti ile Zoom davetini ayırır.
+        if let app, let expected = event.meetingApp, expected == app {
+            score += 3
+            reasons.append("toplantı linki \(app)")
+        }
+
+        // 3 — Başlangıç yakınlığı: toplantıya başlangıcının birkaç dakika
+        // içinde girilir.
+        let delta = abs(date.timeIntervalSince(event.start))
+        if delta <= 5 * 60 {
+            score += 3
+            reasons.append("başlangıca \(Int(delta / 60)) dk")
+        } else if delta <= 15 * 60 {
+            score += 1
+        }
+
+        // 4 — Etkinlik şu anda sürüyor mu.
+        if event.isRunning(at: date) {
+            score += 2
+            reasons.append("şu anda sürüyor")
+        }
+
+        // 5 — Kendi yanıtım. Reddettiğim toplantı **elenmez**, puanı düşer:
+        // insan reddettiği toplantıya sonradan katılabiliyor.
+        switch event.myStatus {
+        case .accepted:  score += 2; reasons.append("kabul ettim")
+        case .tentative: score += 1
+        case .declined:  score -= 3; reasons.append("reddetmiştim")
+        case .pending, .unknown: break
+        }
+        if event.organizerIsMe {
+            score += 2
+            reasons.append("organizatör benim")
+        }
+
+        return EventMatch(event: event, score: score, reasons: reasons)
+    }
+
+    /// Pencere başlığı ile etkinlik adını karşılaştırır.
+    ///
+    /// Birebir arama işe yaramaz: başlık "Bordro Görüşmesi | Microsoft Teams"
+    /// gibi ek taşır, etkinlik adı da kısaltılmış olabilir. Ölçüt **anlamlı
+    /// kelime örtüşmesi**: üç harften uzun kelimelerin en az yarısı tutmalı.
+    static func titleMatches(_ windowTitle: String, _ eventTitle: String) -> Bool {
+        let strip = { (text: String) -> Set<String> in
+            Set(text.lowercased(with: Locale(identifier: "tr_TR"))
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { $0.count > 3 })
+        }
+        // Uygulama adı her başlıkta var, ayırt etmez.
+        let noise: Set<String> = ["microsoft", "teams", "zoom", "meeting", "webex",
+                                  "slack", "toplantı", "toplanti", "görüşme", "gorusme"]
+        let window = strip(windowTitle).subtracting(noise)
+        let event = strip(eventTitle).subtracting(noise)
+        guard !event.isEmpty, !window.isEmpty else { return false }
+        let hits = event.intersection(window).count
+        return Double(hits) >= Double(event.count) / 2
     }
 
     /// Sıradaki toplantılar. Sorgu penceresi dar tutulur; takvim toplu taranmaz.
@@ -135,6 +248,16 @@ final class CalendarReader {
             .filter { $0.participantType == .person && $0.participantStatus != .declined }
             .compactMap(\.name)
 
+        let mine = (event.attendees ?? []).first { $0.isCurrentUser }
+        let response: MeetingEvent.Response
+        switch mine?.participantStatus {
+        case .accepted:  response = .accepted
+        case .tentative: response = .tentative
+        case .pending:   response = .pending
+        case .declined:  response = .declined
+        default:         response = .unknown
+        }
+
         return MeetingEvent(
             eventID: event.eventIdentifier ?? UUID().uuidString,
             title: event.title ?? "İsimsiz Toplantı",
@@ -142,7 +265,10 @@ final class CalendarReader {
             end: event.endDate,
             organizer: event.organizer?.name,
             attendees: people,
-            meetingApp: Self.meetingApp(from: event))
+            meetingApp: Self.meetingApp(from: event),
+            isCancelled: event.status == .canceled,
+            myStatus: response,
+            organizerIsMe: event.organizer?.isCurrentUser ?? false)
     }
 
     /// Toplantı linkinden hangi uygulamanın tap'leneceğini çıkarır.

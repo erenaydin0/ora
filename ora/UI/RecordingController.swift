@@ -337,7 +337,10 @@ final class RecordingController {
                 if let signal = self.detector.pendingSignal, signal.bundleID != lastNotified {
                     lastNotified = signal.bundleID
                     let event = self.settings.calendarEnabled
-                        ? self.calendar.event(overlapping: Date()) : nil
+                        ? self.calendar.candidates(at: Date(), app: signal.bundleID,
+                                                   windowTitles: WindowTitle.titles(for: signal.bundleID))
+                            .first?.event
+                        : nil
                     await self.notifications.suggestRecording(signal, event: event)
                 } else if self.detector.pendingSignal == nil {
                     lastNotified = nil
@@ -591,6 +594,74 @@ final class RecordingController {
         }
     }
 
+    /// Kayıt başlarken hangi takvim toplantısında olduğumuz **kesinleşmediyse**
+    /// adaylar burada durur ve arayüz sorar. Çakışan iki toplantıda tahmin
+    /// yürütmek yanlış katılımcı listesi yazmak demek; boş bırakmak daha iyidir.
+    private(set) var eventChoices: [MeetingEvent] = []
+    private var choiceMeetingID: Int64?
+
+    /// Takvim eşleşmesini seçer ya da "hiçbiri" der.
+    func chooseEvent(_ event: MeetingEvent?) async {
+        let meetingID = choiceMeetingID
+        eventChoices = []
+        choiceMeetingID = nil
+        guard let meetingID, let event else { return }
+        await relinkEvent(meetingID, to: event)
+    }
+
+    /// Yanlış eşleşen (ya da hiç eşleşmemiş) bir toplantının takvim bağını
+    /// sonradan düzeltir. Eski takvim katılımcıları silinir, yenisi yazılır.
+    func relinkEvent(_ meetingID: Int64, to event: MeetingEvent?) async {
+        do {
+            if let event {
+                try await store.relinkCalendarEvent(meetingID, event: event)
+                // Sözlük **yalnızca seçim kesinleşince** beslenir: belirsizken
+                // iki adayın adlarını da eklemek sözlüğü şişirir ve tanıma
+                // kalitesini düşürür (ölçüm: CLAUDE.md, count = 30).
+                try? await vocabularyStore.addCalendarNames(event.attendees)
+                await refreshVocabulary()
+                Log.info(.calendar, "Takvim bağı: toplantı \(meetingID) → \(event.title)")
+            } else {
+                try await store.unlinkCalendarEvent(meetingID)
+                Log.info(.calendar, "Takvim bağı kaldırıldı: toplantı \(meetingID)")
+            }
+            if selection == meetingID { await load(meetingID) }
+            await refresh()
+        } catch {
+            Log.error(.calendar, "Takvim bağı değiştirilemedi", error)
+        }
+    }
+
+    /// Bir toplantının tarihine denk gelen takvim etkinlikleri — kullanıcı
+    /// sonradan doğrusunu seçebilsin diye.
+    func eventChoices(for meeting: MeetingListItem) -> [MeetingEvent] {
+        guard settings.calendarEnabled else { return [] }
+        return calendar.candidates(at: meeting.date).map(\.event)
+    }
+
+    /// Kayıt başlarken takvim eşleştirmesi. Tepe aday açık ara öndeyse bağlanır,
+    /// değilse soru arayüze bırakılır.
+    private func matchCalendar(meetingID: Int64, app: String?) async -> MeetingEvent? {
+        guard settings.calendarEnabled else { return nil }
+        let titles = app.map { WindowTitle.titles(for: $0) } ?? []
+        let matches = calendar.candidates(at: Date(), app: app, windowTitles: titles)
+        guard let best = matches.first else { return nil }
+
+        let runnerUp = matches.dropFirst().first?.score
+        if let runnerUp, best.score - runnerUp < CalendarReader.decisiveMargin {
+            eventChoices = Array(matches.prefix(3).map(\.event))
+            choiceMeetingID = meetingID
+            Log.info(.calendar, "Takvim belirsiz (\(matches.count) aday, "
+                     + "puanlar \(matches.map(\.score))) — kullanıcıya soruluyor"
+                     + (titles.isEmpty
+                        ? " · pencere başlığı okunamadı (Erişilebilirlik yok)" : ""))
+            return nil
+        }
+        Log.info(.calendar, "Takvim eşleşmesi: \(best.event.title) — puan \(best.score)"
+                 + (best.reasons.isEmpty ? "" : " (\(best.reasons.joined(separator: ", ")))"))
+        return best.event
+    }
+
     // MARK: - Kayıt
 
     func toggle() async {
@@ -618,16 +689,15 @@ final class RecordingController {
         // Takvim açıksa o ana denk gelen etkinlik aranır (±10 dk tolerans).
         // Etkinlik başlığı ve katılımcılar buradan gelir; toplantı linki
         // yalnızca hangi uygulamanın tap'leneceğini söylemek için okunur.
-        var event: MeetingEvent?
-        if settings.calendarEnabled {
-            event = calendar.event(overlapping: Date())
-            if let event {
-                try? await store.linkCalendarEvent(meetingID, event: event)
-                // Katılımcı adları sözlüğe beslenir — özel isim tanımanın en
-                // zayıf noktasıdır, takvimin en somut teknik kazancı budur.
-                try? await vocabularyStore.addCalendarNames(event.attendees)
-                await refreshVocabulary()
-            }
+        eventChoices = []
+        choiceMeetingID = nil
+        let event = await matchCalendar(meetingID: meetingID, app: signal?.bundleID)
+        if let event {
+            try? await store.linkCalendarEvent(meetingID, event: event)
+            // Katılımcı adları sözlüğe beslenir — özel isim tanımanın en
+            // zayıf noktasıdır, takvimin en somut teknik kazancı budur.
+            try? await vocabularyStore.addCalendarNames(event.attendees)
+            await refreshVocabulary()
         }
         let preferredApp = event?.meetingApp
             ?? signal.flatMap { MeetingApps.native.contains($0.bundleID) ? $0.bundleID : nil }

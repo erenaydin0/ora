@@ -1669,3 +1669,62 @@ aramasının geri çaldığı ses `system` kanalında **Katılımcı** olarak ç
 `Kapsamlı tap ses vermiyor` satırı **yok** — yani ses global tap'ten değil,
 yalnızca Teams'i hedefleyen kapsamlı tap'ten geldi. §28.3'teki düzeltmenin
 gerçek kanıtı budur; §28.2'nin algılama düzeltmesi de aynı koşuda çalıştı.
+
+## 29. Çakışan takvim toplantısı: doğru olanı seçmek
+
+Kullanıcı gözlemi: aynı saatte iki toplantı varsa ora yanlış olanın katılımcı
+listesini kaydediyor. Sebep tekti — `event(overlapping:)` başlangıca göre
+sıralı listeden `.first` alıyordu, yani çakışmada **her zaman erken başlayan**
+kazanıyordu. İptal edilmiş ve kullanıcının reddettiği etkinlikler de aday
+havuzundaydı.
+
+### 29.1 Bulut tarafında karşılığı yok
+
+Microsoft Graph presence API yalnızca `InAMeeting` döndürüyor — *bir*
+toplantıdasın, hangisi olduğu yok. Bir toplantıyı Graph'ta bulmak için
+`joinWebUrl` ya da `VideoTeleconferenceId` gerekiyor; yani cevabı girdi olarak
+istiyor. Katılım raporu (`attendanceReports`) organizatöre ve **toplantı
+bittikten sonra** açık. Teams'in yerel API'si (`ws://localhost:8124`) yalnızca
+boolean durum veriyor (`isInMeeting`, `isMuted`…), toplantı kimliği yok.
+Yani bu soruyu bulut da, Teams'in kendi API'si de cevaplamıyor.
+
+### 29.2 Pencere başlığı toplantının adını taşıyor
+
+Ölçüldü (canlı Teams toplantısı, `System Events` üzerinden):
+```
+Eren AYDIN ile toplantı | Microsoft Teams, Calendar | Microsoft Teams
+```
+Aynı başlık Erişilebilirlik (AX) ve `CGWindowList` ile de okunuyor. **Ama
+sandbox'lı uygulamada AX çalışmıyor:** Apple erişilebilirlik API'sini sandbox'ta
+başka süreçler için kapatıyor, izin istemi hiç çıkmıyor ve `AXIsProcessTrusted()`
+her zaman `false`. Üç seçenek var: sandbox'tan çıkıp AX; sandbox'ta kalıp
+Apple Events geçici istisnasıyla System Events; sandbox'ta kalıp **ekran kaydı**
+izniyle `CGWindowList` (tap mimarisiyle kaçındığımız izin). Karar verilmedi;
+kod başlık okunamadığında sinyalsiz çalışacak biçimde yazıldı.
+
+### 29.3 Puanlama ve "bilmiyorsan sor"
+
+`CalendarReader.candidates(at:app:windowTitles:)` adayları eler ve puanlar:
+
+| Sinyal | Puan |
+|---|---|
+| Pencere başlığı etkinlik adıyla eşleşiyor | +6 |
+| Toplantı linki mikrofonu tutan uygulamayla aynı | +3 |
+| Mikrofon, etkinlik başlangıcının 5 dk içinde açıldı | +3 (15 dk: +1) |
+| Etkinlik şu anda sürüyor | +2 |
+| Daveti kabul ettim / belki | +2 / +1 |
+| Organizatör benim | +2 |
+| **Daveti reddetmiştim** | −3 (elenmez: insan reddettiği toplantıya katılabiliyor) |
+| **İptal edilmiş** | aday değil |
+
+Tepe aday ikinciyi **3 puan** geçemiyorsa tahmin yürütülmez: kayıt şeridinde
+"Hangi toplantı?" sorulur ve cevap gelene kadar katılımcı yazılmaz.
+
+`probes/takvim_eslestirme.swift` (12 kontrol, hepsi geçiyor) senaryoları
+doğruluyor: Teams daveti vs Zoom daveti mikrofonu tutan uygulamayla ayrılıyor;
+iki Teams toplantısında kabul/ret ayırıyor; ikisi de kabul edilmişse fark 0
+kalıyor (→ soruluyor) ve pencere başlığı geldiğinde belirsizlik kalkıyor.
+
+Yanlış eşleşme sonradan düzeltilebilir: kenar çubuğunda sağ tık → **Takvim
+toplantısını değiştir**. Eski takvim katılımcıları silinir (`source='calendar'`
+satırları), yenisi yazılır; `source='transcript'` satırlarına dokunulmaz.

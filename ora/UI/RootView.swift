@@ -117,6 +117,11 @@ struct RootView: View {
                 if recorder.suggestsStop {
                     StopSuggestionBanner(recorder: recorder)
                 }
+                // Çakışan takvim toplantısı: kayıt sürerken sorulur, cevap
+                // gelene kadar katılımcı yazılmaz.
+                if !recorder.eventChoices.isEmpty {
+                    EventChoiceBanner(choices: recorder.eventChoices, recorder: recorder)
+                }
             }
         }
         .alert(recorder.error?.turkishMessage ?? "",
@@ -315,6 +320,38 @@ private struct StartSuggestionBanner: View {
             }
             Button("Kaydet") { Task { await recorder.startFromSuggestion() } }
                 .keyboardShortcut(.defaultAction)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color.oraChrome)
+        .overlay(alignment: .bottom) { Divider().overlay(Color.oraBorder) }
+    }
+}
+
+/// Çakışan takvim toplantıları: hangisindeyiz? **Tahmin edilmez, sorulur** —
+/// yanlış katılımcı listesi yazmak boş bırakmaktan kötüdür.
+private struct EventChoiceBanner: View {
+    let choices: [MeetingEvent]
+    let recorder: RecordingController
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "calendar.badge.questionmark")
+                .foregroundStyle(Color.oraInkMuted)
+            Text("Hangi toplantı?")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.oraInk)
+            Spacer()
+            ForEach(choices) { event in
+                Button {
+                    Task { await recorder.chooseEvent(event) }
+                } label: {
+                    Text("\(event.title) · \(event.timeLabel)").lineLimit(1)
+                }
+                .help(event.attendees.isEmpty
+                      ? event.title : "\(event.title) — \(event.attendees.count) katılımcı")
+            }
+            Button("Hiçbiri") { Task { await recorder.chooseEvent(nil) } }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

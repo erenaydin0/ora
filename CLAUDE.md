@@ -291,6 +291,8 @@ Bu sıra asla değişmez:
   toplantı değil. Düşük güvenli algılama say ve öyle sun ("Chrome mikrofonu
   kullanıyor"). Sekme başlığı okumak ekran kaydı/erişilebilirlik izni ister —
   **isteme**.
+- **Pencere başlığı yalnızca takvim eşleştirmesi için okunabilir** ve bugün
+  okunamıyor: AX sandbox'ta çalışmıyor (§29.2). Kod başlıksız da çalışır.
 - **Otomatik başlık pencere başlığından ÜRETİLMEZ.** `kCGWindowName` sandbox'lı
   uygulamada ekran kaydı izni ister — tap sayesinde kurtulduğumuz izni geri
   getirir. Başlık transkriptten Foundation Models ile üretilir; takvim
@@ -312,9 +314,17 @@ Bu sıra asla değişmez:
   `participantStatus != .declined`. Bu filtre olmadan "Toplantı Odası 3"
   katılımcı olarak kaydedilir.
 - Takvim değişiklikleri `EKEventStoreChangedNotification` ile dinlenir — polling yok.
-- **Eşleştirme:** mikrofon sinyali geldiğinde o ana denk gelen etkinlik aranır
-  (başlangıcına ±10 dk tolerans). Bulunursa öneri bildirimi etkinlik adını ve
-  katılımcı sayısını gösterir; bulunamazsa uygulama adına düşer.
+- **Eşleştirme puanlıdır, "ilk bulunan" değil** (RESEARCH.md §29). ±10 dk
+  penceresindeki adaylar elenir (iptal edilmiş etkinlik aday değildir) ve
+  puanlanır: pencere başlığı eşleşmesi +6, toplantı linki mikrofonu tutan
+  uygulamayla aynıysa +3, başlangıca 5 dk içinde +3, sürüyorsa +2, kabul
+  ettiysem +2, organizatörsem +2, **reddettiysem −3** (elenmez — insan
+  reddettiği toplantıya katılabiliyor). Tepe aday ikinciyi 3 puan geçemezse
+  **tahmin edilmez, kullanıcıya sorulur**; cevap gelene kadar katılımcı ve
+  başlık yazılmaz. Sözlük de ancak seçim kesinleşince beslenir.
+- **Yanlış eşleşme sonradan düzeltilebilir:** kenar çubuğu bağlam menüsünde
+  "Takvim toplantısını değiştir". Eski `source='calendar'` katılımcıları
+  silinir, `source='transcript'` satırlarına dokunulmaz.
 - **Katılımcı adları vocabulary'ye beslenir** ve `DictationTranscriber`'a
   `ContentHint.customizedLanguage` ile verilir. Özel isimler tanımanın en zayıf
   noktasıdır; bu, takvimin en somut teknik kazancıdır.

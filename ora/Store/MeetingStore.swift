@@ -430,6 +430,42 @@ extension MeetingStore {
         }
     }
 
+    /// Takvim bağını **değiştirir**: eski takvim katılımcıları silinir, yenisi
+    /// yazılır. Çakışan toplantılarda yanlış etkinlik bağlandıysa kullanıcı
+    /// bunu sonradan düzeltebilmeli — yoksa yanlış katılımcı listesi kayıtta
+    /// kalıcı olur.
+    ///
+    /// `source = 'transcript'` satırlarına dokunulmaz: onlar konuşmadan
+    /// çıkarılmıştır, takvim seçiminden bağımsızdır.
+    func relinkCalendarEvent(_ meetingID: Int64, event: MeetingEvent) async throws {
+        try await unlinkCalendarEvent(meetingID)
+        try await linkCalendarEvent(meetingID, event: event)
+    }
+
+    /// Takvim bağını kaldırır (başlık korunur — kullanıcı elle değiştirmiş olabilir).
+    func unlinkCalendarEvent(_ meetingID: Int64) async throws {
+        try await database.write { db in
+            let ids = try Int64.fetchAll(db, sql: """
+                SELECT participant_id FROM meeting_participants
+                WHERE meeting_id = ? AND source = 'calendar'
+                """, arguments: [meetingID])
+            try db.execute(sql: """
+                DELETE FROM meeting_participants WHERE meeting_id = ? AND source = 'calendar'
+                """, arguments: [meetingID])
+            try db.execute(sql: "UPDATE meetings SET calendar_event_id = NULL WHERE id = ?",
+                           arguments: [meetingID])
+            // Sayaç yeniden hesaplanır; kişinin kendisi silinmez, başka
+            // toplantılarda görünmeye devam edebilir.
+            for participantID in ids {
+                try db.execute(sql: """
+                    UPDATE participants SET meeting_count =
+                        (SELECT COUNT(*) FROM meeting_participants WHERE participant_id = ?)
+                    WHERE id = ?
+                    """, arguments: [participantID, participantID])
+            }
+        }
+    }
+
     /// Bir toplantının takvimden gelen katılımcıları.
     func calendarParticipants(_ meetingID: Int64) async throws -> [String] {
         try await database.read { db in

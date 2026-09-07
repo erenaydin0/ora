@@ -53,6 +53,22 @@ struct MeetingSidebar: View {
                                     draftTitle = meeting.title
                                     renaming = meeting.id
                                 }
+                                // Çakışan toplantılarda yanlış etkinlik
+                                // bağlanmış olabilir; kullanıcı düzeltebilmeli.
+                                let events = recorder.eventChoices(for: meeting)
+                                if !events.isEmpty {
+                                    Menu("Takvim toplantısını değiştir") {
+                                        ForEach(events) { event in
+                                            Button("\(event.title) · \(event.timeLabel)") {
+                                                Task { await recorder.relinkEvent(meeting.id, to: event) }
+                                            }
+                                        }
+                                        Divider()
+                                        Button("Takvim bağını kaldır") {
+                                            Task { await recorder.relinkEvent(meeting.id, to: nil) }
+                                        }
+                                    }
+                                }
                                 Divider()
                                 // Ses en büyük dosyadır; notu tutup yalnızca onu
                                 // atabilmek gerekiyor (COMPETITION.md §4.5).
