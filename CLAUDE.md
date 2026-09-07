@@ -565,10 +565,12 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
       2. **İmzalama ve notarizasyon** — makinede kod imzalama kimliği yok;
          Apple Developer üyeliği gerekiyor. Betik hazır, ek kod gerekmiyor.
-      3. Gerçek bir Teams toplantısında mikrofon ve ses sahipliği **ölçüldü**
-         (§28.3): ikisini de yardımcı süreç tutuyor; algılama ve tap hedefleme
-         buna göre düzeltildi. Uçtan uca kayıt (sistem kanalında gerçek ses,
-         gözcü devreye girmeden) hâlâ gerçek bir toplantıda denenmedi.
+      3. ~~Gerçek bir Teams/Zoom toplantısıyla algılama→kayıt akışı denenmedi.~~
+         **Tamamlandı (RESEARCH.md §28.3-28.5):** mikrofonu ve sesi Teams'in
+         yardımcı süreçleri tutuyor; algılama ve tap hedefleme buna göre
+         düzeltildi. Teams test aramasıyla uçtan uca doğrulandı — kapsamlı
+         tap'ten ch1 tepe 0,69, kanal ayrımı ve iki kanallı transkripsiyon
+         doğru, gözcü devreye girmedi. Zoom'la denenmedi.
     - **Sparkle (otomatik güncelleme) kullanıcı kararıyla eklenmedi.** Tek
       bağımlılık GRDB olarak kalıyor.
     - **Bilinen geliştirme engeli:** uygulama ad-hoc imzalı. İmza her derlemede

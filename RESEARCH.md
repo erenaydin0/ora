@@ -1640,3 +1640,32 @@ kanalı, karşı taraf konuşmadığı için boştu (a).
 - Global tap'te 12 saniye boyunca hiç frame gelmezken sistemde ses varsa bu
   gerçek arızadır; artık kullanıcıya kayıt sürerken söylenir
   ("Sistem sesi yakalanamıyor — kayıt yalnızca mikrofonunuzla sürüyor").
+
+### 28.5 Uçtan uca doğrulama: Teams test aramasıyla dolu sistem kanalı
+
+Teams'in kendi test araması (sesinizi geri çalar) ile 28 saniyelik kayıt.
+Zincirin tamamı ilk kez gerçek bir toplantı sesinde koştu:
+
+```
+12:15:53 Toplantı önerisi: Microsoft Teams (güven normal)
+12:15:59 Sistem sesi tap'i açıldı — kapsam: yalnızca com.microsoft.teams2,
+         …helper, …modulehost, …notificationcenter
+12:16:26 Kayıt bitti — 15.wav, 28.0 sn
+12:16:26 Sistem sesi tap'i — 433.317 frame, tepe 0.6880
+12:16:28 mic kanalı çözüldü — 2 segment / system kanalı çözüldü — 1 segment
+12:16:41 Özet hazır
+12:16:53 Microsoft Teams mikrofonu bıraktı — öneri soğuması sıfırlandı
+```
+
+Kanal ayrımı doğru:
+
+| | tepe | sesli saniye |
+|---|---|---|
+| ch0 mikrofon | 0,9008 | 28/29 |
+| ch1 sistem | 0,6879 | 22/29 |
+
+Transkript ayrımı da doğru: canlı konuşma `mic` kanalında **Ben**, test
+aramasının geri çaldığı ses `system` kanalında **Katılımcı** olarak çözüldü.
+`Kapsamlı tap ses vermiyor` satırı **yok** — yani ses global tap'ten değil,
+yalnızca Teams'i hedefleyen kapsamlı tap'ten geldi. §28.3'teki düzeltmenin
+gerçek kanıtı budur; §28.2'nin algılama düzeltmesi de aynı koşuda çalıştı.
