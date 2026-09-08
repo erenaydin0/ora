@@ -3,10 +3,7 @@
 macOS için yerel toplantı kaydedici. Kaydeder, transkribe eder, özetler.
 Hiçbir veri cihazı terk etmez.
 
-Bu, Electron + Python + WhisperX ile yazılmış önceki ora'nın (`../`)
-yerine geçen yeniden yazımıdır. Neden: eski yığın ~1.5 GB bağımlılık
-taşıyordu ve ASR CPU'da `float32` koşuyordu. Yeni yığında çalışma zamanı
-bağımlılığı ve indirilen model **yoktur** — transkripsiyon ve özetleme
+İndirilen model **yoktur** — transkripsiyon ve özetleme
 işletim sisteminin kendi cihaz üstü modelleriyle yapılır.
 
 **Gereksinim:** macOS 26+, Apple Silicon, Apple Intelligence açık.
