@@ -742,9 +742,10 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       (dosya ya da yapıştırma; VTT/SRT/düz metin) doğrudan özetlemeden hatta
       girer. Araç çubuğu menüsü + pencerenin tamamına sürükle-bırak. Yeni
       bağımlılık, yeni izin ve **şema değişikliği yok**; `ora/Import/` 30 test.
-      Ses yolu **gerçek bir kayıtla denenmedi** — ayrıştırıcı, çevrim ve
-      transkript yolu testle ölçüldü, mono sesin Speech'ten geçişi göz
-      denetimi bekliyor.
+      Ses yolu **gerçek bir kayıtla ölçüldü** (RESEARCH.md §32): 28 sn'lik
+      AAC kaynak → 1 kanal · 16 kHz, tepe 0,69, dört satır da "Katılımcı",
+      toplam 0,81 sn. Mono kaynak `SpeechTranscription`'da dizi sınırını
+      aşıyordu; ölçüm bunu yakaladı.
     - Bekleyen:
       1. **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.

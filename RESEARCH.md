@@ -1967,3 +1967,46 @@ Bu **davranış değiştirilmedi** — §31'in konusu uyarılardı ve düzeltme
 davranışı koruyor (ağaç dönüşüm mantığı bakımından birebir aynı iş yapıyor).
 Kapasite başlığını büyütmek gerekip gerekmediği, ancak gerçek kayıtta
 hizalama ölçüldükten sonra karara bağlanacak bir sorudur (Faz 0).
+
+## 32. İçe aktarma: gerçek bir kayıtla ölçüm
+
+**Soru:** İçe aktarılan ses hattın kalanından geçiyor mu? Kanal ayrımı olmayan
+mono bir dosyada `SpeechTranscription` — kanal başına tepe ölçen, iki şeridi
+ayrı çözen ve satırları `Ben`/`Katılımcı` diye damgalayan kod — ne yapıyor?
+
+**Yöntem:** Gerçek bir ora kaydı (28 sn, Türkçe, stereo 16 kHz WAV) kullanıcının
+elindeki tipik dosyaya benzesin diye AAC'ye çevrildi
+(`afconvert -f m4af -d aac`, 2 kanal, 188 KB) ve **uygulamanın kendi kodundan**
+geçirildi: `AudioImport.convert` → `SpeechTranscription.channelPeaks` →
+`SpeechTranscription.transcribe(url:locale:vocabulary:)`.
+
+```
+çevrim : 28,007 sn · 1 kanal · 16.000 Hz · 0,9 MB
+tepeler: [0,6905]            ← tek şerit, sessiz kanal eşiğinin (0,005) çok üstünde
+segment: 4, hepsi "Katılımcı"
+  [Katılımcı] Ve kaydete bastım ancak biraz geç oldu
+  [Katılımcı] tekrardan buradayız toplantıyı algıladı şu anda
+  …
+toplam  : 0,81 sn (çevrim + tepe ölçümü + transkripsiyon)
+```
+
+**Sonuçlar:**
+
+1. **Mono kaynak kodda ayrıca ele alınmak zorundaydı.** Değişiklikten önce
+   `levels[Channel.system.rawValue]` tek elemanlı tepe dizisinde **dizi sınırını
+   aşıyordu** — içe aktarma özelliği olmadığı için bu yol hiç koşmamıştı.
+   Şimdi `channels(in:from:)` mono kaynakta tek geçiş yapıyor,
+   `peak(of:in:)` şerit indeksini kelepçeliyor.
+2. **Tek etiket doğru karar.** Diarization yok; dört satırın dördü de
+   "Katılımcı". Mono bir dosyada `Ben` demek, özetin bütün aksiyonlarını
+   kullanıcının üstüne yıkmak olurdu (CLAUDE.md İçe Aktarma Kuralları #3).
+3. **Maliyet ihmal edilebilir.** 28 sn ses için 0,81 sn — çevrimin payı
+   ölçülemeyecek kadar küçük; hattın darboğazı yine Foundation Models.
+4. **Sıkıştırılmış kaynak sorun değil.** `AVAssetReader` AAC'yi doğrudan
+   çözüyor; `AVAudioFile` yolu seçilseydi video konteynerindeki (Zoom `.mp4`)
+   kayıtlar açılamazdı.
+
+**Ölçüm tekrarlanabilir:** `oraTests/ImportTests.swift` çevrimi sentezlenmiş
+stereo bir WAV ile ölçüyor (mono·16 kHz·süre·ilerleme). Gerçek konuşmayla
+yapılan yukarıdaki koşu geçiciydi — Speech varlıklarına ve makinedeki bir ses
+dosyasına bağlı olduğu için testte tutulmadı.
