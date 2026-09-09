@@ -60,9 +60,9 @@ struct MenuBarContent: View {
             }
         } else if let signal = recorder.pendingSignal {
             Button("\(signal.displayName) toplantısını kaydet") {
-                Task { await recorder.startFromSuggestion() }
+                recorder.startFromSuggestion()
             }
-            Button("Şimdi değil") { recorder.detector.dismissSuggestion() }
+            Button("Şimdi değil") { recorder.dismissSuggestion() }
         } else {
             Button("Kaydı başlat") { Task { await recorder.start() } }
                 .keyboardShortcut("r", modifiers: [.command, .shift])

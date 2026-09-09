@@ -36,8 +36,6 @@ final class MeetingDetector {
     /// Kayıt sürerken toplantı uygulaması mikrofonu bıraktıysa dolu olur.
     private(set) var suggestsStop = false
 
-    /// Kullanıcı "kaydet" dediğinde çağrılır.
-    var onStartRequested: ((MeetingSignal) -> Void)?
     /// Otomatik başlatma (uygulama için "her zaman kaydet" seçilmişse).
     var onAutoStart: ((MeetingSignal) -> Void)?
 

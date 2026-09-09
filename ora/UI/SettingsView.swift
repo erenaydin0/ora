@@ -249,7 +249,7 @@ private struct DetectionSettings: View {
         }
         .formStyle(.grouped)
         .onChange(of: settings.detectionEnabled) { _, enabled in
-            enabled ? recorder.detector.start() : recorder.detector.stop()
+            recorder.setDetectionEnabled(enabled)
         }
         .task { await recorder.refreshNotificationPermission() }
     }

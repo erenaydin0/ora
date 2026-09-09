@@ -595,6 +595,14 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       yürütüyor (ses yazımı + canlı transkripsiyon); `LiveTranscribing`
       protokolü eklendi ve **kural #2** artık testle korunuyor.
       `RecordingController` 1114 → 861 satır, 18 test.
+      **Adım 4 tamam:** `ora/Detect/MeetingSuggestions` algılama → öneri →
+      karar zincirini üstlendi; öneri teslimi 1 sn'lik `while` döngüsünden
+      `withObservationTracking`'e geçti (CLAUDE.md'nin "polling yok" ilkesi
+      artık kodda da geçerli). `MeetingDetecting` ve `SuggestionNotifying`
+      protokolleri eklendi — gözlemlemenin sessizce bozulmasını yakalayan iki
+      test var. Ölü `MeetingDetector.onStartRequested` silindi; arayüzün
+      `OraSettings.shared`'a doğrudan yazdığı tek yer (`RootView`, "hep
+      kaydet") enjekte edilen ayara bağlandı. 830 satır, 27 test.
       **Kanal seviye göstergesi kaldırıldı.** Menü bar native `NSMenu`'ye
       geçince (`.menuBarExtraStyle(.menu)`) gösterge düşmüş ama besleyen
       100 ms'lik zamanlayıcı kalmıştı — kayıt boyunca boşa yazıyordu. Zincirin
@@ -640,7 +648,11 @@ ora/Core/              — AppPaths, Log, OraError, OraSettings (tüm kullanıc�
                          PowerState, AudioArchive (boyut/sıkıştırma/silme),
                          GlobalHotKey (⌘⇧R, Carbon),
                          LoginItem (SMAppService — girişte başlat)
-ora/Detect/            — MeetingDetector (CoreAudio olay dinleyicileri)
+ora/Detect/            — MeetingDetector (CoreAudio olay dinleyicileri) +
+                         MeetingDetecting protokolü, MeetingSuggestions
+                         (sinyal → öneri → karar; teslim
+                         `withObservationTracking` ile, polling yok),
+                         WindowTitle (opt-in)
 ora/Calendar/          — CalendarReader (EventKit, opt-in)
 ora/Capture/           — AudioCapture (orkestra), MicrophoneCapture,
                          SystemAudioTap, StereoRecordingWriter, AudioClock,

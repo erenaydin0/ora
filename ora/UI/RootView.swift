@@ -313,12 +313,9 @@ private struct StartSuggestionBanner: View {
                 .font(.system(size: 13))
                 .foregroundStyle(Color.oraInk)
             Spacer()
-            Button("Şimdi değil") { recorder.detector.dismissSuggestion() }
-            Button("Bu uygulamayı hep kaydet") {
-                OraSettings.shared.alwaysRecordBundleIDs.insert(signal.bundleID)
-                Task { await recorder.startFromSuggestion() }
-            }
-            Button("Kaydet") { Task { await recorder.startFromSuggestion() } }
+            Button("Şimdi değil") { recorder.dismissSuggestion() }
+            Button("Bu uygulamayı hep kaydet") { recorder.alwaysRecord(signal.bundleID) }
+            Button("Kaydet") { recorder.startFromSuggestion() }
                 .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, 16)

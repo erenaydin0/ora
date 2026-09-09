@@ -1,13 +1,24 @@
 import Foundation
 import UserNotifications
 
+/// Önerinin bildirim yüzeyi — `MeetingSuggestions`'ın ihtiyaç duyduğu kadarı.
+/// Testte sahtelenir; gerçek tipte `isAuthorized` false olduğu için çağrı
+/// sessizce düşüyor ve teslimin olup olmadığı ölçülemiyordu.
+@MainActor
+protocol SuggestionNotifying: AnyObject {
+    var onRecord: ((String) -> Void)? { get set }
+    var onDismiss: ((String) -> Void)? { get set }
+    var onAlways: ((String) -> Void)? { get set }
+    func suggestRecording(_ signal: MeetingSignal, event: MeetingEvent?) async
+}
+
 /// Toplantı algılandığında eylemli bildirim.
 ///
 /// Ayrı bir sistem popup penceresi **açılmaz** (DESIGN.md §1): odağı çalar,
 /// Odak/Rahatsız Etmeyin modlarını dinlemez ve toplantıya girerken ekranın
 /// ortasında belirir. Bildirim aynı işi native yapar.
 @MainActor
-final class MeetingNotifications: NSObject {
+final class MeetingNotifications: NSObject, SuggestionNotifying {
 
     enum Action: String {
         case record = "ora.record"

@@ -239,6 +239,10 @@ extension PipelineEvent {
 
 ## Eşzamanlılık
 - Modüller `actor`; UI durumu `@MainActor @Observable`
+- **Polling yok.** Algılama CoreAudio olay dinleyicileriyle, öneri teslimi
+  `withObservationTracking` ile çalışır. `onChange` `willSet` anında gelir ve
+  kayıt tek seferliktir: bir tur sonraya geç, önce yeniden kur, sonra o anki
+  durumu teslim et (`MeetingSuggestions.observeSignal()`)
 - Speech ve FoundationModels API'leri zaten `async` — bloklayan sarmalayıcı yazma
 - Eski ora'nın hatası: router'lar `async def` ilan edilip içeride bloklayan iş
   yapıyordu ve event loop kilitleniyordu. Swift'te karşılığı, bir `actor`
@@ -263,6 +267,10 @@ Sessiz `catch { }` yasaktır.
 ## Test edilebilirlik
 - `AudioCapturing`, `Transcribing`, `Intelligent`, `Storing` protokoldür;
   testlerde sahte (fake) uygulamalar kullanılır
+- Sahtelenebilir sözleşmeler: `AudioCapturing`, `Transcribing`, `Intelligent`,
+  `LiveTranscribing`, `MeetingDetecting`, `SuggestionNotifying`. Hepsi
+  **dış dünyaya dokunan** bir katmanı kapatır (ses donanımı, Speech,
+  Foundation Models, CoreAudio algılama, bildirim izni)
 - `oraTests` hedefi (swift-testing) regresyon ağıdır:
   `xcodebuild test -scheme ora`. Yalnızca dış dünyaya dokunan katmanlar
   sahtelenir; veritabanı bellek içi SQLite ile **gerçektir**

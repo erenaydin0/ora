@@ -177,7 +177,7 @@ hattın olay akışına abone olur, controller'a property eklemez.
 Kayıt oturumunun kendi durumu vardır ve controller'ın geri kalanıyla yalnızca
 "bitti, şu dosya, şu süre" üzerinden konuşur — temiz kesik.
 
-### Adım 4 — `MeetingSuggestions`
+### Adım 4 — `MeetingSuggestions` — ✅ tamam
 
 `wireDetection` + `observeSignals` + bildirim geri çağrıları (~60 satır).
 
@@ -370,6 +370,53 @@ Göstergeyi geri istemek native menüden vazgeçmek demektir (popover gerekir,
 DESIGN.md §2 ile çakışır). Bu karar dört dokümanda kayda geçirildi:
 CLAUDE.md, DESIGN.md §"Canlı mod", ROADMAP.md Faz 2 ve Faz 7 — dördü de
 göstergenin var olduğunu söylüyordu.
+
+---
+
+## 11. Adım 4 sonucu (2026-09-09)
+
+| Ölçüt | Adım 3 sonrası | Adım 4 sonrası |
+|---|---|---|
+| `RecordingController` satır | 861 | **830** |
+| Test | 18 | **27** |
+| Öneri teslimi | 1 sn'lik `while` döngüsü | `withObservationTracking` |
+
+`ora/Detect/MeetingSuggestions` algılama sinyalini kullanıcıya öneriye çevirip
+kararını geri taşıyor. `ora/Detect/` altında durabilmesi için takvim
+zenginleştirmesi **closure olarak** veriliyor — böylece bu tip Calendar'a
+bağlanmıyor ve ARCHITECTURE.md'nin bağımlılık yönü korunuyor.
+
+### Polling kalktı
+
+Öneri teslimi `pendingSignal`'i her saniye yoklayan bir `while` döngüsüydü. Üç
+sorunu vardı: CLAUDE.md'nin "polling yok" ilkesiyle çelişiyordu, bildirime
+1 sn'ye kadar gecikme ekliyordu ve uygulama açık olduğu sürece her saniye bir
+görev uyandırıyordu.
+
+`withObservationTracking`'in iki tuzağı var, ikisi de kodda yorumlu:
+`onChange` **`willSet`** anında gelir (yeni değer henüz yazılmamıştır) ve
+kayıt **tek seferliktir**. Bu yüzden akış şöyle: bir tur sonraya geç, **önce
+yeniden kur**, sonra o anki durumu teslim et. Teslim güncel durumu okuyup
+uzlaştırdığı için iki değişim arasında kaçan bir ara adım sonucu bozmaz.
+
+**Bu değişikliğin sessizce bozulma riski yüksekti** — gözlemleme tetiklenmezse
+öneriler hiç görünmez ve bunu yakalayacak başka bir şey yok. O yüzden iki yeni
+dar protokol açıldı (`MeetingDetecting`, `SuggestionNotifying`); ikisi de
+`AudioCapturing` / `Transcribing` / `Intelligent` / `LiveTranscribing` ile aynı
+gerekçeye dayanıyor. Ölçüldü: `observeSignal()` sessizce devre dışı
+bırakıldığında iki test kırılıyor.
+
+### Adım 4'te kapanan iki şey
+
+1. **`MeetingDetector.onStartRequested` ölüydü** — hiç atanmıyor, hiç
+   çağrılmıyordu. Protokole de alınmadı, yani kanıtlı ölü; silindi.
+2. **Arayüz `OraSettings.shared`'a doğrudan yazıyordu.** `RootView`'daki
+   "Bu uygulamayı hep kaydet" düğmesi enjekte edilen ayarı değil paylaşılan
+   örneği kullanıyordu — testte geliştiricinin gerçek ayarlarını değiştirirdi.
+   Artık `recorder.alwaysRecord(_:)` üzerinden gidiyor.
+
+Arayüzden `recorder.detector` erişimi de tamamen kalktı (üç yerdeydi): şerit,
+menü bar ve Ayarlar artık controller'ın kendi metotlarını çağırıyor.
 
 ### Kapsam dışı bırakılanlar
 

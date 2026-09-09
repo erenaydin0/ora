@@ -76,9 +76,9 @@ final class RecordingController {
     private(set) var audioBytes: Int64 = 0
 
     /// Algılamadan gelen öneri; kullanıcı karar verene kadar durur.
-    var pendingSignal: MeetingSignal? { detector.pendingSignal }
+    var pendingSignal: MeetingSignal? { suggestions.pendingSignal }
     /// Toplantı uygulaması mikrofonu 30 sn'den uzun bıraktı.
-    var suggestsStop: Bool { detector.suggestsStop }
+    var suggestsStop: Bool { suggestions.suggestsStop }
     /// Güç/termal nedeniyle özetleme ertelendiyse nedeni.
     private(set) var deferReason: PowerState.DeferReason?
     /// Sohbet geçmişi ve durumu.
@@ -123,8 +123,9 @@ final class RecordingController {
     private let intelligence: any Intelligent
     private let store: MeetingStore
     private let vocabularyStore: VocabularyStore
-    let detector: MeetingDetector
     let calendar: CalendarReader
+    /// Algılama → öneri → karar zinciri (REFACTOR.md Adım 4).
+    private let suggestions: MeetingSuggestions
     private let notifications: MeetingNotifications
     private let settings: OraSettings
 
@@ -158,8 +159,19 @@ final class RecordingController {
         self.intelligence = intelligence
         self.settings = settings
         self.notifications = notifications
-        self.detector = detector ?? MeetingDetector(settings: settings)
-        self.calendar = calendar ?? CalendarReader(settings: settings)
+        let resolvedDetector = detector ?? MeetingDetector(settings: settings)
+        let resolvedCalendar = calendar ?? CalendarReader(settings: settings)
+        self.calendar = resolvedCalendar
+        // Takvim zenginleştirmesi **closure ile** verilir: `MeetingSuggestions`
+        // böylece Calendar'a bağlanmaz (ARCHITECTURE.md, bağımlılık yönü).
+        self.suggestions = MeetingSuggestions(
+            detector: resolvedDetector, notifications: notifications, settings: settings,
+            matchingEvent: { [settings, resolvedCalendar] signal in
+                guard settings.calendarEnabled else { return nil }
+                return resolvedCalendar.candidates(
+                    at: Date(), app: signal.bundleID,
+                    windowTitles: WindowTitle.titles(for: signal.bundleID)).first?.event
+            })
 
         // Veritabanı açılamazsa uygulama işlevsiz kalmaz: bellek içi bir
         // veritabanıyla sürer ve kullanıcıya Türkçe not düşülür.
@@ -190,37 +202,26 @@ final class RecordingController {
         // hat hangi toplantının ekranda olduğunu bilmez.
         pipeline.observe { [weak self] event in self?.apply(event) }
         session.onError = { [weak self] error in self?.error = error }
-        wireDetection()
+        // Öneri kabul edildi (şerit, menü bar, bildirim ya da "her zaman
+        // kaydet") — kaydı başlatan taraf burasıdır.
+        suggestions.onRecord = { [weak self] signal in
+            Task { @MainActor in await self?.start(signal: signal) }
+        }
     }
 
     // MARK: - Toplantı algılama
 
-    private func wireDetection() {
-        detector.onAutoStart = { [weak self] signal in
-            Task { @MainActor in await self?.start(signal: signal) }
-        }
-        notifications.onRecord = { [weak self] bundleID in
-            Task { @MainActor in
-                guard let self, let signal = self.detector.pendingSignal,
-                      signal.bundleID == bundleID else { return }
-                self.detector.dismissSuggestion()
-                await self.start(signal: signal)
-            }
-        }
-        notifications.onDismiss = { [weak self] _ in
-            self?.detector.dismissSuggestion()
-        }
-        notifications.onAlways = { [weak self] bundleID in
-            guard let self else { return }
-            self.settings.alwaysRecordBundleIDs.insert(bundleID)
-            Task { @MainActor in
-                guard let signal = self.detector.pendingSignal,
-                      signal.bundleID == bundleID else { return }
-                self.detector.dismissSuggestion()
-                await self.start(signal: signal)
-            }
-        }
-    }
+    /// Öneri reddedildi — bu uygulama için soğuma başlar.
+    func dismissSuggestion() { suggestions.dismiss() }
+
+    /// Arayüzdeki öneri şeridinden ya da menü bardan kayıt.
+    func startFromSuggestion() { suggestions.accept() }
+
+    /// "Bu uygulamayı hep kaydet" — ayarı yazar, öneri duruyorsa kayıt başlar.
+    func alwaysRecord(_ bundleID: String) { suggestions.alwaysRecord(bundleID: bundleID) }
+
+    /// Ayarlardan algılamayı açıp kapatma.
+    func setDetectionEnabled(_ enabled: Bool) { suggestions.setEnabled(enabled) }
 
     /// Uygulama açılışında bir kez.
     ///
@@ -228,8 +229,7 @@ final class RecordingController {
     /// yanıtlayana kadar askıda kalır ve beklenirse algılama hiç başlamaz.
     /// İzin verilmese bile öneri arayüzde görünür.
     func startServices() async {
-        detector.start()
-        observeSignals()
+        suggestions.start()
         // Veri dizini değiştiyse (sandbox göçü) ses yolları eski konumu
         // gösterir; dosya yeni yerdeyse satır düzeltilir.
         if let repaired = try? await store.repairAudioPaths(), repaired > 0 {
@@ -287,36 +287,6 @@ final class RecordingController {
         try? await store.setAudioPath(meetingID, path: nil)
         if selection == meetingID { await load(meetingID) }
         refreshStorage()
-    }
-
-    private func observeSignals() {
-        Task { [weak self] in
-            // Öneri geldiğinde bildirim gönder; sinyal `@Observable` olduğu için
-            // burada kısa aralıklı bir kontrol yeterli ve ucuzdur.
-            var lastNotified: String?
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                guard let self else { return }
-                if let signal = self.detector.pendingSignal, signal.bundleID != lastNotified {
-                    lastNotified = signal.bundleID
-                    let event = self.settings.calendarEnabled
-                        ? self.calendar.candidates(at: Date(), app: signal.bundleID,
-                                                   windowTitles: WindowTitle.titles(for: signal.bundleID))
-                            .first?.event
-                        : nil
-                    await self.notifications.suggestRecording(signal, event: event)
-                } else if self.detector.pendingSignal == nil {
-                    lastNotified = nil
-                }
-            }
-        }
-    }
-
-    /// Arayüzdeki öneri şeridinden kayıt başlatma.
-    func startFromSuggestion() async {
-        guard let signal = detector.pendingSignal else { return }
-        detector.dismissSuggestion()
-        await start(signal: signal)
     }
 
     func refreshUpcoming() async {
@@ -669,7 +639,7 @@ final class RecordingController {
             self.error = error as? OraError ?? .audioWriteFailed(underlying: error)
             return
         }
-        detector.recordingStarted(bundleID: signal?.bundleID ?? preferredApp)
+        suggestions.recordingStarted(bundleID: signal?.bundleID ?? preferredApp)
         await refresh()
         // Canlı transkripsiyon **ikincil** iştir ve kayıt başladıktan sonra
         // açılır; hata verirse kayıt kesintisiz sürer (CLAUDE.md kural #2).
@@ -689,7 +659,7 @@ final class RecordingController {
             Log.error(.capture, "Kayıt kapatılamadı", error)
             self.error = error as? OraError ?? .audioWriteFailed(underlying: error)
         }
-        detector.recordingStopped()
+        suggestions.recordingStopped()
         await refresh()
     }
 
