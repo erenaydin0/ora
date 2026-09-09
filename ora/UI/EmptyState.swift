@@ -85,8 +85,8 @@ struct ProcessingState: View {
 
     private var percent: Int? {
         switch stage {
-        case .downloadingLanguage(let value), .transcribing(let value),
-             .punctuating(let value), .summarizing(let value):
+        case .importing(let value), .downloadingLanguage(let value),
+             .transcribing(let value), .punctuating(let value), .summarizing(let value):
             Int((value * 100).rounded())
         case .preparingLanguage, .idle, .done:
             nil
@@ -100,6 +100,8 @@ struct ProcessingState: View {
     /// karar üretiyor. Bekleyen kullanıcıya yanlış bilgi verilmez.
     private var messages: [String] {
         switch stage {
+        case .importing:
+            ["Ses dosyası hazırlanıyor", "Tek kanala indiriliyor"]
         case .preparingLanguage:
             ["Dil hazırlanıyor", "Model yükleniyor"]
         case .downloadingLanguage:

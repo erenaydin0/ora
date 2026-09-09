@@ -5,6 +5,10 @@ import Foundation
 /// geçtiğinde animasyonu o toplantının ekranına taşıyordu (RESEARCH.md §27).
 nonisolated enum PipelineStage: Equatable, Sendable {
     case idle
+    /// İçe aktarılan ses hattın biçimine çevriliyor. Hat henüz başlamadı;
+    /// aşamayı bu adım için `MeetingImporter` bildirir — ekranda bekleyen
+    /// kullanıcı "hiçbir şey olmuyor" görmesin.
+    case importing(Double)
     case preparingLanguage
     case downloadingLanguage(Double)
     case transcribing(Double)

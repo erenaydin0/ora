@@ -47,6 +47,12 @@ nonisolated struct FoundationIntelligence: Intelligent {
     @concurrent func restorePunctuation(_ segments: [Segment],
                             progress: @Sendable @escaping (Double) -> Void) async throws -> [Segment] {
         guard availability.isAvailable, !segments.isEmpty else { return segments }
+        // Girdi zaten noktalıysa bu adımın yapacağı iş yok (bkz. `isPunctuated`).
+        guard !Self.isPunctuated(segments) else {
+            Log.info(.intelligence, "Noktalama atlandı: metin zaten noktalı")
+            progress(1)
+            return segments
+        }
 
         let chunks = TranscriptChunker.chunks(of: segments,
                                               limit: TranscriptChunker.punctuationLimit)
@@ -58,6 +64,34 @@ nonisolated struct FoundationIntelligence: Intelligent {
             progress(Double(index + 1) / Double(chunks.count))
         }
         return restored
+    }
+
+    /// Satırların bu kadarı noktalamayla bitiyorsa metin noktalı sayılır.
+    static let punctuatedShare = 0.8
+
+    /// Metin **zaten noktalı mı?**
+    ///
+    /// `DictationTranscriber` Türkçe'de noktalamasız çıktı verir (RESEARCH.md
+    /// §2) — kendi kaydımızda bu eşik hiç geçilmez. Dışarıdan içe aktarılan bir
+    /// döküm ise (Teams/Zoom, altyazı dosyası, elle yazılmış not) neredeyse her
+    /// satırı noktayla bitirir; orada bu adım kazanç sağlamadan dakikalar sürer
+    /// ve her çağrı bir `guardrailViolation` kumarıdır.
+    ///
+    /// Kural #4 "noktalama zorunlu adımdır" der; zorunlu olan **sonuç** —
+    /// noktalı bir transkript. Girdi zaten öyleyse adım atlanır, metne
+    /// dokunulmaz.
+    ///
+    /// Kısa satırlar ölçüme girmez ("Evet", "Tamam" noktasız yazılır) ve
+    /// üçten az örnekte karar verilmez.
+    static func isPunctuated(_ segments: [Segment]) -> Bool {
+        let candidates = segments.filter { $0.text.count >= 12 }
+        guard candidates.count >= 3 else { return false }
+        let punctuated = candidates.count { segment in
+            guard let last = segment.text.trimmingCharacters(in: .whitespacesAndNewlines).last
+            else { return false }
+            return ".!?…;:\"'»)".contains(last)
+        }
+        return Double(punctuated) / Double(candidates.count) >= punctuatedShare
     }
 
     /// Bir parçayı noktalar. Model metni bozarsa **o satır olduğu gibi kalır** —

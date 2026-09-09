@@ -5,6 +5,11 @@ struct RootView: View {
 
     let recorder: RecordingController
     @State private var isChatShown = false
+    /// Transkript yapıştırma sayfası ve içindeki metin.
+    @State private var isPasting = false
+    @State private var pastedText = ""
+    /// Pencerenin üstünde bir dosya duruyor mu — sürükle-bırak ipucu.
+    @State private var isDropTargeted = false
 
     /// Kenar çubuğu (240) + okunabilir bir orta panel. Sohbet açılınca bu
     /// **değişmez**: panel pencereyi büyütmez, orta panelin içinden yer alır.
@@ -53,12 +58,50 @@ struct RootView: View {
             }
             .clipped()
         }
+        // Sürükle-bırak pencerenin **tamamında** çalışır: kullanıcı dosyayı
+        // listeye de bırakır, nota da. Tür ayrımını `importFile` yapar ve
+        // tanımadığı dosyayı sessizce yutmaz.
+        .dropDestination(for: URL.self) { urls, _ in
+            guard recorder.canImport, !urls.isEmpty else { return false }
+            Task { await recorder.importFiles(urls) }
+            return true
+        } isTargeted: { isDropTargeted = $0 && recorder.canImport }
+        .overlay {
+            if isDropTargeted { DropHint() }
+        }
         .frame(minWidth: isChatShown ? Self.minWidthWithChat : Self.minWidth,
                minHeight: 560)
         .animation(OraStyle.transition, value: isChatShown)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 RecordButton(recorder: recorder)
+            }
+            ToolbarItem {
+                Menu {
+                    Button("Ses dosyası…") {
+                        if let url = MeetingImportPanel.pickAudio() {
+                            Task { await recorder.importSource(.audio(url)) }
+                        }
+                    }
+                    Divider()
+                    // Transkriptin iki yolu: dosya ve yapıştırma. Kullanıcının
+                    // elindeki döküm çoğu zaman panoda duruyor.
+                    Button("Transkript dosyası…") {
+                        if let url = MeetingImportPanel.pickTranscript() {
+                            Task { await recorder.importSource(.transcriptFile(url)) }
+                        }
+                    }
+                    Button("Transkript yapıştır…") {
+                        pastedText = ""
+                        isPasting = true
+                    }
+                } label: {
+                    Label("İçe aktar", systemImage: "square.and.arrow.down")
+                }
+                .help(recorder.canImport
+                      ? "Ses kaydı veya transkript içe aktar"
+                      : "Kayıt ya da işlem sürerken içe aktarma yapılmaz")
+                .disabled(!recorder.canImport)
             }
             ToolbarItem {
                 Menu {
@@ -139,6 +182,44 @@ struct RootView: View {
                              set: { _ in })) { recording in
             InterruptedRecordingSheet(recording: recording, recorder: recorder)
         }
+        .sheet(isPresented: $isPasting) {
+            PasteTranscriptSheet(text: $pastedText, isBusy: !recorder.canImport) {
+                let text = pastedText
+                isPasting = false
+                pastedText = ""
+                Task { await recorder.importSource(.transcriptText(text)) }
+            } cancel: {
+                isPasting = false
+            }
+        }
+    }
+}
+
+/// Pencereye dosya sürüklenirken görünen ipucu. Ne kabul edildiğini **söyler**:
+/// sessiz bir çerçeve kullanıcıya dosyanın tanınıp tanınmadığını göstermez.
+private struct DropHint: View {
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "square.and.arrow.down")
+                .font(.system(size: 22, weight: .light))
+                .foregroundStyle(Color.oraCarmine)
+            Text("Bırakın, içe aktarılsın")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Color.oraInk)
+            Text("Ses kaydı (m4a, mp3, wav, mp4) veya transkript (txt, md, vtt, srt)")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraInkMuted)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.oraPaper.opacity(0.92))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.oraCarmine, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                .padding(8)
+        )
+        .allowsHitTesting(false)
+        .transition(.opacity)
     }
 }
 

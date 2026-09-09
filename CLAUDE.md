@@ -119,6 +119,10 @@ Bu sıra asla değişmez:
 7. SQLite güncelle (summaries + action_items + topic_segments)
 8. Kullanıcıya bildir
 
+**İçe aktarma bu sıraya dışarıdan girer:** ses dosyası 3'ten, hazır transkript
+4'ten başlar. Sıra değişmez, yalnızca başlangıç noktası değişir
+(bkz. İçe Aktarma Kuralları).
+
 ## Ses Yakalama Kuralları — ölçülmüş davranış
 - Sistem sesi: `CATapDescription` + `AudioHardwareCreateProcessTap`.
   Doğrulandı: `OSStatus 0`, 48 kHz stereo float32, **ekran kaydı izni istenmedi**.
@@ -258,6 +262,12 @@ Bu sıra asla değişmez:
   Ölçüldü (RESEARCH.md §15.1): önekli istem 8 denemenin 6'sında
   `guardrailViolation` veriyor, öneksiz 8/8 geçiyor. Özetleme isteminde önek
   sorun çıkarmıyor ve **korunmalı** — kimin neyi üstlendiğini oradan çıkarıyor.
+- **Noktalama adımı, girdi zaten noktalıysa atlanır**
+  (`FoundationIntelligence.isPunctuated`: 12 karakterden uzun satırların
+  %80'i noktalamayla bitiyorsa). Türkçe dikte çıktısı bu eşiği hiç geçmez;
+  eşiği geçen metin dışarıdan içe aktarılmış (ya da `.punctuation`'ın
+  çalıştığı bir dilde çözülmüş) demektir ve adımın orada kazancı yok, bedeli
+  dakikalar ve her çağrıda bir guardrail kumarı.
 - `guardrailViolation` gerçek ve tekrarlayan bir durumdur; her LLM çağrısı
   başarısızlığa dayanıklı olmalı. Noktalama başarısız olursa **orijinal metin
   korunur** — model kelime değiştirirse o satır reddedilir (normalize edilmiş
@@ -370,6 +380,46 @@ Bu sıra asla değişmez:
   kullanıcının takviminde kalır.
 - Toplantı linki (`event.URL` veya `notes`) yalnızca **hangi uygulamanın
   tap'leneceğini** belirlemek için ayrıştırılır, saklanmaz.
+
+## İçe Aktarma Kuralları
+Kullanıcı elindeki bir kaydı ya da dökümü ora'ya verebilir (COMPETITION.md
+§4.14, karar alındı). **Yeni bir hat yoktur** — içe aktarma var olan hatta
+farklı bir noktadan girer:
+- **Ses dosyası** → tam geçişten başlar (transkripsiyon → noktalama → özet).
+- **Transkript** (dosya ya da yapıştırma) → doğrudan özetlemeden başlar.
+
+Kurallar:
+1. **Kaynak dosyaya dokunulmaz.** Okunur, kopyası `{base}/recordings/`
+   altına yazılır. Kullanıcının arşivi ora'nın sorumluluğunda değildir.
+2. **İçe aktarılan ses mono yazılır** — 16 kHz · 16 bit · mono WAV. Kural #11
+   (stereo, ch0 mikrofon / ch1 sistem) **ora'nın kendi kaydı** içindir; içe
+   aktarılan dosyada böyle bir fiziksel gerçek yok. İki kanalı da çözmek aynı
+   konuşmayı transkripte iki kez yazardı.
+3. **Tek akış `Channel.system` ("Katılımcı") olarak çözülür.** Diarization
+   yok; hepsini "Ben" saymak bütün aksiyonları kullanıcının üstüne yıkardı.
+   `SpeechTranscription.channels(in:from:)` mono kaynakta bu kararı verir.
+4. **Transkriptte kaynaktaki gerçek ad korunur.** Kullanıcının kendi adı
+   (`OraSettings.userDisplayName`) ya da "Ben" mikrofon kanalına, geri kalan
+   herkes sistem kanalına yazılır. Bu, içe aktarmanın kendi kaydımıza göre
+   somut kazancıdır: özetleyici `kisi` alanını bu adlardan çıkarıyor.
+5. **Tek geçen `Ad:` öneki konuşmacı sayılmaz** ve metinde kalır. "Not:",
+   "Karar:" gibi etiketleri kişi diye yazmak hem uydurma bir katılımcı ekler
+   hem de satırın başını keser — atfedilmemiş bir satır bundan iyidir.
+6. **Zaman damgaları kesin olarak artar.** `MeetingStore` bir satırı
+   `(meeting_id, start_time, channel)` ile güncelliyor; damgası olmayan
+   kaynakta süre konuşma hızından (15 krk/sn) uydurulur.
+7. **Uzun paragraf cümle sınırından bölünür** (600 karakter). Tek parça
+   yapıştırılmış bir metin tek segment kalırsa `TranscriptChunker` onu
+   bölemez ve 4096 token'lık pencere taşar.
+8. **Zaten noktalı metin yeniden noktalanmaz**
+   (`FoundationIntelligence.isPunctuated`, satırların %80'i). Kural #4'ün
+   istediği **sonuç** noktalı bir transkripttir; dışarıdan gelen döküm zaten
+   öyle gelir ve adım orada kazanç sağlamadan dakikalar sürer.
+9. **Kayıt ya da işlem sürerken içe aktarma yapılmaz** (`canImport`). İkinci
+   bir hat aynı Speech ve Foundation Models yolunu paylaşır.
+10. Yüzeyler: araç çubuğunda "İçe aktar" menüsü (ses · transkript dosyası ·
+    transkript yapıştır) ve pencerenin tamamına sürükle-bırak. Tanınmayan
+    dosya sessizce yutulmaz, Türkçe hata verir.
 
 ## Güç ve Termal
 Ayrı bir "Low Power Mode" alt sistemi **yoktur** — eski ora'da bu özellik
@@ -547,8 +597,10 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 ### Geliştirme Verisi
 Gerçek bir toplantıyla denetim için `probes/bordro_toplanti.json` (29 dk'lık
 Teams dökümü) `scripts/seed-transcript.swift` ile veritabanına yüklenir.
-Uygulamada içe aktarma **yoktur**; bu yalnızca geliştirme aracıdır. Yükledikten
-sonra toplantıyı seçip "Şimdi özetle" demek uygulamanın kendi hattını koşturur.
+Uygulamanın kendi içe aktarma özelliği (aşağıya bakın) aynı dosyayı **döküm
+olarak** da alabilir; betik, veriyi tek adımda ve hattı hiç koşturmadan
+yazdığı için geliştirmede duruyor. Yükledikten sonra toplantıyı seçip
+"Şimdi özetle" demek uygulamanın kendi hattını koşturur.
 
 **Dikkat:** bu dosyadaki metin **Teams'in transkripsiyonudur**, ora'nın değil.
 Sesi de yoktur. Bu toplantıda görülen çözümleme hataları ("Toplum"←Toplam,
@@ -685,6 +737,14 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       kullanılacak. 7 yeni test (58 test). Bağımlılık, izin ve şema değişikliği
       yok. Model karşılaştırması (FluidAudio · SpeakerKit · kendi dönüşümü,
       ölçülmüş DER/hız/boyut) COMPETITION.md §4.13'te.
+      **İçe aktarma eklendi (COMPETITION.md §4.14 kararı alındı):** ses
+      dosyası (m4a/mp3/wav/mp4 → 16 kHz mono WAV) tam geçişten, transkript
+      (dosya ya da yapıştırma; VTT/SRT/düz metin) doğrudan özetlemeden hatta
+      girer. Araç çubuğu menüsü + pencerenin tamamına sürükle-bırak. Yeni
+      bağımlılık, yeni izin ve **şema değişikliği yok**; `ora/Import/` 30 test.
+      Ses yolu **gerçek bir kayıtla denenmedi** — ayrıştırıcı, çevrim ve
+      transkript yolu testle ölçüldü, mono sesin Speech'ten geçişi göz
+      denetimi bekliyor.
     - Bekleyen:
       1. **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
@@ -758,6 +818,11 @@ ora/Pipeline/          — RecordingSession (kayıt sürerken: ses yazımı + ca
                          `meetingID` taşıyan olay olarak yayar. Capture ile
                          Transcribe'ı birlikte kullandığı için `ora/Capture/`
                          altında değil — alt modüller birbirini çağırmaz
+ora/Import/            — TranscriptParser (VTT · SRT · düz metin · yapıştırma),
+                         AudioImport (her biçimden 16 kHz mono WAV),
+                         MeetingImporter (içe aktarma politikası: başlık, tarih,
+                         satır açma; hattı **koşturmaz**, nereden devam
+                         edileceğini söyler), MeetingStore+Import
 ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          MenuBarView (taşıyıcı yüzey), OnboardingView,
                          RecordingController (sırayı kurar; arayüz yüzeyi
@@ -768,6 +833,7 @@ ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          TranscriptView, SummaryView, ActionBoardView,
                          AudioPlayback (+ PlaybackBar), MeetingExport, SettingsView,
                          MeetingNotifications, ChatInspector,
+                         ImportView (dosya seçiciler + yapıştırma sayfası),
                          EmptyState (+ ProcessingState), CurveLoader, FlowLayout
 ora/Resources/Assets.xcassets/Colors    — BRAND paletinin tek kaynağı
 ora/Resources/Assets.xcassets/AppIcon   — scripts/make-icon.swift üretir

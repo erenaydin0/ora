@@ -26,6 +26,8 @@ nonisolated enum OraError: Error {
     case audioDeviceFailed(stage: String, status: Int32)
     case transcriptionFailed(underlying: Error)
     case contextOverflow
+    /// İçe aktarılan dosya okunamadı ya da içinde işlenecek bir şey yok.
+    case importFailed(reason: String)
 }
 
 nonisolated extension OraError {
@@ -47,6 +49,8 @@ nonisolated extension OraError {
             "Transkripsiyon tamamlanamadı"
         case .contextOverflow:
             "Metin modele sığmadı"
+        case .importFailed:
+            "Dosya içe aktarılamadı"
         }
     }
 
@@ -76,6 +80,8 @@ nonisolated extension OraError {
             "Ham ses korundu, daha sonra tekrar deneyebilirsiniz.\n\n\(underlying.localizedDescription)"
         case .contextOverflow:
             "Bu bir hata göstergesidir; metin parçalanarak işlenmeliydi."
+        case .importFailed(let reason):
+            reason
         }
     }
 }

@@ -127,6 +127,9 @@ final class RecordingController {
     /// Kayıt bittikten sonra: tam geçiş, noktalama, özet, depolama
     /// (REFACTOR.md Adım 1-2).
     private let pipeline: MeetingPipeline
+    /// Dışarıdan gelen ses ve transkript → toplantı. Hattı **koşturmaz**,
+    /// nereden devam edileceğini söyler (`ora/Import/`).
+    private let importer: MeetingImporter
 
     /// - Parameters:
     ///   - detector, calendar: `settings`'e bağlı oldukları için varsayılan
@@ -194,6 +197,7 @@ final class RecordingController {
                                         intelligence: intelligence, settings: settings,
                                         deferReason: deferReason,
                                         prepareLocale: prepareLocale)
+        self.importer = MeetingImporter(store: self.store, settings: settings)
 
         // Hattın **tek** tüketicisi burası. Süzme `apply(_:)` içinde yapılır;
         // hat hangi toplantının ekranda olduğunu bilmez.
@@ -222,6 +226,19 @@ final class RecordingController {
                 try? await self?.vocabularyStore.add(name, source: "speaker")
                 await self?.refreshVocabulary()
             }
+        }
+        // İçe aktarılan toplantı **hemen** seçilir: kullanıcı dosyayı bıraktığı
+        // anda satırın açıldığını ve işin başladığını görmeli.
+        importer.onCreated = { [weak self] meetingID in
+            guard let self else { return }
+            library.clearDisplayed()
+            selection = meetingID
+            Task { await self.refresh() }
+        }
+        // Ses çevrimi hat başlamadan önce koşuyor; aşama sözlüğünün sahibi
+        // burası olduğu için işareti buraya bırakır.
+        importer.onStage = { [weak self] meetingID, stage in
+            self?.stages[meetingID] = stage
         }
     }
 
@@ -592,6 +609,74 @@ final class RecordingController {
         await pipeline.fullPass(meetingID: meetingID, url: url)
         library.restoreRetryable(url, for: meetingID)
         await refresh()
+    }
+
+    // MARK: - İçe aktarma
+
+    /// İçe aktarma kapısı: kayıt sürerken ya da başka bir toplantı işlenirken
+    /// açılmaz — ikinci bir hat aynı Speech ve Foundation Models yolunu
+    /// paylaşır ("Şimdi özetle" ve "Yeniden dene" ile aynı kural).
+    var canImport: Bool { !isRecording && !isTranscribing }
+
+    /// Ses dosyası, transkript dosyası ya da yapıştırılmış metin.
+    ///
+    /// Sıra kayıttakiyle **aynıdır**, yalnızca başlangıç noktası değişir:
+    /// ses tam geçişten (transkript + özet), transkript doğrudan özetlemeden
+    /// başlar. Hattın kendisi ikisini de ayırt etmez.
+    func importSource(_ source: MeetingImporter.Source) async {
+        // Kapı kapalıysa sessiz kalınmaz: kullanıcı bir dosya verdi, neden
+        // olmadığını bilmeli.
+        guard canImport else {
+            error = .importFailed(reason: isRecording
+                ? "Kayıt sürerken içe aktarma yapılamaz. Önce kaydı bitirin."
+                : "Başka bir toplantı işleniyor. O bitince içe aktarabilirsiniz.")
+            return
+        }
+        do {
+            switch try await importer.perform(source) {
+            case .audio(let meetingID, let url):
+                await refresh()
+                await pipeline.fullPass(meetingID: meetingID, url: url)
+            case .transcript(let meetingID, let segments):
+                await refresh()
+                await pipeline.summarize(meetingID: meetingID, segments: segments)
+            }
+        } catch let error as OraError {
+            self.error = error
+        } catch {
+            self.error = .importFailed(reason: error.localizedDescription)
+        }
+        await refresh()
+        refreshStorage()
+        // İçe aktarma yarıda kaldıysa toplantı satırı silindi; ekranda kalan
+        // seçim boşa düşer.
+        if let meetingID = selection, !meetings.contains(where: { $0.id == meetingID }) {
+            stages[meetingID] = nil
+            selection = nil
+            library.clearDisplayed()
+        }
+    }
+
+    /// Sürükle-bırak birden çok dosya verebilir. **Sırayla** işlenir: ikinci
+    /// dosya, birincinin hattı bitmeden başlamaz — aynı Speech ve Foundation
+    /// Models yolu paylaşılıyor.
+    func importFiles(_ urls: [URL]) async {
+        for url in urls { await importFile(url) }
+    }
+
+    /// Sürükle-bırak: dosyayı uzantısına göre doğru yola sokar.
+    /// Tanımadığı bir dosya sessizce yutulmaz.
+    func importFile(_ url: URL) async {
+        let ext = url.pathExtension.lowercased()
+        if AudioImport.fileExtensions.contains(ext) {
+            await importSource(.audio(url))
+        } else if MeetingImporter.transcriptExtensions.contains(ext) {
+            await importSource(.transcriptFile(url))
+        } else {
+            error = .importFailed(
+                reason: "\(url.lastPathComponent) tanınmayan bir dosya türü. Ses kaydı "
+                    + "(m4a, mp3, wav, mp4) ya da transkript (txt, md, vtt, srt) verin.")
+        }
     }
 
     // MARK: - Hattın olayları → arayüz durumu

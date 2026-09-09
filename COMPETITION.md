@@ -71,7 +71,7 @@ toplantı sohbeti, FTS5 arama, takvim eşleştirme, otomatik algılama, vocabula
 | 11 | Kişi sayfası + tekrarlayan toplantı hazırlığı | ★★ | M | yok |
 | 12 | Hatırlatıcılar / Kısayollar (App Intents) çıkışı | ★★ | M | yok |
 | 13 | Diarization | ★★★ | L | **karar gerek** |
-| 14 | Ses dosyası içe aktarma | ★★ | M | **karar gerek** |
+| 14 | Ses dosyası içe aktarma | ★★ | M | yapıldı (ses + transkript) |
 | 15 | Kayıt öncesi tampon ("başlatmayı unuttum") | ★★ | M | **karar gerek** |
 
 S ≈ yarım–bir gün, M ≈ birkaç gün, L ≈ hafta.
@@ -273,14 +273,18 @@ kanalındadır. Ayrıca `MicrophoneCapture` yankı bastırma **kullanmıyor** �
 kullanıcı kulaklık takmıyorsa karşı taraf ch0'a sızar; diarization gelince bu
 görünür hale gelir ve ölçülmesi gerekir.
 
-### 4.14 Ses dosyası içe aktarma — **karar gerektirir**
+### 4.14 Ses dosyası içe aktarma — **yapıldı**
 **Rakip:** MacWhisper'ın çekirdeği (sürükle-bırak, toplu işleme, izlenen klasör).
 **Ne:** Var olan bir `.wav/.m4a/.mp3` dosyasını toplantı olarak içe al,
 transkripsiyon + özet hattını koştur. Tek kanal olduğu için "Katılımcı"
 konuşmacısı; diarization yoksa tek etiket.
-**Çakışma:** CLAUDE.md "Uygulamada içe aktarma **yoktur**" diyor — ama bu
-cümle `probes/bordro_toplanti.json` transkript seed'i bağlamında yazıldı.
-Ses içe aktarma ayrı bir karardır; alınırsa CLAUDE.md aynı commit'te güncellenmeli.
+**Karar alındı ve yapıldı.** CLAUDE.md'deki "Uygulamada içe aktarma yoktur"
+cümlesi `probes/bordro_toplanti.json` seed'i bağlamında yazılmıştı; kural
+"İçe Aktarma Kuralları" bölümüyle değişti. Kapsam istenenden biraz geniş:
+**transkript de** içe alınıyor (dosya ya da yapıştırma) — kullanıcının elindeki
+Teams/Zoom dökümü çoğu zaman ses değil metin ve o yol hattın yalnızca özetleme
+ucunu kullandığı için bedava geldi. Mono karar veriliyor, konuşmacı
+"Katılımcı"; transkriptte kaynaktaki gerçek adlar korunuyor.
 **Değeri:** Telefonla kaydedilmiş yüz yüze toplantı, eski kayıt arşivi.
 Kullanıcı tabanı için gerçek bir talep; kapsamı da küçük (hat zaten hazır).
 

@@ -34,10 +34,14 @@ nonisolated final class SpeechTranscription: Transcribing {
         let levels = try Self.channelPeaks(url: url)
         Log.debug(.transcribe, "Tam geçiş: tepeler "
                   + levels.map { String(format: "%.4f", $0) }.joined(separator: " / "))
-        var active = channels.filter { levels[$0.rawValue] > Self.silenceThreshold }
-        for channel in channels where levels[channel.rawValue] <= Self.silenceThreshold {
+        // İçe aktarılan ses **mono** yazılır (`AudioImport`): kanal ayrımı
+        // diye bir gerçek yok. Tek şeritli dosyada `.mic` şeridini istemek hem
+        // tepe dizisini taşırır hem de bütün konuşmayı "Ben" damgalardı.
+        let requested = Self.channels(in: levels.count, from: channels)
+        var active = requested.filter { Self.peak(of: $0, in: levels) > Self.silenceThreshold }
+        for channel in requested where Self.peak(of: channel, in: levels) <= Self.silenceThreshold {
             Log.info(.transcribe, "\(channel.databaseValue) kanalı sessiz, atlandı "
-                     + String(format: "(tepe %.4f)", levels[channel.rawValue]))
+                     + String(format: "(tepe %.4f)", Self.peak(of: channel, in: levels)))
         }
         guard !active.isEmpty else {
             Log.warning(.transcribe, "Tüm kanallar sessiz — çözülecek ses yok")
@@ -88,7 +92,9 @@ nonisolated final class SpeechTranscription: Transcribing {
 
         let file = try AVAudioFile(forReading: url)
         let sourceFormat = file.processingFormat
-        guard sourceFormat.channelCount > UInt32(channel.rawValue) else { return [] }
+        // Şerit seçimi `extract(channel:from:)` içinde kelepçelenir: mono
+        // dosyada iki kanal da tek şeridi gösterir.
+        guard sourceFormat.channelCount > 0 else { return [] }
 
         let collector = Task { () -> [Segment] in
             var out: [Segment] = []
@@ -201,6 +207,22 @@ nonisolated final class SpeechTranscription: Transcribing {
                        end: result.range.end.seconds,
                        confidence: scores.isEmpty ? nil : scores.reduce(0, +) / Double(scores.count),
                        words: words)
+    }
+
+    /// Dosyadaki şerit sayısına göre gerçekten çözülecek kanallar. Mono
+    /// kaynakta tek geçiş yapılır ve sonuç `.system` ("Katılımcı") olur —
+    /// diarization olmadan konuşmacı uydurmak yerine tek etiket
+    /// (COMPETITION.md §4.14).
+    static func channels(in lanes: Int, from requested: [Channel]) -> [Channel] {
+        guard !requested.isEmpty else { return [] }
+        return lanes >= 2 ? requested : [.system]
+    }
+
+    /// Kanalın tepe genliği. Mono dosyada her kanal tek şeridi gösterir;
+    /// `levels[channel.rawValue]` orada dizi sınırını aşardı.
+    static func peak(of channel: Channel, in levels: [Float]) -> Float {
+        guard !levels.isEmpty else { return 0 }
+        return levels[min(channel.rawValue, levels.count - 1)]
     }
 
     static func monoFormat(_ source: AVAudioFormat) -> AVAudioFormat {
