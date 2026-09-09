@@ -2,7 +2,7 @@ import Foundation
 import FoundationModels
 
 /// Apple Intelligence'ın bu makinedeki durumu.
-enum ModelAvailability: Sendable, Equatable {
+nonisolated enum ModelAvailability: Sendable, Equatable {
     case available
     case deviceNotEligible
     case appleIntelligenceNotEnabled
@@ -36,7 +36,7 @@ enum ModelAvailability: Sendable, Equatable {
 }
 
 /// Özetleme aşamalarının ilerlemesi.
-enum IntelligenceStage: Sendable, Equatable {
+nonisolated enum IntelligenceStage: Sendable, Equatable {
     case punctuating(Double)
     case summarizing(Double)
 }
@@ -44,18 +44,18 @@ enum IntelligenceStage: Sendable, Equatable {
 /// Özetleme sonucu. Atlanan parça sayısı da döner — bir bölüm özetlenemediğinde
 /// bunu **sessizce yutmak** eski davranıştı (ham 600 karakter birleştirmeye
 /// giriyordu); artık kullanıcıya söylenir.
-struct SummaryResult: Sendable {
+nonisolated struct SummaryResult: Sendable {
     var ozet: Ozet
     var topics: [TopicSegment]
     var skippedChunks: Int
 }
 
-protocol Intelligent: Sendable {
+nonisolated protocol Intelligent: Sendable {
     var availability: ModelAvailability { get }
 
     /// **Zorunlu adım.** Türkçe çıktı noktalamasız gelir (RESEARCH.md §2);
     /// noktalamasız transkript hem okunmaz hem özet kalitesini düşürür.
-    func restorePunctuation(_ segments: [Segment],
+    @concurrent func restorePunctuation(_ segments: [Segment],
                             progress: @Sendable @escaping (Double) -> Void) async throws -> [Segment]
 
     /// Map-reduce özetleme. Transkript asla kırpılmaz.
@@ -68,21 +68,21 @@ protocol Intelligent: Sendable {
     /// özeti verir ve düğme bozukmuş gibi görünür. İlk geçiş her zaman
     /// varsayılan örneklemeyle çalışır — RESEARCH.md §23-24 ölçümleri onunla
     /// alındı.
-    func summarize(_ segments: [Segment],
+    @concurrent func summarize(_ segments: [Segment],
                    context: SummaryContext,
                    variation: Bool,
                    progress: @Sendable @escaping (Double) -> Void) async throws
         -> SummaryResult
 
     /// Toplantı sohbeti: transkript üzerinde soru-cevap, map-reduce ile.
-    func answer(question: String, over segments: [Segment]) async throws -> String
+    @concurrent func answer(question: String, over segments: [Segment]) async throws -> String
 
     /// Transkriptten başlık üretir. Pencere başlığı **okunmaz** — sandbox'lı
     /// uygulamada ekran kaydı izni ister (RESEARCH.md §11).
-    func generateTitle(from segments: [Segment]) async -> String?
+    @concurrent func generateTitle(from segments: [Segment]) async -> String?
 
     /// Konu başlıkları varsa başlık onlardan üretilir — ilk parça toplantının
     /// tamamını temsil etmiyor.
-    func generateTitle(from segments: [Segment],
+    @concurrent func generateTitle(from segments: [Segment],
                        topics: [TopicSegment]) async -> String?
 }

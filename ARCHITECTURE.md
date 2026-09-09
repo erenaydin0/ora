@@ -238,22 +238,35 @@ extension PipelineEvent {
 - İşlem hattı sırası CLAUDE.md'de sabittir ve değiştirilmez
 - Bir aşama başarısız olursa sonraki aşamalar çalışmaz, ham ses **korunur**,
   kullanıcıya Türkçe hata + "Yeniden dene" gösterilir
-- `Pipeline` hâlâ `@MainActor`: ağır işin tamamı `Transcribing` ve `Intelligent`
-  içindeki zaten asenkron API'lerde geçer, bu tip yalnızca sırayı yürütür.
+- `Pipeline` hâlâ ana aktörde (işaret artık modülün varsayılanı): bu tip
+  yalnızca sırayı yürütür, ağır adımlar `Transcribing` / `Intelligent`
+  sözleşmelerinde `@concurrent` işaretli olduğu için ana aktörün dışında koşar.
   Dış dünyaya dokunan iki nokta (`prepareLocale`, `detectLocale`) ve
   `deferReason` init'ten geçirilir — testte kapatılır
 
 ---
 
 ## Eşzamanlılık
-- UI durumu `@MainActor @Observable`. Alt modüller **actor olmak zorunda
-  değil**: `Sendable` bir struct/class + `nonisolated async` metotlar aynı
-  hedefe varıyor, çünkü Swift 6 dil modunda böyle bir fonksiyon `@MainActor`'dan
-  çağrılsa bile çağıranın şeridini devralmaz, havuzda koşar. Bugün yalnızca
-  `LiveTranscription` actor (paylaşılan değişken durumu var);
-  `FoundationIntelligence`, `SpeechTranscription`, `MeetingStore` ve
-  `AudioArchive` bu yolu kullanıyor. `MeetingPipeline` ve `RecordingSession`
-  `@MainActor` **kalır** — gerekçesi REFACTOR.md "Yapılmaması gerekenler"de
+- **Varsayılan izolasyon `MainActor`** (`SWIFT_DEFAULT_ACTOR_ISOLATION` +
+  `SWIFT_APPROACHABLE_CONCURRENCY`, hedef seviyesinde — proje seviyesine
+  yazılırsa GRDB kırılır, RESEARCH.md §30.1). Yani kural tersine döndü:
+  **her şey ana aktörde, dışarı çıkan yer açıkça işaretlenir.**
+  - Ana iş parçacığı dışında yaşayan katmanlar `nonisolated`: `ora/Capture/`
+    tamamı, `Log` / `OraError` / `AppPaths` / `AudioArchive` / `PowerState`,
+    `Transcribe`, `Intelligence`, `Store` ve `RecordingSession.LiveRoute`.
+    **Extension'lar da işaretlenir** — tipin izolasyonunu devralmazlar
+  - Ağır asenkron adımlar `@concurrent`: `Transcribing.transcribe`,
+    `Intelligent.restorePunctuation` / `summarize` / `answer` /
+    `generateTitle`, `AudioArchive.compress`. İşaret **sözleşmede** durur;
+    uyarlayıcıda şart değil. `nonisolated async` olmaları artık yetmez —
+    SE-0461 ile böyle bir gövde çağıranın aktöründe koşuyor
+  - `MeetingStore` `@concurrent` **almaz**: gövdeler `database.write/read`
+    bloğu, iş zaten GRDB kuyruğunda (§30.3)
+  - Alt modüller **actor olmak zorunda değil**; bugün yalnızca
+    `LiveTranscription` actor (paylaşılan değişken durumu var).
+    `MeetingPipeline` ve `RecordingSession` ana aktörde **kalır** — gerekçesi
+    REFACTOR.md "Yapılmaması gerekenler"de
+  - Denetim `oraTests/IsolationTests`: `@concurrent` silinirse test kırılır
 - **Polling yok.** Algılama CoreAudio olay dinleyicileriyle, öneri teslimi
   `withObservationTracking` ile çalışır. `onChange` `willSet` anında gelir ve
   kayıt tek seferliktir: bir tur sonraya geç, önce yeniden kur, sonra o anki

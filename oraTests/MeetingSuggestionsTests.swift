@@ -10,7 +10,6 @@ import Testing
 @Suite("Toplantı önerileri", .serialized)
 struct MeetingSuggestionsTests {
 
-    @MainActor
     private func make(settings: OraSettings? = nil,
                       event: MeetingEvent? = nil)
     -> (FakeDetector, FakeSuggestionNotifier, OraSettings, MeetingSuggestions) {
@@ -27,7 +26,7 @@ struct MeetingSuggestionsTests {
     }
 
     /// **Polling → gözlemleme.** Sinyal düştüğü anda bildirim gidiyor mu?
-    @Test @MainActor
+    @Test
     func sinyalGelinceBildirimGonderilir() async {
         let (detector, notifier, _, suggestions) = make()
         suggestions.start()
@@ -43,7 +42,7 @@ struct MeetingSuggestionsTests {
 
     /// Aynı öneri için ikinci bildirim gönderilmez; sinyal düşüp yeniden
     /// gelirse gönderilir.
-    @Test @MainActor
+    @Test
     func ayniOneriIcinIkinciBildirimYok() async {
         let (detector, notifier, _, suggestions) = make()
         suggestions.start()
@@ -63,7 +62,7 @@ struct MeetingSuggestionsTests {
     }
 
     /// Öneri kabul edilince kaydı **çağıran** başlatır ve öneri düşer.
-    @Test @MainActor
+    @Test
     func kabulKaydiBaslatir() async {
         let (detector, _, _, suggestions) = make()
         var started: [String] = []
@@ -79,7 +78,7 @@ struct MeetingSuggestionsTests {
     }
 
     /// Ret kayıt başlatmaz.
-    @Test @MainActor
+    @Test
     func redKayitBaslatmaz() async {
         let (detector, _, _, suggestions) = make()
         var started = 0
@@ -94,7 +93,7 @@ struct MeetingSuggestionsTests {
     }
 
     /// "Her zaman kaydet" seçili uygulamada algılayıcı kendisi başlatır.
-    @Test @MainActor
+    @Test
     func otomatikBaslatmaOnRecordTetikler() async {
         let (detector, _, _, suggestions) = make()
         var started: [String] = []
@@ -108,7 +107,7 @@ struct MeetingSuggestionsTests {
 
     /// Bildirimdeki "Bu uygulamayı hep kaydet": ayar **her hâlükârda** yazılır.
     /// Öneri duruyorsa kayıt da başlar, düşmüşse yalnızca ayar kalır.
-    @Test @MainActor
+    @Test
     func hepKaydetAyariHerHaldeYazilir() async {
         let (detector, notifier, settings, suggestions) = make()
         var started = 0
@@ -129,7 +128,7 @@ struct MeetingSuggestionsTests {
 
     /// Bildirimin "Kaydet" düğmesi yalnızca **o** sinyal için çalışır: eski bir
     /// bildirime basmak yeni toplantıyı kaydetmeye başlamamalı.
-    @Test @MainActor
+    @Test
     func bildirimDugmesiYalnizcaKendiSinyaliniBaslatir() async {
         let (detector, notifier, _, suggestions) = make()
         var started: [String] = []
@@ -146,7 +145,7 @@ struct MeetingSuggestionsTests {
 
     /// Algılama kapatılınca dinleyici de susar — kapalıyken gelen sinyal
     /// bildirim üretmez.
-    @Test @MainActor
+    @Test
     func algilamaKapatilincaTeslimDurur() async {
         let (detector, notifier, _, suggestions) = make()
         suggestions.start()
@@ -163,7 +162,7 @@ struct MeetingSuggestionsTests {
 
     /// Takvim açıksa etkinlik bildirime geçer — bu tipin Calendar'a bağlanmadan
     /// yaptığı tek iş.
-    @Test @MainActor
+    @Test
     func takvimEtkinligiBildirimeGecer() async {
         let event = MeetingEvent(eventID: "evt-1", title: "Bordro Toplantısı",
                                  start: Date(), end: Date(), organizer: nil,

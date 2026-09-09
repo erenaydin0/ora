@@ -7,7 +7,7 @@ import Speech
 /// 2/5'ten 4/5'e çıkıyor. `count`'u yükseltmek (200) sonucu **kötüleştiriyor** —
 /// aşırı ağırlıklandırma çevredeki kelimeleri bozuyor. Bu iki sayı ölçümle
 /// seçildi; değiştirmeden önce probe'u yeniden koştur.
-enum CustomVocabulary {
+nonisolated enum CustomVocabulary {
 
     static let phraseCount = 30
     static let weight = 1.0

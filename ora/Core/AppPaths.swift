@@ -2,7 +2,7 @@ import Foundation
 
 /// Uygulamanın diskteki tek yol otoritesi.
 /// Yol asla sabit yazılmaz; her şey `applicationSupportDirectory` altından türetilir.
-enum AppPaths {
+nonisolated enum AppPaths {
 
     /// `~/Library/Application Support/ora/`
     static let base: URL = {

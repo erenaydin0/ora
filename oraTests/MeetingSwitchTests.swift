@@ -11,7 +11,7 @@ import Testing
 @Suite("Toplantı geçişi (RESEARCH §27)", .serialized)
 struct MeetingSwitchTests {
 
-    @Test @MainActor
+    @Test
     func islemSurerkenToplantiDegistirmek() async throws {
         let model = SlowIntelligence(tag: "A")
         let h = try Harness(intelligence: model)
@@ -74,7 +74,7 @@ struct MeetingSwitchTests {
 
     /// Hat yalnızca **kendi** toplantısının metniyle çağrılmalı. Ekrandaki
     /// toplantının metnini okursa özet yanlış toplantıdan üretilir.
-    @Test @MainActor
+    @Test
     func hatKendiMetniyleCalisir() async throws {
         let model = SlowIntelligence(tag: "A", step: .milliseconds(120))
         let h = try Harness(intelligence: model)

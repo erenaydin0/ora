@@ -8,7 +8,6 @@ import Testing
 @Suite("Toplantı kütüphanesi", .serialized)
 struct MeetingLibraryTests {
 
-    @MainActor
     private func make(isRecording: @escaping () -> Bool = { false })
     -> (OraDatabase, MeetingStore, MeetingLibrary) {
         let db = try! OraDatabase(path: ":memory:")
@@ -16,7 +15,6 @@ struct MeetingLibraryTests {
         return (db, store, MeetingLibrary(store: store, isRecording: isRecording))
     }
 
-    @MainActor
     private func seed(_ store: MeetingStore, text: String) async throws -> Int64 {
         let id = try await store.createMeeting()
         try await store.replaceTranscript(id, segments: [
@@ -28,7 +26,7 @@ struct MeetingLibraryTests {
     }
 
     /// Seçim değişince içerik yüklenir.
-    @Test @MainActor
+    @Test
     func secimIcerigiYukler() async throws {
         let (_, store, library) = make()
         let id = try await seed(store, text: "toplantı metni")
@@ -43,7 +41,7 @@ struct MeetingLibraryTests {
 
     /// **Hattın ürettiği içerik yalnızca seçili toplantıya yazılır.**
     /// Bu, RESEARCH.md §27'nin kütüphane tarafındaki karşılığı.
-    @Test @MainActor
+    @Test
     func hattinIcerigiYalnizcaSeciliToplantiyaYazilir() async throws {
         let (_, store, library) = make()
         let a = try await seed(store, text: "A metni")
@@ -74,7 +72,7 @@ struct MeetingLibraryTests {
     /// Yarış gerçek zamanlamayla kurulamıyor (iki bellek içi okuma da hızlı
     /// bitiyor ve sıra deterministik değil); bu yüzden yükleme sonucunu ekrana
     /// yazan adım doğrudan çağrılır.
-    @Test @MainActor
+    @Test
     func gecGelenYuklemeYeniSecimiEzmez() async throws {
         let (_, store, library) = make()
         let a = try await seed(store, text: "A metni")
@@ -92,7 +90,7 @@ struct MeetingLibraryTests {
     }
 
     /// Aynı turda iki kez seçim değişirse ekranda **son** seçim kalır.
-    @Test @MainActor
+    @Test
     func hizliGitGeldeSonSecimKalir() async throws {
         let (_, store, library) = make()
         let a = try await seed(store, text: "A metni")
@@ -110,7 +108,7 @@ struct MeetingLibraryTests {
 
     /// Kayıt sürerken seçim değişse bile yükleme yapılmaz — ekranda canlı
     /// transkript akıyor.
-    @Test @MainActor
+    @Test
     func kayitSurerkenYuklemeYapilmaz() async throws {
         let (_, store, library) = make(isRecording: { true })
         let id = try await seed(store, text: "toplantı metni")
@@ -123,7 +121,7 @@ struct MeetingLibraryTests {
     }
 
     /// Seçili toplantı silinince ekran temizlenir ve seçim boşalır.
-    @Test @MainActor
+    @Test
     func seciliToplantiSilinirseEkranTemizlenir() async throws {
         let (_, store, library) = make()
         let id = try await seed(store, text: "silinecek")
@@ -140,7 +138,7 @@ struct MeetingLibraryTests {
 
     /// Düzeltme `corrections`'a yazılır ve sözlük adayı **dışarı** bildirilir —
     /// kütüphane sözlüğe dokunmaz.
-    @Test @MainActor
+    @Test
     func duzeltmeSozlukAdayiniBildirir() async throws {
         let (_, store, library) = make()
         let id = try await seed(store, text: "Toplum bütçesi")
@@ -162,7 +160,7 @@ struct MeetingLibraryTests {
 
     /// Aksiyon işaretlemesi hem toplantı görünümünü hem panoyu **hemen**
     /// güncellemeli; yazma arkada yapılır.
-    @Test @MainActor
+    @Test
     func aksiyonIsaretlemesiHemenGorunur() async throws {
         let (_, store, library) = make()
         let id = try await seed(store, text: "metin")
@@ -187,7 +185,7 @@ struct MeetingLibraryTests {
     }
 
     /// Arama listeyi süzer (debounce'lu).
-    @Test @MainActor
+    @Test
     func aramaListeyiSuzer() async throws {
         let (_, store, library) = make()
         let a = try await seed(store, text: "bordro görüşmesi")

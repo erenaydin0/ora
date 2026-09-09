@@ -1,7 +1,7 @@
 import Foundation
 
 /// Bir kelimenin zaman aralığı ve güven skoru.
-struct WordTiming: Sendable, Hashable {
+nonisolated struct WordTiming: Sendable, Hashable {
     let text: String
     let start: TimeInterval
     let end: TimeInterval
@@ -9,7 +9,7 @@ struct WordTiming: Sendable, Hashable {
 }
 
 /// Transkriptin en küçük birimi. Kayıt başlangıcına göre saniye cinsinden konumlanır.
-struct Segment: Sendable, Identifiable, Hashable {
+nonisolated struct Segment: Sendable, Identifiable, Hashable {
     let channel: Channel
     let speaker: String
     let text: String
@@ -41,7 +41,7 @@ struct Segment: Sendable, Identifiable, Hashable {
 ///
 /// Eşiğin altında `nil` döner ve madde **tıklanabilir olmaz**: yanlış bir yere
 /// atlamak, hiç atlamamaktan kötüdür.
-struct TranscriptIndex {
+nonisolated struct TranscriptIndex {
 
     private let lines: [(segment: Segment, words: Set<String>)]
     private let weight: [String: Double]
@@ -85,7 +85,7 @@ struct TranscriptIndex {
 }
 
 /// Transkripsiyonun ilerlemesi ve sonucu.
-enum TranscriptionProgress: Sendable {
+nonisolated enum TranscriptionProgress: Sendable {
     case preparing
     case downloadingLocale(Double)
     case transcribing(Double)
@@ -93,9 +93,9 @@ enum TranscriptionProgress: Sendable {
     case failed(OraError)
 }
 
-protocol Transcribing: Sendable {
+nonisolated protocol Transcribing: Sendable {
     /// Diskteki stereo WAV üzerinden tam geçiş. Nihai gerçek budur.
-    func transcribe(url: URL,
+    @concurrent func transcribe(url: URL,
                     locale: Locale,
                     vocabulary: [String],
                     progress: @Sendable @escaping (Double) -> Void) async throws -> [Segment]
@@ -103,7 +103,7 @@ protocol Transcribing: Sendable {
 
 /// Analiz motoru kurulurken çıkan, kullanıcıya `OraError.transcriptionFailed`
 /// içinde ulaşan iç hata.
-struct TranscriptionSetupError: LocalizedError {
+nonisolated struct TranscriptionSetupError: LocalizedError {
     let reason: String
     var errorDescription: String? { reason }
 }

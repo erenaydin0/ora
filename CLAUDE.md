@@ -74,6 +74,28 @@ Python yok, Node yok, Electron yok, model dosyası indirme yok.
     hesaplanan **mutlak frame konumuna** yazılır — hizalamayı bu sağlar.
 12. Ses **artımlı olarak** diske yazılır (1 sn'de bir flush, dosya varsa append).
     Ses hiçbir zaman tamamı RAM'de tutulmaz — önceki ora'nın en pahalı hatası buydu.
+13. **Varsayılan izolasyon `MainActor`'dır** — `SWIFT_APPROACHABLE_CONCURRENCY`
+    ve `SWIFT_DEFAULT_ACTOR_ISOLATION` **hedef** yapılandırmalarında açıktır
+    (`ora` + `oraTests`, Debug ve Release). Proje seviyesine **yazılmaz**: ayar
+    SPM bağımlılığına sızıp GRDB'nin `ValueObservation` katmanını kırıyor
+    (RESEARCH.md §30.1). Kural bu yüzden tersine döndü — her şey ana aktörde,
+    **dışarı çıkan yer açıkça işaretlenir**:
+    - Ana iş parçacığı dışında yaşayan tip `nonisolated` işaretlenir
+      (`ora/Capture/` tamamı, `Log`, `OraError`, `AppPaths`, `AudioArchive`,
+      `PowerState`, `Transcribe`, `Intelligence`, `Store`, `LiveRoute`).
+      **Extension'lar tipin izolasyonunu devralmaz**, ayrıca işaretlenir.
+    - Ağır asenkron adım `@concurrent` işaretlenir ve işaret **sözleşmede**
+      durur: `Transcribing.transcribe`, `Intelligent.restorePunctuation` /
+      `summarize` / `answer` / `generateTitle`, `AudioArchive.compress`.
+      `nonisolated async` olmak **yetmez** — SE-0461 ile böyle bir gövde
+      çağıranın aktöründe koşuyor, hat `@MainActor` olduğu için ana iş
+      parçacığına inerdi (§30.2). `oraTests/IsolationTests` bunu ölçer;
+      işaret silinirse test kırılır.
+    - `MeetingStore` `@concurrent` **almaz** — gövdeleri `database.write/read`
+      bloğu, iş zaten GRDB kuyruğunda (§30.3).
+    - `Task { @MainActor in … }` yazımları **gereksiz değil**: nonisolated bir
+      kapanıştan (CoreAudio dinleyicisi, ilerleme geri çağrısı) ana aktöre
+      yapılan gerçek atlamadır, silinmez.
 
 ## İşlem Hattı Sırası
 Bu sıra asla değişmez:
@@ -625,10 +647,23 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       takvim başlığı "Şimdi özetle"/"Yeniden dene" yollarında üretilmiş
       başlıkla eziliyordu (karar artık `calendar_event_id`'den okunuyor) ve
       `isTranscribing` hat koşarken toplantı silinince false dönüp yetki
-      kapılarını açıyordu (artık `pipeline.isRunning`). Adım 3-6 bekliyor.
+      kapılarını açıyordu (artık `pipeline.isRunning`).
+      **Approachable concurrency açıldı (RESEARCH.md §30):** varsayılan
+      izolasyon `MainActor`, ağır adımlar `@concurrent` (kural #13).
+      Derleyici zaten Swift 6.3.3'tü — açık olmayan tek şey bayraktı.
+      72 `@MainActor` işareti silindi, 73 bildirim `nonisolated` oldu,
+      `IsolationTests` ağır işin ana aktörün dışında koştuğunu ölçüyor
+      (mutasyonla doğrulandı: işaret silinince test kırılıyor).
+      48 test geçiyor, Release derlemesi temiz, yeni uyarı yok.
+      **Swift 6.4'e geçilmedi:** yalnızca Xcode 27 beta'sında var, getirdiği
+      ergonomi bu kod tabanında karşılık bulmuyor ve bedeli macOS 27 SDK'sına
+      geçmek — yani §1-30 ölçümlerinin yeniden koşturulması (§30.6).
     - Bekleyen:
       1. **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
+         İzolasyon değişikliğinin arayüz akıcılığına etkisi de burada
+         doğrulanacak: `IsolationTests` iş parçacığı kimliğini ölçüyor,
+         **gerçek bir kayıtla göz denetimi yapılmadı** (§30.5).
       2. **İmzalama ve notarizasyon** — makinede kod imzalama kimliği yok;
          Apple Developer üyeliği gerekiyor. Betik hazır, ek kod gerekmiyor.
       3. ~~Gerçek bir Teams/Zoom toplantısıyla algılama→kayıt akışı denenmedi.~~
@@ -652,7 +687,9 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
 ### Proje Düzeni (Faz 1'de kuruldu)
 ```
 ora.xcodeproj          — senkronize klasör grubu: ora/ altına eklenen dosya
-                         otomatik derlemeye girer, pbxproj elle düzenlenmez
+                         otomatik derlemeye girer, pbxproj elle düzenlenmez.
+                         Dil kipi `SWIFT_VERSION = 6.0`; izolasyon ayarları
+                         (kural #13) **hedef** yapılandırmalarında
 Config/Info.plist      — izin metinleri (INFOPLIST_FILE ile bağlı)
 Config/ora.entitlements— sandbox KAPALI (§29.4); ağ girişi YOK (kural #3'ün garantisi)
 ora/oraApp.swift       — @main + AppDelegate (dizin hazırlığı, açık mod sabiti)
@@ -711,7 +748,8 @@ oraTests/              — swift-testing hedefi. `Support/Fakes.swift` yalnızca
                          `OraSettings.shared` geliştiricinin gerçek ayarlarını
                          okuyor ve testi makineye bağımlı kılıyordu.
                          `MeetingSwitchTests` RESEARCH §27'yi, `PipelineTests`
-                         hattın kırılma noktalarını denetler.
+                         hattın kırılma noktalarını, `IsolationTests` ağır işin
+                         ana aktörün dışında koştuğunu (§30) denetler.
 ```
 Testler `xcodebuild test -scheme ora` ile koşar (paylaşılan şema depoda).
 `probes/meeting_switch.swift` bu hedefe taşındı ve kaldırıldı.

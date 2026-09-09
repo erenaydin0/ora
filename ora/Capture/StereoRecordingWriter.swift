@@ -6,7 +6,7 @@ import Foundation
 /// çalışıyor (RESEARCH.md §2 ölçümü 16 kHz ses ile yapıldı) ve bu oran saatte
 /// ~230 MB tutuyor. 48 kHz'te aynı kayıt ~690 MB olurdu; konuşma için karşılığı
 /// olmayan bir üç kat.
-enum RecordingFormat {
+nonisolated enum RecordingFormat {
     static let sampleRate: Double = 16_000
     static let channelCount = 2
     static let bitsPerSample = 16
@@ -22,7 +22,7 @@ enum RecordingFormat {
 ///
 /// Yazım kendi seri kuyruğunda yapılır. Ses geri çağrıları buraya kopyalayıp
 /// döner; disk beklemesi ses yoluna asla yansımaz.
-final class StereoRecordingWriter: @unchecked Sendable {
+nonisolated final class StereoRecordingWriter: @unchecked Sendable {
 
     /// Kayıt sürerken duran işaretçi dosya. Uygulama çökerse diskte kalır ve
     /// açılışta yarım kayıt olarak bulunur.

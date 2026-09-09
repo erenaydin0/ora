@@ -2,7 +2,6 @@ import Foundation
 import Observation
 
 /// Kullanıcı ayarları. `UserDefaults` üzerinde durur, tek yerden okunur.
-@MainActor
 @Observable
 final class OraSettings {
 

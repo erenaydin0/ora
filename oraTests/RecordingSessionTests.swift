@@ -8,7 +8,7 @@ import Testing
 @Suite("Kayıt oturumu", .serialized)
 struct RecordingSessionTests {
 
-    @Test @MainActor
+    @Test
     func basariliBaslangicVeDurdurma() async throws {
         let url = URL(fileURLWithPath: "/tmp/ora-test.wav")
         let capture = FakeCapture(stopURL: url)
@@ -35,7 +35,7 @@ struct RecordingSessionTests {
 
     /// Ses yazımı başlamazsa oturum **açılmaz**: `meetingID` boş kalır, yoksa
     /// `stop()` var olmayan bir kaydı kapatmaya çalışır.
-    @Test @MainActor
+    @Test
     func basarisizBaslangicOturumAcmaz() async throws {
         let capture = FakeCapture()
         capture.startError = .permissionDenied(.microphone)
@@ -50,7 +50,7 @@ struct RecordingSessionTests {
 
     /// **CLAUDE.md kural #2:** canlı transkripsiyon asla kaydın önüne geçmez.
     /// Duraklarsa kullanıcıya Türkçe not düşer ve kayıt kesintisiz sürer.
-    @Test @MainActor
+    @Test
     func canliTranskripsiyonDuraklarsaKayitSurer() async throws {
         let capture = FakeCapture()
         let live = FakeLiveTranscription(pausesOnStart: "Canlı transkript başlatılamadı")
@@ -71,7 +71,7 @@ struct RecordingSessionTests {
 
     /// Kesinleşen satır listeye girer ve sıralanır; kesinleşmeyen metin
     /// kanal başına ayrı tutulur.
-    @Test @MainActor
+    @Test
     func canliGuncellemelerEkranaYazilir() async throws {
         let capture = FakeCapture()
         let live = FakeLiveTranscription()
@@ -99,7 +99,7 @@ struct RecordingSessionTests {
     }
 
     /// Yakalama akışı hata bildirirse hata dışarı verilir — sessiz çökme yasak.
-    @Test @MainActor
+    @Test
     func yakalamaHatasiDisariVerilir() async throws {
         let capture = FakeCapture()
         capture.startError = .permissionDenied(.systemAudio)

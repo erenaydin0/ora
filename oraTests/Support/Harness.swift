@@ -9,7 +9,6 @@ import Testing
 /// `UserDefaults`'unu okur ve test sonucu makineye göre değişirdi.
 /// Dil paketi hazırlığı ve güç durumu da devre dışı — ikisi de dış dünyaya
 /// dokunuyor ve testin konusu değil.
-@MainActor
 final class Harness {
 
     let database: OraDatabase
@@ -65,7 +64,6 @@ final class Harness {
 
 /// `condition` doğru olana kadar bekler. Hat asenkron ilerlediği için sabit
 /// `sleep` yerine bu kullanılır: hem daha hızlı hem de yavaş makinede kırılmaz.
-@MainActor
 func waitUntil(_ label: String,
                timeout: Duration = .seconds(10),
                _ condition: @MainActor () -> Bool) async {

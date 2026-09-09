@@ -28,7 +28,6 @@ struct CalendarMatchTests {
                      organizerIsMe: organizerIsMe)
     }
 
-    @MainActor
     private static func reader(_ events: [MeetingEvent],
                                titles: [String] = []) -> CalendarReader {
         let suite = "ora.tests.\(UUID().uuidString)"
@@ -99,7 +98,7 @@ struct CalendarMatchTests {
     // MARK: - Karar: kesin mi, sorulacak mı?
 
     /// Tek aday varsa sormaya gerek yok.
-    @Test @MainActor func tekAdayKesin() {
+    @Test func tekAdayKesin() {
         let event = Self.event("Bordro Fark Çözümü", app: "com.microsoft.teams2")
         let reader = Self.reader([event])
         #expect(reader.match(at: Self.now, app: "com.microsoft.teams2")
@@ -108,7 +107,7 @@ struct CalendarMatchTests {
 
     /// **İki Teams toplantısını da kabul ettiysem fark yok → sorulur.**
     /// Tahmin etmek yanlış katılımcı listesi yazmak demek.
-    @Test @MainActor func belirsizlikteSorulur() {
+    @Test func belirsizlikteSorulur() {
         let a = Self.event("Bordro Fark Çözümü", app: "com.microsoft.teams2",
                            response: .accepted)
         let b = Self.event("Tasarım Değerlendirme", app: "com.microsoft.teams2",
@@ -124,7 +123,7 @@ struct CalendarMatchTests {
     }
 
     /// Pencere başlığı gelince belirsizlik kalkıyor — takvimin en güçlü sinyali.
-    @Test @MainActor func pencereBasligiBelirsizligiCozer() {
+    @Test func pencereBasligiBelirsizligiCozer() {
         let a = Self.event("Bordro Fark Çözümü", app: "com.microsoft.teams2",
                            response: .accepted)
         let b = Self.event("Tasarım Değerlendirme", app: "com.microsoft.teams2",
@@ -136,7 +135,7 @@ struct CalendarMatchTests {
 
     /// İptal edilmiş etkinlik aday değildir: takvimde durmaya devam ediyor ve
     /// erken başladığı için gerçek toplantıyı yeniyordu.
-    @Test @MainActor func iptalEdilenAdayDegil() {
+    @Test func iptalEdilenAdayDegil() {
         let cancelled = Self.event("İptal Edilmiş", app: "com.microsoft.teams2",
                                    cancelled: true)
         let reader = Self.reader([cancelled])
@@ -144,14 +143,14 @@ struct CalendarMatchTests {
     }
 
     /// O ana denk gelen etkinlik yoksa eşleşme yok.
-    @Test @MainActor func etkinlikYoksaEslesmeYok() {
+    @Test func etkinlikYoksaEslesmeYok() {
         let reader = Self.reader([])
         #expect(reader.match(at: Self.now, app: nil) == CalendarReader.MatchOutcome.none)
     }
 
     /// Bildirim metni için tepe aday **eşiğe bakmadan** verilir: orada en iyi
     /// tahmin yeterli, veritabanına kimse yazılmıyor.
-    @Test @MainActor func bildirimIcinTepeAdayEsigeBakmaz() {
+    @Test func bildirimIcinTepeAdayEsigeBakmaz() {
         let a = Self.event("Bordro Fark Çözümü", app: "com.microsoft.teams2",
                            response: .accepted)
         let b = Self.event("Tasarım Değerlendirme", app: "com.microsoft.teams2",

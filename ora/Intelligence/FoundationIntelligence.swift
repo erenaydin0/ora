@@ -8,7 +8,7 @@ import FoundationModels
 /// (RESEARCH.md §3). Bu yüzden her uzun girdi map-reduce edilir ve
 /// **her parça için yeni `LanguageModelSession`** açılır — oturum tekrar
 /// kullanılırsa geçmiş bağlamı yiyip pencereyi taşırır.
-struct FoundationIntelligence: Intelligent {
+nonisolated struct FoundationIntelligence: Intelligent {
 
     /// Talimat her çağrıda aynıdır.
     ///
@@ -44,7 +44,7 @@ struct FoundationIntelligence: Intelligent {
 
     // MARK: - Noktalama restorasyonu
 
-    func restorePunctuation(_ segments: [Segment],
+    @concurrent func restorePunctuation(_ segments: [Segment],
                             progress: @Sendable @escaping (Double) -> Void) async throws -> [Segment] {
         guard availability.isAvailable, !segments.isEmpty else { return segments }
 
@@ -140,7 +140,7 @@ struct FoundationIntelligence: Intelligent {
         return max(1, min(4, Int((6.0 / Double(chunkCount)).rounded(.up))))
     }
 
-    func summarize(_ segments: [Segment],
+    @concurrent func summarize(_ segments: [Segment],
                    context: SummaryContext,
                    variation: Bool = false,
                    progress: @Sendable @escaping (Double) -> Void) async throws
@@ -688,7 +688,7 @@ struct FoundationIntelligence: Intelligent {
 
     // MARK: - Toplantı sohbeti
 
-    func answer(question: String, over segments: [Segment]) async throws -> String {
+    @concurrent func answer(question: String, over segments: [Segment]) async throws -> String {
         guard availability.isAvailable else {
             throw OraError.modelUnavailable(reason: availability.turkishMessage)
         }
@@ -751,7 +751,7 @@ struct FoundationIntelligence: Intelligent {
 
     // MARK: - Otomatik başlık
 
-    func generateTitle(from segments: [Segment]) async -> String? {
+    @concurrent func generateTitle(from segments: [Segment]) async -> String? {
         await generateTitle(from: segments, topics: [])
     }
 
@@ -759,7 +759,7 @@ struct FoundationIntelligence: Intelligent {
     /// yalnızca ilk parçadan üretilen başlık toplantının tamamını temsil
     /// etmiyordu — 29 dakikalık bir bordro mutabakatı "Toplam Kazanç ve Diğer
     /// Kazançlar" oluyordu, çünkü ilk 6.000 karakter oradan geçiyordu.
-    func generateTitle(from segments: [Segment],
+    @concurrent func generateTitle(from segments: [Segment],
                        topics: [TopicSegment]) async -> String? {
         guard availability.isAvailable, !segments.isEmpty else { return nil }
 

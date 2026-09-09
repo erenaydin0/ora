@@ -14,7 +14,6 @@ import SwiftUI
 /// **karışımdır**: kanal seçici kullanıcı kararıyla kaldırıldı — dinlerken
 /// yapılan iş kaydı gözden geçirmek, kanal ayıklamak değil. Ölçümü
 /// RESEARCH.md §25.1'de duruyor.
-@MainActor
 @Observable
 final class AudioPlayback {
 

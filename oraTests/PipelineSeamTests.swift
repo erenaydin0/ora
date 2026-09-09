@@ -8,7 +8,6 @@ import Testing
 @Suite("Hat dikişi", .serialized)
 struct PipelineSeamTests {
 
-    @MainActor
     private func makePipeline(_ h: Harness,
                               intelligence: any Intelligent,
                               transcription: any Transcribing = FakeTranscription())
@@ -23,7 +22,7 @@ struct PipelineSeamTests {
     }
 
     /// Arayüzün dışında ikinci bir tüketici de olayları eksiksiz görür.
-    @Test @MainActor
+    @Test
     func ikinciTuketiciOlaylariGorur() async throws {
         let h = try Harness(intelligence: SlowIntelligence(tag: "A", step: .milliseconds(10)))
         let pipeline = makePipeline(h, intelligence: SlowIntelligence(tag: "P",
@@ -51,7 +50,7 @@ struct PipelineSeamTests {
 
     /// Hattın kendi kaydı: koşarken `isRunning`, bitince değil. Aşama
     /// **veritabanından türetilmez**.
-    @Test @MainActor
+    @Test
     func kosarkenIsRunningDogru() async throws {
         let h = try Harness(intelligence: SlowIntelligence(tag: "A", step: .milliseconds(10)))
         let pipeline = makePipeline(h, intelligence: SlowIntelligence(tag: "P",
@@ -71,7 +70,7 @@ struct PipelineSeamTests {
     /// Eskiden bu karar kayıt oturumunun `activeEvent`'inden okunuyordu; o da
     /// "Şimdi özetle" ve "Yeniden dene" yollarında her zaman nil olduğu için
     /// takvimden gelen ad üretilmiş adla eziliyordu.
-    @Test @MainActor
+    @Test
     func takvimBasligiUretilmisBasligiYener() async throws {
         let model = SlowIntelligence(tag: "A", step: .milliseconds(10))
         model.generatedTitle = "Üretilmiş Başlık"
@@ -93,7 +92,7 @@ struct PipelineSeamTests {
     }
 
     /// Takvim bağı yoksa başlık transkriptten üretilir.
-    @Test @MainActor
+    @Test
     func takvimYoksaBaslikUretilir() async throws {
         let model = SlowIntelligence(tag: "A", step: .milliseconds(10))
         model.generatedTitle = "Üretilmiş Başlık"

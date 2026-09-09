@@ -10,7 +10,6 @@ import Carbon.HIToolbox
 /// **Neden Carbon:** sistem genelinde kısayol için izin istemeyen tek yol
 /// `RegisterEventHotKey`. `NSEvent.addGlobalMonitorForEvents` erişilebilirlik
 /// izni ister; ora tap sayesinde kurtulduğu izinleri geri getirmez.
-@MainActor
 final class GlobalHotKey {
 
     static let shared = GlobalHotKey()

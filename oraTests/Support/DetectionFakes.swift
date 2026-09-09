@@ -7,7 +7,6 @@ import Observation
 ///
 /// `@Observable` olmak **zorunlu**: öneri teslimi `withObservationTracking`
 /// ile çalışıyor, sahte gözlemlenebilir değilse hiçbir şey tetiklenmez.
-@MainActor
 @Observable
 final class FakeDetector: MeetingDetecting {
 
@@ -46,7 +45,6 @@ final class FakeDetector: MeetingDetecting {
 
 /// Sahte bildirim yüzeyi. Gerçek tipte `isAuthorized` false olduğu için çağrı
 /// sessizce düşüyor ve teslimin olup olmadığı ölçülemiyordu.
-@MainActor
 final class FakeSuggestionNotifier: SuggestionNotifying {
 
     var onRecord: ((String) -> Void)?
@@ -60,7 +58,6 @@ final class FakeSuggestionNotifier: SuggestionNotifying {
     }
 }
 
-@MainActor
 func testSignal(_ bundleID: String = "com.microsoft.teams2",
                 displayName: String = "Microsoft Teams") -> MeetingSignal {
     MeetingSignal(bundleID: bundleID, displayName: displayName,

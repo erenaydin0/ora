@@ -8,7 +8,7 @@ import CoreMedia
 /// Stereo WAV iki mono akışa ayrılır ve **her kanal ayrı** transkribe edilir —
 /// diarization gerekmez, kanal ayrımı "ben vs. karşı taraf"ı zaten çözer.
 /// Sessiz kanal atlanır.
-final class SpeechTranscription: Transcribing {
+nonisolated final class SpeechTranscription: Transcribing {
 
     /// Bu eşiğin altında tepe genliği olan kanal "sessiz" sayılır ve atlanır.
     /// −46 dBFS civarı: oda gürültüsünü eler, kısık konuşmayı elemez.
@@ -17,7 +17,7 @@ final class SpeechTranscription: Transcribing {
     /// Analiz motoruna beslenen parça boyutu (kaynak frame cinsinden).
     private static let chunkFrames: AVAudioFrameCount = 16_000
 
-    func transcribe(url: URL, locale: Locale, vocabulary: [String],
+    @concurrent func transcribe(url: URL, locale: Locale, vocabulary: [String],
                     progress: @Sendable @escaping (Double) -> Void) async throws -> [Segment] {
         try await transcribe(url: url, locale: locale, vocabulary: vocabulary,
                              channels: Channel.allCases, limit: nil, progress: progress)
@@ -26,7 +26,7 @@ final class SpeechTranscription: Transcribing {
     /// - Parameters:
     ///   - channels: yalnızca bu kanallar çözülür (otomatik dil seçimi tek kanal ister)
     ///   - limit: yalnızca ilk bu kadar saniye çözülür (otomatik dil seçimi için)
-    func transcribe(url: URL, locale: Locale, vocabulary: [String],
+    @concurrent func transcribe(url: URL, locale: Locale, vocabulary: [String],
                     channels: [Channel], limit: TimeInterval?,
                     progress: @Sendable @escaping (Double) -> Void) async throws -> [Segment] {
 

@@ -3,7 +3,7 @@ import AVFoundation
 
 /// Bir kaynağın frame konumunu takip eden hizalayıcı.
 /// Her örnek yalnızca kendi kaynağının iş parçacığından çağrılır.
-private final class SourceAligner: @unchecked Sendable {
+nonisolated private final class SourceAligner: @unchecked Sendable {
     private var anchor = FrameAnchor()
     private var lastLoggedResync = 0
 
@@ -23,7 +23,7 @@ private final class SourceAligner: @unchecked Sendable {
 /// Sözleşme (ARCHITECTURE.md): ses yazımı **birincil iştir**. Sistem sesi
 /// alınamazsa kayıt durmaz, yalnız-mikrofon moduna düşer. Canlı transkripsiyon
 /// `liveBuffers` üzerinden **ikincil** tüketicidir ve geri kalırsa buffer düşürülür.
-final class AudioCapture: AudioCapturing, @unchecked Sendable {
+nonisolated final class AudioCapture: AudioCapturing, @unchecked Sendable {
 
     /// Diske yazımın ses akışının kaç saniye gerisinden gittiği.
     /// Bu pencere, geç gelen buffer'ların hâlâ doğru frame konumuna

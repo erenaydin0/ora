@@ -9,7 +9,7 @@ import Foundation
 ///
 /// Üç işlem: boyutu bildir, sesi AAC'ye çevir, sesi sil. Hiçbiri kendiliğinden
 /// çalışmaz; ikisi ayarla açılır, biri kullanıcı ister.
-enum AudioArchive {
+nonisolated enum AudioArchive {
 
     /// Kayıtlar dizininin toplam boyutu.
     static func totalBytes() -> Int64 {
@@ -40,7 +40,7 @@ enum AudioArchive {
     ///
     /// Kayıp veren bir sıkıştırmadır; bu yüzden **opt-in**'dir ve yalnızca
     /// transkripsiyon bittikten sonra çalışır.
-    static func compress(_ url: URL) async throws -> URL {
+    @concurrent static func compress(_ url: URL) async throws -> URL {
         guard url.pathExtension.lowercased() == "wav" else { return url }
         let target = url.deletingPathExtension().appendingPathExtension("m4a")
         try? FileManager.default.removeItem(at: target)

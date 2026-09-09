@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 
 /// Toplantı verisinin tek kapısı. UI ve Pipeline SQL yazmaz; buradan geçer.
-struct MeetingStore: Sendable {
+nonisolated struct MeetingStore: Sendable {
 
     let database: OraDatabase
 
@@ -421,7 +421,7 @@ struct MeetingStore: Sendable {
 
 // MARK: - Takvim bağı ve katılımcılar
 
-extension MeetingStore {
+nonisolated extension MeetingStore {
 
     /// Takvim etkinliğini toplantıya bağlar.
     ///

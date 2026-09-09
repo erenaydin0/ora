@@ -1,6 +1,6 @@
 import Foundation
 
-enum Permission: String {
+nonisolated enum Permission: String {
     case microphone
     case systemAudio
     case speechRecognition
@@ -18,7 +18,7 @@ enum Permission: String {
 
 /// Uygulamanın tek hata tipi. Her vakanın Türkçe kullanıcı mesajı ve mümkünse
 /// bir düzeltici eylemi vardır — sessiz `catch { }` yasaktır (ARCHITECTURE.md).
-enum OraError: Error {
+nonisolated enum OraError: Error {
     case permissionDenied(Permission)
     case localeNotInstalled(Locale)
     case modelUnavailable(reason: String)
@@ -28,7 +28,7 @@ enum OraError: Error {
     case contextOverflow
 }
 
-extension OraError {
+nonisolated extension OraError {
 
     /// Kullanıcıya gösterilen başlık.
     var turkishMessage: String {

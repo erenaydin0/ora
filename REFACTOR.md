@@ -519,10 +519,13 @@ Plandaki altı adım tamam. Kapanan hata ve ölü kod, adım adım §9-13'te.
 - **`Pipeline`'ı `actor` yapmak — yapılmamalı, ertelenmiş değil.**
   Ölçüldü (2026-09-09): hattın çağırdığı ağır işin tamamı zaten main
   thread'den çıkıyor. `FoundationIntelligence` (struct), `SpeechTranscription`
-  (class), `MeetingStore` (struct) ve `AudioArchive.compress` (static) dördü de
-  `nonisolated async`; Swift 6 dil modunda böyle bir fonksiyon `@MainActor`'dan
-  çağrılsa bile çağıranın şeridini **devralmaz**, havuzda koşar. Main thread'de
-  kalan iş birkaç `await`, bir `Set` ekleme ve dinleyici çağrısı.
+  (class) ve `AudioArchive.compress` (static) **`@concurrent`** işaretli,
+  `MeetingStore`'un gövdeleri de GRDB'nin kendi kuyruğunda koşuyor. Main
+  thread'de kalan iş birkaç `await`, bir `Set` ekleme ve dinleyici çağrısı.
+
+  (Bu satır önce "`nonisolated async` olmaları yeter" diyordu; approachable
+  concurrency açıldıktan sonra yetmiyor — SE-0461 ile böyle bir gövde çağıranın
+  aktöründe koşuyor, bkz. RESEARCH.md §30.2. Sonuç değişmedi, gerekçe değişti.)
 
   Bedeli ise gerçek: (1) `isRunning` yalnızca `await` ile okunabilir hâle
   gelir, oysa `isTranscribing` / `canCorrect` / `canSummarize` / `canRetry`

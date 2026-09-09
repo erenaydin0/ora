@@ -139,7 +139,6 @@ enum MeetingExport {
         return formatter.string(from: date)
     }
 
-    @MainActor
     static func copyEmailDraft(_ payload: Payload) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(emailDraft(payload), forType: .string)
@@ -147,7 +146,6 @@ enum MeetingExport {
 
     // MARK: - Dosyaya yazma
 
-    @MainActor
     static func saveMarkdown(_ payload: Payload) {
         guard let url = savePanel(name: fileName(payload) + ".md", type: .plainText) else { return }
         do {
@@ -158,7 +156,6 @@ enum MeetingExport {
         }
     }
 
-    @MainActor
     static func savePDF(_ payload: Payload) {
         guard let url = savePanel(name: fileName(payload) + ".pdf", type: .pdf) else { return }
         let page = CGRect(x: 0, y: 0, width: 595, height: 842)   // A4, 72 dpi
@@ -188,7 +185,6 @@ enum MeetingExport {
         Log.info(.ui, "PDF dışa aktarıldı: \(url.lastPathComponent)")
     }
 
-    @MainActor
     private static func savePanel(name: String, type: UTType) -> URL? {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = name

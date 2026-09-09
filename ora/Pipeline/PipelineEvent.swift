@@ -3,7 +3,7 @@ import Foundation
 /// İşlem hattının aşaması. Toplantı **başına** tutulur (`stages`); uygulama
 /// genelinde tek bir aşama, kullanıcı işlem sürerken başka bir toplantıya
 /// geçtiğinde animasyonu o toplantının ekranına taşıyordu (RESEARCH.md §27).
-enum PipelineStage: Equatable, Sendable {
+nonisolated enum PipelineStage: Equatable, Sendable {
     case idle
     case preparingLanguage
     case downloadingLanguage(Double)
@@ -30,7 +30,7 @@ enum PipelineStage: Equatable, Sendable {
 /// kapısı gerekiyordu — 15 tane olmuştu ve unutulan her biri sessiz bir
 /// toplantılar-arası sızıntıydı (REFACTOR.md §2). Olay `meetingID` taşıdığı
 /// için süzme **tek yerde**, `RecordingController.apply(_:)` içinde yapılır.
-struct PipelineEvent: Sendable {
+nonisolated struct PipelineEvent: Sendable {
 
     let meetingID: Int64
     let kind: Kind

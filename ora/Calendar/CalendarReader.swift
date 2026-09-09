@@ -3,7 +3,7 @@ import EventKit
 
 /// Takvimden okunan toplantı. `notes` ve `location` **taşınmaz** — protokol
 /// bunları içermediği için DB'ye sızmaları yapısal olarak imkânsızdır.
-struct MeetingEvent: Sendable, Identifiable, Equatable {
+nonisolated struct MeetingEvent: Sendable, Identifiable, Equatable {
     let eventID: String
     let title: String
     let start: Date
@@ -41,7 +41,6 @@ struct MeetingEvent: Sendable, Identifiable, Equatable {
 /// Kapalıyken (`isEnabled == false`) `EKEventStore` hiç örneklenmez ve izin
 /// istenmez. ora takvime **asla yazmaz**; okumak için `fullAccess` gerekir
 /// (RESEARCH.md §12).
-@MainActor
 final class CalendarReader {
 
     private let settings: OraSettings

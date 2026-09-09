@@ -1,7 +1,7 @@
 import Foundation
 
 /// Yarım kalan bir kayıt: uygulama kayıt sürerken çöktüğünde diskte kalan WAV.
-struct InterruptedRecording: Identifiable, Sendable {
+nonisolated struct InterruptedRecording: Identifiable, Sendable {
     let url: URL
     let modified: Date
     let duration: TimeInterval
@@ -16,7 +16,7 @@ struct InterruptedRecording: Identifiable, Sendable {
 /// bittiğinde silinir. Açılışta kalan her işaretçi, yarım kalmış bir kayıt demektir.
 /// Ses zaten artımlı yazıldığı için dosyanın **içeriği sağlamdır**; yalnızca son
 /// flush'tan sonraki başlık alanları eksik kalmış olabilir — onarılır.
-enum RecordingRecovery {
+nonisolated enum RecordingRecovery {
 
     /// Açılışta bir kez çağrılır. Yarım kalan kayıtları bulur ve başlıklarını onarır.
     static func scan() -> [InterruptedRecording] {

@@ -14,7 +14,7 @@ import Foundation
 /// düşüyordu.
 ///
 /// Sınırlar bu ölçülen orandan hesaplanır ve üretilecek çıktıya pay bırakır.
-enum TranscriptChunker {
+nonisolated enum TranscriptChunker {
 
     /// Özetleme parçası: 6.000 krk ≈ 2.450 token; istem ~300, çıktıya ~1.300 pay.
     static let summaryLimit = 6_000

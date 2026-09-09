@@ -7,7 +7,7 @@ import AVFoundation
 /// Mikrofon (`AVAudioTime.hostTime`) ve süreç tap'i (`AudioTimeStamp.mHostTime`)
 /// aynı saati kullanır. Hizalama **buffer sayısıyla değil** bu damgayla yapılır —
 /// eski ora'nın çözemediği sorun buydu (ROADMAP Faz 2).
-enum AudioClock {
+nonisolated enum AudioClock {
 
     static var now: UInt64 { AudioGetCurrentHostTime() }
 
@@ -27,7 +27,7 @@ enum AudioClock {
 ///
 /// `AVAudioConverter` durumludur ve iş parçacığı güvenli değildir; her kaynak
 /// kendi örneğini kendi seri kuyruğunda kullanır.
-final class MonoResampler {
+nonisolated final class MonoResampler {
 
     private let converter: AVAudioConverter
     private let inputFormat: AVAudioFormat
@@ -92,7 +92,7 @@ final class MonoResampler {
 /// yüzünden mikro boşluk/örtüşme üretir. Bunun yerine akış sürekli sayılır ve
 /// host time'dan sapma eşiği aşarsa **yeniden çapalanır** — böylece hizalama
 /// buffer sayısına değil saate bağlı kalır, ses de sürekli olur.
-struct FrameAnchor {
+nonisolated struct FrameAnchor {
 
     /// 50 ms'yi aşan sapmada yeniden çapala.
     static let tolerance: Int64 = Int64(RecordingFormat.sampleRate * 0.05)

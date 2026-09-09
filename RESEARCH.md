@@ -1792,3 +1792,109 @@ etkinliklerle kurulabiliyor; `probes/takvim_eslestirme.swift` kaldırıldı.
 ölçülüyordu. Artık ikisi de ölçülü: kararlılık eşiği kaldırıldığında
 "belirsizlikte sorulur" kontrolü kırılıyor.
 
+
+## 30. Approachable concurrency: varsayılan izolasyon MainActor'a alındı
+
+**Tarih:** 2026-09-09 · **Toolchain:** Apple Swift 6.3.3 (Xcode 26.6)
+
+`SWIFT_VERSION = 6.0` derleyici sürümü değil **dil kipi**; derleyici zaten 6.3.3.
+Yani 6.1/6.2/6.3'ün özellikleri elimizdeydi, açık olmayan tek şey bayrakla gelen
+davranış değişikliğiydi: Xcode 26'nın yeni projelerde varsayılan yaptığı
+`SWIFT_APPROACHABLE_CONCURRENCY = YES` + `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`
+(SE-0466, SE-0461) bizde kapalıydı.
+
+### 30.1 Ayar hedef seviyesine yazılır, proje seviyesine yazılmaz
+
+| Nereye | Sonuç |
+|---|---|
+| Proje (`PBXProject`) buildSettings | **95 hata** — 0'ı ora'da, hepsi GRDB'de (`ValueObservation` 50, `ValueObservation.swift` 19, `SharedValueObservation` 6, …) |
+| `ora` + `oraTests` hedefleri | 2 hata + 2 uyarı, ikisi de ora'nın kendi dosyasında |
+
+Proje seviyesindeki ayar SPM bağımlılığının hedefine **sızıyor** ve GRDB'nin
+`ValueObservation` katmanını kırıyor. Bu yüzden ayar dört hedef yapılandırmasına
+(`ora` Debug/Release, `oraTests` Debug/Release) yazıldı; proje seviyesi boş
+bırakıldı. Bunu değiştirmeden önce bu satırı oku.
+
+### 30.2 Asıl risk derleme hatası değil, sessizce ana iş parçacığına inen iş
+
+SE-0461, `nonisolated async` bir fonksiyonun gövdesini havuz yerine
+**çağıranın** aktöründe çalıştırıyor. `MeetingPipeline` `@MainActor` olduğu için
+`SpeechTranscription`, `FoundationIntelligence`, `MeetingStore` ve
+`AudioArchive` çağrıları ana iş parçacığına inecekti. Derleyici bunu
+**bildirmez** — MainActor'a taşımak güvenlidir, yalnızca yanlıştır.
+
+`pthread_main_np()` ile ölçüldü (`@MainActor` bir fonksiyondan çağrılan
+`nonisolated async` gövde):
+
+| Ayar | Gövde ana iş parçacığında mı |
+|---|---|
+| Bayraklar kapalı (eski durum) | **hayır** |
+| `APPROACHABLE_CONCURRENCY = YES` | **evet** |
+| + `DEFAULT_ACTOR_ISOLATION = MainActor` | **evet** |
+| + fonksiyonda `@concurrent` | **hayır** |
+
+Bu yüzden `Transcribing` ve `Intelligent` **sözleşmelerindeki** ağır adımlar
+`@concurrent` işaretli: tam geçiş (`transcribe`), noktalama
+(`restorePunctuation`), özetleme (`summarize`), sohbet (`answer`) ve başlık
+(`generateTitle` ×2), ayrıca `AudioArchive.compress`. Toplam 14 imza.
+
+**`@concurrent` protokol gereksiniminde durur, uyarlayıcıda (witness) şart
+değil:** işareti olmayan bir sahte de ana iş parçacığının dışında koşuyor —
+çağrıyı yöneten sözleşmenin izolasyonu. Testler bu yüzden işaretsiz sahtelerle
+yazıldı; ölçtükleri şey sahtenin değil sözleşmenin işareti.
+
+### 30.3 `MeetingStore` bilinçli olarak `@concurrent` almadı
+
+Her fonksiyonunun gövdesi `try await database.write { … }` / `read { … }`, yani
+SQL ve satır eşlemesi **GRDB'nin kendi kuyruğunda** koşuyor; blok dışında kalan
+iş bir `trimmingCharacters` ve argüman dizisi kurmak. `@concurrent` koymak çağrı
+başına bir executor atlaması ekler, karşılığı yok. Aynı gerekçe `saveSummary`
+için de geçerli: JSON kodlaması yazma bloğunun **içinde**.
+
+### 30.4 Kapalı olan yer: ses yolunun izolasyonu
+
+Varsayılan MainActor açıldığında `ora/Capture/` altındaki tipler örtük olarak
+`@MainActor` oluyordu — ve derleyici buna itiraz etmiyordu, çünkü CoreAudio
+IOProc bloğu C tarafından çağrıldığı için Swift onun izolasyonunu
+denetleyemiyor. Sonuç, derleyicinin **güvenli sandığı** bir yarış olurdu: gerçek
+zamanlı ses iş parçacığı, MainActor'a ait olduğu varsayılan duruma yazar.
+
+Bu yüzden ana iş parçacığı dışında yaşayan her katman **açıkça** `nonisolated`
+işaretlendi: `ora/Capture/` (16 bildirim), `Log`/`OraError`/`AppPaths`/
+`AudioArchive`/`PowerState`, `Transcribe`, `Intelligence`, `Store` ve
+`Pipeline`'ın ses yolundan yazılan `LiveRoute`'u — toplam 73 bildirim.
+
+**Extension'lar tipin izolasyonunu devralmaz, modülün varsayılanını alır.**
+Kaçırılan üç extension (`OraRecord`, `MeetingStore`, `OraError`) 12 hata verdi:
+`nonisolated struct MeetingRecord` yazmak yetmedi, `extension OraRecord`'un
+`databaseColumnEncodingStrategy` üyeleri MainActor kalıp GRDB uyarlamasını
+kırdı ("conformance … crosses into main actor-isolated code").
+
+### 30.5 Denetim
+
+`oraTests/IsolationTests.swift` dört adımın da ana iş parçacığı dışında
+koştuğunu ölçer. Mutasyonla doğrulandı: sözleşmelerden `@concurrent`
+kaldırıldığında dört ölçüm birden `true` dönüyor ve test kırılıyor —
+yani koruma gerçek, dekoratif değil.
+
+Sonuç: 48 test geçiyor (46 → 48), Release (`-O`) derlemesi temiz
+(swiftlang/swift#88173'teki performans-inliner çökmesi bu projede görülmedi),
+**yeni uyarı yok** — temiz derlemede baseline'daki 12 uyarının aynısı
+(`AVFAudio` Sendable + `try?` sonucu kullanılmıyor), fazlası değil.
+Kod tarafında net kazanç: 72 `@MainActor` işareti silindi (20'si `ora/`,
+52'si `oraTests/`), 19 satır eksildi. Kalan 12 `@MainActor`'ın 10'u
+`Task { @MainActor in … }` — nonisolated bir kapanıştan ana aktöre yapılan
+gerçek atlama — 2'si fonksiyon tipi konumu (`makeLive`, `waitUntil`);
+hiçbiri gereksiz değil.
+
+### 30.6 Swift 6.4 neden atlandı
+
+6.4 yalnızca Xcode 27 içinde geliyor ve Xcode 27 hâlâ beta. Getirdikleri bu
+projede karşılık bulmuyor: `async defer` (SE-0493) — projedeki 8 `defer`'in
+hepsi senkron gövde; `withTaskCancellationShield` (SE-0504) — durdurma yolu
+(`AudioCapture.stop()` → `writer.finish()`) senkron, iptalden etkilenen askı
+noktası yok; fırlatan Task uyarısı (SE-0520) — 54 `Task {`'in tamamı zaten
+`do { try await } catch` sarıyor, aday yok; `anyAppleOS` — macOS-only projede
+anlamsız. Bedel tarafı ise gerçek: Xcode 27 = macOS 27 SDK, yani bu dosyadaki
+ölçümlerin yeniden koşturulması. Geçiş, Xcode 27 kararlıya çıktığında ve
+gerekçesi **macOS 27 uyumluluğu** olduğunda yapılır.

@@ -15,7 +15,6 @@ import Observation
 ///
 /// Veritabanına yazım her hâlükârda yapılır; buradaki süzme yalnızca **ekrana**
 /// yazımı kısıtlar. Kullanıcı geri döndüğünde içerik veritabanından okunur.
-@MainActor
 @Observable
 final class MeetingLibrary {
 

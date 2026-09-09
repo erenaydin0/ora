@@ -2,7 +2,7 @@ import Foundation
 import OSLog
 
 /// Uygulamanın günlük kategorileri. Yeni bir modül eklenince buraya bir vaka eklenir.
-enum LogCategory: String {
+nonisolated enum LogCategory: String {
     case app          = "app"
     case capture      = "capture"
     case transcribe   = "transcribe"
@@ -13,7 +13,7 @@ enum LogCategory: String {
     case ui           = "ui"
 }
 
-enum LogLevel: String {
+nonisolated enum LogLevel: String {
     case debug   = "AYIKLA"
     case info    = "BİLGİ"
     case warning = "UYARI"
@@ -25,7 +25,7 @@ enum LogLevel: String {
 /// Konsola OSLog üzerinden, diske düz metin olarak yazar. Dosya yazımı arka plan
 /// kuyruğunda ve en iyi çaba ile yapılır — günlük yazamamak uygulamayı durdurmaz,
 /// ama sessizce de geçilmez: OSLog'a bir kez hata düşer.
-enum Log {
+nonisolated enum Log {
 
     static func debug(_ category: LogCategory, _ message: String) {
         emit(.debug, category, message)
@@ -82,7 +82,7 @@ enum Log {
 }
 
 /// `{base}/logs/ora.log` dosyasına satır ekler. Seri kuyruk, açık tutulan dosya tanıtıcısı.
-private final class FileLogSink: @unchecked Sendable {
+nonisolated private final class FileLogSink: @unchecked Sendable {
 
     static let shared = FileLogSink()
 

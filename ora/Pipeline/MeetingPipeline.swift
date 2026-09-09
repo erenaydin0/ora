@@ -10,13 +10,15 @@ import Foundation
 /// Eskiden hat doğrudan yayınlanan duruma yazıyordu ve her yazımın önünde elle
 /// konmuş bir `onScreen` kapısı gerekiyordu (REFACTOR.md §2).
 ///
-/// Hâlâ `@MainActor`: ağır işin tamamı `Transcribing` ve `Intelligent`
-/// içindeki zaten asenkron API'lerde geçiyor, bu tip yalnızca sırayı yürütüyor.
+/// Hâlâ ana aktörde: işaret artık modülün varsayılanı
+/// (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`), bu tip yalnızca sırayı
+/// yürütüyor. Ağır adımlar — tam geçiş, noktalama, özetleme — `Transcribing` ve
+/// `Intelligent` sözleşmelerinde **`@concurrent`** işaretli olduğu için ana
+/// aktörün dışında koşar; `oraTests/IsolationTests` bunu ölçer.
 /// `actor`'a çevirmek ayrı bir adımdır ve davranışı değiştirmez.
 ///
 /// İşlem hattı sırası **CLAUDE.md'de sabittir**; buradaki numaralı yorumlar
 /// onu izler.
-@MainActor
 final class MeetingPipeline {
 
     /// Dil paketi hazırlığı. Gerçek Speech varlıklarına dokunduğu için
@@ -47,7 +49,7 @@ final class MeetingPipeline {
     private let prepareLocale: LocalePreparation
     private let detectLocale: LocaleDetection
 
-    /// Olay dinleyicileri. **Senkron ve `@MainActor`**: sıra korunur ve
+    /// Olay dinleyicileri. **Senkron ve ana aktörde**: sıra korunur ve
     /// `await pipeline.…` döndüğünde arayüz durumu zaten güncellenmiş olur.
     /// `AsyncStream` bir tur gecikme koyar ve "işlem bitti ama ekran hâlâ eski"
     /// penceresi açardı.

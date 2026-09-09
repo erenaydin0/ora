@@ -6,7 +6,7 @@ import Speech
 /// **`SpeechTranscriber` değil `DictationTranscriber` kullanılır** — `SpeechTranscriber`
 /// 30 locale destekler ve Türkçe içermez; `DictationTranscriber` 43 locale destekler,
 /// `tr_TR` dahildir (RESEARCH.md §2). Bu ayrım projenin can damarıdır.
-enum TranscriptionLanguage: String, CaseIterable, Sendable, Identifiable {
+nonisolated enum TranscriptionLanguage: String, CaseIterable, Sendable, Identifiable {
     case turkish = "tr-TR"
     case english = "en-US"
     /// Kurulu diller arasından, sesin ilk dakikasına bakarak seçer.
@@ -35,7 +35,7 @@ enum TranscriptionLanguage: String, CaseIterable, Sendable, Identifiable {
     }
 }
 
-enum TranscriptionLocale {
+nonisolated enum TranscriptionLocale {
 
     /// Dil paketi bu makinede kurulu mu?
     static func isInstalled(_ locale: Locale) async -> Bool {

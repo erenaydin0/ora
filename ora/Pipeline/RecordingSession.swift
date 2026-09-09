@@ -3,7 +3,7 @@ import Observation
 import AVFoundation
 
 /// Canlı buffer'ları o an açık olan transkripsiyona yönlendiren yönlendirici.
-private final class LiveRoute: @unchecked Sendable {
+nonisolated private final class LiveRoute: @unchecked Sendable {
     private let lock = NSLock()
     private var target: (any LiveTranscribing)?
     func set(_ target: (any LiveTranscribing)?) { lock.withLock { self.target = target } }
@@ -21,7 +21,6 @@ private final class LiveRoute: @unchecked Sendable {
 /// `ora/Capture/` altında **değil**: Capture ile Transcribe'ı birlikte kullanır
 /// ve ARCHITECTURE.md'nin bağımlılık yönü alt modüllerin birbirini çağırmasını
 /// yasaklar.
-@MainActor
 @Observable
 final class RecordingSession {
 

@@ -4,7 +4,7 @@ import AVFoundation
 import CoreMedia
 
 /// Canlı transkripsiyondan gelen tek bir güncelleme.
-struct LiveUpdate: Sendable {
+nonisolated struct LiveUpdate: Sendable {
     let channel: Channel
     let text: String
     /// `false` ise metin daha değişecek — arayüzde soluk gösterilir.
@@ -103,7 +103,7 @@ actor LiveTranscription: LiveTranscribing {
 }
 
 /// Tek bir kanalın canlı analiz oturumu.
-private final class ChannelSession: @unchecked Sendable {
+nonisolated private final class ChannelSession: @unchecked Sendable {
 
     private let channel: Channel
     private let analyzer: SpeechAnalyzer

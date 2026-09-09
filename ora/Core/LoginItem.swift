@@ -10,7 +10,6 @@ import ServiceManagement
 ///
 /// Yardımcı bir launchd plist'i **yoktur**: `SMAppService.mainApp` uygulamanın
 /// kendisini giriş öğesi yapar, ek hedef ve ek imza gerektirmez.
-@MainActor
 enum LoginItem {
 
     /// Uygulama giriş öğesi olarak kayıtlı ve etkin mi.

@@ -6,7 +6,7 @@ import CoreAudio
 ///
 /// Eşleşme **tam bundle ID** karşılaştırmasıdır — alt-dize eşleşmesi yapılmaz
 /// (eski ora'da `if app not in output` Slack Helper süreçlerinde bile tutuyordu).
-enum MeetingApps {
+nonisolated enum MeetingApps {
 
     /// Tap'in hedefleyebileceği yerel toplantı uygulamaları.
     static let native: Set<String> = [

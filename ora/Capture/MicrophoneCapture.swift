@@ -2,7 +2,7 @@ import Foundation
 import AVFoundation
 
 /// Mikrofon yakalama — `AVAudioEngine` giriş düğümüne takılan tap.
-final class MicrophoneCapture: @unchecked Sendable {
+nonisolated final class MicrophoneCapture: @unchecked Sendable {
 
     typealias Sink = @Sendable (_ frames: [Float], _ hostTime: UInt64) -> Void
 

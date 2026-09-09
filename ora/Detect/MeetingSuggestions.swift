@@ -15,7 +15,6 @@ import Observation
 /// `ora/Detect/` altında: yalnızca algılamaya ve bildirim yüzeyine bağlıdır.
 /// Takvimle zenginleştirme **closure olarak** verilir, böylece bu tip
 /// Calendar'a bağlanmaz ve ARCHITECTURE.md'nin bağımlılık yönü korunur.
-@MainActor
 @Observable
 final class MeetingSuggestions {
 

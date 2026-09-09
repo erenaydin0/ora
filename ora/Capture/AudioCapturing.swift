@@ -2,7 +2,7 @@ import Foundation
 import AVFoundation
 
 /// Kayıt durumu. UI bu akışı dinler; sessiz bekleme yoktur.
-enum CaptureState: Sendable, Equatable {
+nonisolated enum CaptureState: Sendable, Equatable {
     case idle
     case recording(elapsed: TimeInterval)
     /// Sistem sesi alınamadı, kayıt yalnızca mikrofonla sürüyor. Kayıt DURMAZ.
@@ -35,14 +35,14 @@ enum CaptureState: Sendable, Equatable {
 }
 
 /// Canlı transkripsiyonun tükettiği ikincil akışın öğesi (Faz 3).
-struct LiveBuffer: @unchecked Sendable {
+nonisolated struct LiveBuffer: @unchecked Sendable {
     let channel: Channel
     let buffer: AVAudioPCMBuffer
     /// Kayıt başlangıcına göre saniye.
     let time: TimeInterval
 }
 
-protocol AudioCapturing: Sendable {
+nonisolated protocol AudioCapturing: Sendable {
     /// - Parameter preferredApp: takvim etkinliğinden çıkarılan toplantı
     ///   uygulaması. Verilirse tap yalnızca onu hedefler.
     func start(meetingID: Int64, preferredApp: String?) async throws

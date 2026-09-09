@@ -10,7 +10,7 @@ struct PipelineTests {
 
     /// Özetleme başarısız olursa transkript **korunur** ve kullanıcıya not
     /// düşülür. Bu, önceki ora'nın en pahalı hatasının karşı testi.
-    @Test @MainActor
+    @Test
     func ozetlemeBasarisizsaTranskriptKorunur() async throws {
         let h = try Harness(intelligence: FailingIntelligence())
         let id = try await h.seed(text: "toplantı metni")
@@ -31,7 +31,7 @@ struct PipelineTests {
 
     /// Apple Intelligence kapalıysa özet atlanır, transkript yine gösterilir.
     /// `UnavailableIntelligence` çağrılırsa kendisi hata kaydeder.
-    @Test @MainActor
+    @Test
     func modelKullanilamiyorsaTranskriptGosterilir() async throws {
         let h = try Harness(intelligence: UnavailableIntelligence())
         let id = try await h.seed(text: "toplantı metni")
@@ -50,7 +50,7 @@ struct PipelineTests {
 
     /// Güç/termal baskısında özetleme **otomatik başlamaz**, kullanıcıya
     /// sorulur — ve elle başlatma kapısı açık kalır.
-    @Test @MainActor
+    @Test
     func gucErtelemesindeOzetlemeOtomatikBaslamaz() async throws {
         let h = try Harness(intelligence: SlowIntelligence(tag: "A", step: .milliseconds(20)),
                             deferReason: { .lowPowerMode })
@@ -71,7 +71,7 @@ struct PipelineTests {
     /// Başarısız/yarım kalmış bir toplantı ham sesten yeniden işlenir.
     /// Hata mesajı "daha sonra tekrar deneyebilirsiniz" diyor; testi o vaadin
     /// karşılığıdır.
-    @Test @MainActor
+    @Test
     func yenidenDeneHamSestenIsler() async throws {
         let audio = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("ora-test-\(UUID().uuidString).wav")
@@ -102,7 +102,7 @@ struct PipelineTests {
     }
 
     /// Hat koşarken toplantı silinirse uygulama çökmez ve satır gerçekten gider.
-    @Test @MainActor
+    @Test
     func hatKosarkenToplantiSilinebilir() async throws {
         let h = try Harness(intelligence: SlowIntelligence(tag: "A", step: .milliseconds(150)))
         let id = try await h.seed(text: "silinecek toplantı")
@@ -122,7 +122,7 @@ struct PipelineTests {
     }
 
     /// Kayıt başlatılamazsa (mikrofon izni yok) yarım toplantı satırı kalmaz.
-    @Test @MainActor
+    @Test
     func kayitBaslatilamazsaSatirBirakilmaz() async throws {
         let h = try Harness(intelligence: SlowIntelligence(tag: "A", step: .milliseconds(20)))
         h.capture.startError = .permissionDenied(.microphone)
@@ -137,7 +137,7 @@ struct PipelineTests {
     }
 
     /// Yeniden üretim var olan özeti silmez ve serbest örneklemeyle çalışır.
-    @Test @MainActor
+    @Test
     func yenidenUretimVarOlanOzetiSilmez() async throws {
         let h = try Harness(intelligence: SlowIntelligence(tag: "A", step: .milliseconds(20)))
         let id = try await h.seed(text: "toplantı metni")

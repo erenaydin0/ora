@@ -3,7 +3,7 @@ import FoundationModels
 
 /// Toplantı özeti — `@Generable` şema. Elle JSON ayrıştırma yazılmaz.
 @Generable
-struct Ozet: Sendable, Equatable {
+nonisolated struct Ozet: Sendable, Equatable {
 
     /// Paragraf değil **madde listesi**. Ölçüldü (`circleback-notes/`): iyi bir
     /// toplantı notu her zaman 4-6 maddelik bir genel bakışla açılıyor; tek
@@ -45,7 +45,7 @@ struct Ozet: Sendable, Equatable {
 /// Bir konu bloğu: başlık **ve gövde**. Önceden yalnızca başlık isteniyordu;
 /// gövde aynı döngüde üretilip birleştirme adımında kaybediliyordu.
 @Generable
-struct KonuBlogu: Sendable, Equatable {
+nonisolated struct KonuBlogu: Sendable, Equatable {
     @Guide(description: "Bu konunun 2-6 kelimelik Türkçe başlığı")
     var baslik: String
 
@@ -61,7 +61,7 @@ struct KonuBlogu: Sendable, Equatable {
 /// istendiğinde model numaralı liste ve açıklama döküyor — şema şart
 /// (RESEARCH.md §15.2).
 @Generable
-struct KonuBasligi: Sendable {
+nonisolated struct KonuBasligi: Sendable {
     @Guide(description: "2-6 kelimelik Türkçe başlık")
     var baslik: String
 }
@@ -77,7 +77,7 @@ struct KonuBasligi: Sendable {
 /// listesini bir menü gibi kullanıyordu. Parça metninde konuşma sırası ve
 /// adlar duruyor; aksiyon oradan çıkarılmalı.
 @Generable
-struct ParcaOzeti: Sendable, Equatable {
+nonisolated struct ParcaOzeti: Sendable, Equatable {
     @Guide(description: "Bu bölümde ele alınan ayrı konular", .maximumCount(4))
     var konular: [KonuBlogu]
 
@@ -92,7 +92,7 @@ struct ParcaOzeti: Sendable, Equatable {
 /// Birleştirme aşamasının çıktısı: yalnızca genel bakış ve kararlar.
 /// Aksiyonlar `ParcaOzeti`'nden gelir.
 @Generable
-struct ToplantiOzeti: Sendable, Equatable {
+nonisolated struct ToplantiOzeti: Sendable, Equatable {
     @Guide(description: "Toplantının en önemli sonuçları; her madde tek cümle",
            .maximumCount(6))
     var genelBakis: [String]
@@ -102,7 +102,7 @@ struct ToplantiOzeti: Sendable, Equatable {
 }
 
 /// `topic_segments` tablosunun karşılığı.
-struct TopicSegment: Sendable, Identifiable, Hashable {
+nonisolated struct TopicSegment: Sendable, Identifiable, Hashable {
     let title: String
     let bullets: [String]
     let start: TimeInterval
@@ -130,7 +130,7 @@ struct TopicSegment: Sendable, Identifiable, Hashable {
 ///
 /// İkisi de **isteğe bağlı**: takvim kapalıysa `participants` boştur ve isteme
 /// hiç satır yazılmaz — boş bir liste vermek `kisi` alanını bozuyor.
-struct SummaryContext: Sendable, Equatable {
+nonisolated struct SummaryContext: Sendable, Equatable {
     /// Göreli tarih ifadelerini ("Cuma", "haftaya") çözmek için.
     var meetingDate: Date
     /// Sorumlu kişi için kapalı liste. Takvim katılımcıları + kullanıcının adı.

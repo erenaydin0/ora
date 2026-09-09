@@ -12,7 +12,6 @@ import Observation
 ///
 /// `Observable` kalıtımı zorunlu: öneri teslimi artık gözlemleme tabanlı ve
 /// sahte algılayıcının da `@Observable` olması gerekiyor.
-@MainActor
 protocol MeetingDetecting: AnyObject, Observable {
     /// Öneri bekleyen sinyal. Kullanıcı karar verene kadar durur.
     var pendingSignal: MeetingSignal? { get }

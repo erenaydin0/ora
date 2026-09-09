@@ -9,7 +9,7 @@ import GRDB
 /// kullanıcının kendi verisine erişebilmesi bir özelliktir.
 ///
 /// Tüm yazımlar `write { }` içinde, yani transaction içinde yapılır (kural #7).
-final class OraDatabase: Storing {
+nonisolated final class OraDatabase: Storing {
 
     private let queue: DatabaseQueue
 
@@ -210,7 +210,7 @@ final class OraDatabase: Storing {
 }
 
 /// ARCHITECTURE.md'deki Store sözleşmesi.
-protocol Storing: Sendable {
+nonisolated protocol Storing: Sendable {
     func write<T: Sendable>(_ block: @Sendable (Database) throws -> T) async throws -> T
     func read<T: Sendable>(_ block: @Sendable (Database) throws -> T) async throws -> T
 }

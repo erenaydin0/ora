@@ -8,7 +8,7 @@ import AVFoundation
 /// ScreenCaptureKit **kullanılmaz** (CLAUDE.md kural #5): tap ekran kaydı izni
 /// istemez ve süreç/bundle bazlı seçim yapabilir. Doğrulandı — RESEARCH.md §5
 /// ve `probes/tap_record.swift`.
-final class SystemAudioTap: @unchecked Sendable {
+nonisolated final class SystemAudioTap: @unchecked Sendable {
 
     /// Yakalanan mono örnekler ve buffer'ın host time damgası.
     typealias Sink = @Sendable (_ frames: [Float], _ hostTime: UInt64) -> Void

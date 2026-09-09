@@ -3,7 +3,7 @@ import CoreAudio
 import AppKit
 
 /// Algılanan toplantı sinyali.
-struct MeetingSignal: Sendable, Equatable {
+nonisolated struct MeetingSignal: Sendable, Equatable {
     let bundleID: String
     let displayName: String
     /// Tarayıcıda geçen toplantılar düşük güvenlidir: bundle ID tarayıcıdır,
@@ -27,7 +27,6 @@ struct MeetingSignal: Sendable, Equatable {
 ///
 /// **Toplantı tanımı:** bilinen bir toplantı uygulaması mikrofonu *şu anda*
 /// kullanıyor. Uygulamanın açık olması yetmez — eski ora'nın temel hatası buydu.
-@MainActor
 @Observable
 final class MeetingDetector {
 

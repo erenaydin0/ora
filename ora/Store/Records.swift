@@ -2,14 +2,14 @@ import Foundation
 import GRDB
 
 /// Sütun adları `snake_case`, Swift alanları `camelCase`.
-protocol OraRecord: Codable, FetchableRecord, MutablePersistableRecord {}
-extension OraRecord {
+nonisolated protocol OraRecord: Codable, FetchableRecord, MutablePersistableRecord {}
+nonisolated extension OraRecord {
     static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
     static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
 }
 
 /// `meetings` satırı.
-struct MeetingRecord: OraRecord, Identifiable, Hashable {
+nonisolated struct MeetingRecord: OraRecord, Identifiable, Hashable {
     static let databaseTableName = "meetings"
 
     enum Status: String, Codable {
@@ -30,7 +30,7 @@ struct MeetingRecord: OraRecord, Identifiable, Hashable {
 }
 
 /// `transcripts` satırı.
-struct TranscriptRecord: OraRecord {
+nonisolated struct TranscriptRecord: OraRecord {
     static let databaseTableName = "transcripts"
 
     var id: Int64?
@@ -54,7 +54,7 @@ struct TranscriptRecord: OraRecord {
 }
 
 /// `action_items` satırı.
-struct ActionItemRecord: OraRecord, Identifiable {
+nonisolated struct ActionItemRecord: OraRecord, Identifiable {
     static let databaseTableName = "action_items"
 
     var id: Int64?
@@ -72,7 +72,7 @@ struct ActionItemRecord: OraRecord, Identifiable {
 }
 
 /// `topic_segments` satırı.
-struct TopicSegmentRecord: OraRecord {
+nonisolated struct TopicSegmentRecord: OraRecord {
     static let databaseTableName = "topic_segments"
 
     var id: Int64?
@@ -93,7 +93,7 @@ struct TopicSegmentRecord: OraRecord {
 }
 
 /// `summaries` satırı. `overview` ve `decisions` JSON metni tutar.
-struct SummaryRecord: OraRecord {
+nonisolated struct SummaryRecord: OraRecord {
     static let databaseTableName = "summaries"
 
     var id: Int64?
@@ -124,7 +124,7 @@ struct SummaryRecord: OraRecord {
 
 /// `corrections` satırı — kullanıcının transkriptte yaptığı düzeltmeler.
 /// Faz 6'da vocabulary'yi besleyecek.
-struct CorrectionRecord: OraRecord {
+nonisolated struct CorrectionRecord: OraRecord {
     static let databaseTableName = "corrections"
 
     var id: Int64?
@@ -137,7 +137,7 @@ struct CorrectionRecord: OraRecord {
 }
 
 /// Kenar çubuğu listesinin ihtiyaç duyduğu az sayıda alan.
-struct MeetingListItem: Identifiable, Hashable, FetchableRecord, Decodable {
+nonisolated struct MeetingListItem: Identifiable, Hashable, FetchableRecord, Decodable {
     var id: Int64
     var title: String
     var date: Date
@@ -171,7 +171,7 @@ struct MeetingListItem: Identifiable, Hashable, FetchableRecord, Decodable {
 }
 
 /// Bir toplantının tam hâli.
-struct LoadedMeeting: Sendable {
+nonisolated struct LoadedMeeting: Sendable {
     let meeting: MeetingRecord
     let segments: [Segment]
     let summary: Ozet?
@@ -182,7 +182,7 @@ struct LoadedMeeting: Sendable {
 }
 
 /// Arayüzün gördüğü aksiyon: kalıcı kimlik ve tamamlanma durumu ile.
-struct MeetingAction: Sendable, Identifiable, Hashable {
+nonisolated struct MeetingAction: Sendable, Identifiable, Hashable {
     let id: Int64
     var person: String
     var task: String
@@ -194,7 +194,7 @@ struct MeetingAction: Sendable, Identifiable, Hashable {
 /// Aksiyon panosunun satırı: aksiyon **ve** hangi toplantıdan çıktığı.
 /// Sütun adları sorguda takma adla verilir (`AS meetingID`); bu tip bir
 /// `OraRecord` değil, yalnızca okunan bir görünüm.
-struct BoardAction: Identifiable, Hashable, FetchableRecord, Decodable, Sendable {
+nonisolated struct BoardAction: Identifiable, Hashable, FetchableRecord, Decodable, Sendable {
     var id: Int64
     var meetingID: Int64
     var meetingTitle: String

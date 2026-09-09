@@ -8,7 +8,7 @@ import Foundation
 /// biri doğruysa kayıt sonrası özetleme otomatik başlamaz, kullanıcıya sorulur.
 ///
 /// Şarj durumu izlenmez, `IOPSCopyPowerSourcesInfo` kullanılmaz.
-enum PowerState {
+nonisolated enum PowerState {
 
     enum DeferReason: Equatable {
         case lowPowerMode

@@ -10,7 +10,6 @@ import AVFoundation
 /// yaratılacağına, takvimle nasıl eşleşeceğine ve ne zaman hatta
 /// devredileceğine karar verir — ve **yalnızca o toplantı ekrandayken**
 /// üretimi yayınlanan duruma yazar (`apply(_:)`).
-@MainActor
 @Observable
 final class RecordingController {
 

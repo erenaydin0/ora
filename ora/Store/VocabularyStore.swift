@@ -7,7 +7,7 @@ import GRDB
 /// (`manual`) ve transkriptte yaptığı düzeltmelerden çıkarılanlar
 /// (`correction`). Düzeltmeden gelenler **`pending`** durumunda başlar;
 /// kullanıcı onaylamadan transkripsiyona verilmez.
-struct VocabularyStore: Sendable {
+nonisolated struct VocabularyStore: Sendable {
 
     let database: OraDatabase
 

@@ -37,7 +37,6 @@ enum WindowTitle {
     ///
     /// **Ayar kapalıysa hiçbir şey okunmaz.** Özellik opt-in'dir; kullanıcı
     /// açmadıkça başka uygulamaların penceresine bakılmaz.
-    @MainActor
     static func titles(for bundleID: String,
                        settings: OraSettings = .shared) -> [String] {
         guard settings.windowTitleEnabled, isAvailable else { return [] }
