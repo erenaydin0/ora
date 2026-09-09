@@ -1,6 +1,23 @@
 import Foundation
 import Observation
 
+/// Özeti üreten motor. Ölçüm RESEARCH.md §37.
+nonisolated enum SummaryEngine: String, CaseIterable, Sendable, Identifiable {
+    /// Apple'ın cihaz üstü ~3B modeli. Varsayılan.
+    case apple
+    /// İndirilen yerel model — daha iyi not, daha ağır bedel.
+    case local
+
+    var id: String { rawValue }
+
+    var turkishName: String {
+        switch self {
+        case .apple: "Apple modeli"
+        case .local: "İndirilen model"
+        }
+    }
+}
+
 /// Kullanıcı ayarları. `UserDefaults` üzerinde durur, tek yerden okunur.
 @Observable
 final class OraSettings {
@@ -36,6 +53,18 @@ final class OraSettings {
     var transcriptionLanguage: TranscriptionLanguage {
         didSet { store(transcriptionLanguage.rawValue, .transcriptionLanguage) }
     }
+
+    // MARK: - Özetleme motoru
+
+    /// Özeti hangi model üretsin? Varsayılan Apple'ın cihaz üstü modeli:
+    /// sıfır indirme, iki kat hızlı. Yerel model ölçülen kaliteyi ~iki katına
+    /// çıkarıyor ama 6 GB indirme ve 7 GB tepe bellek istiyor (RESEARCH.md §37).
+    var summaryEngine: SummaryEngine { didSet { store(summaryEngine.rawValue, .summaryEngine) } }
+
+    /// Yerel motor seçildiğinde kullanılacak model kimliği (katalogdan).
+    var localModelID: String { didSet { store(localModelID, .localModelID) } }
+
+    var localModel: LocalModel { LocalModel.named(localModelID) ?? .qwen35_9B }
 
     // MARK: - Takvim
 
@@ -122,6 +151,9 @@ final class OraSettings {
         audioRetentionDays = defaults.integer(forKey: Key.audioRetentionDays.rawValue)
         transcriptionLanguage = defaults.string(forKey: Key.transcriptionLanguage.rawValue)
             .flatMap(TranscriptionLanguage.init(rawValue:)) ?? .turkish
+        summaryEngine = defaults.string(forKey: Key.summaryEngine.rawValue)
+            .flatMap(SummaryEngine.init(rawValue:)) ?? .apple
+        localModelID = defaults.string(forKey: Key.localModelID.rawValue) ?? LocalModel.qwen35_9B.id
     }
 
     /// Kendi süreci de dahil, dışlanan tüm bundle ID'ler.
@@ -137,6 +169,7 @@ final class OraSettings {
         case userDisplayName
         case compressAudio, audioRetentionDays, announceRecording
         case transcriptionLanguage
+        case summaryEngine, localModelID
     }
 
     private let defaults: UserDefaults

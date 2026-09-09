@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Ayarlar penceresi (⌘,). Sekmeler: Genel, Algılama, Takvim, Sözlük, Depolama.
+/// Ayarlar penceresi (⌘,). Sekmeler: Genel, Özetleme, Algılama, Takvim, Sözlük, Depolama.
 struct SettingsView: View {
 
     let recorder: RecordingController
@@ -10,6 +10,8 @@ struct SettingsView: View {
         TabView {
             GeneralSettings(recorder: recorder, settings: settings)
                 .tabItem { Label("Genel", systemImage: "gearshape") }
+            SummarySettings(recorder: recorder, settings: settings)
+                .tabItem { Label("Özetleme", systemImage: "sparkles") }
             DetectionSettings(recorder: recorder, settings: settings)
                 .tabItem { Label("Algılama", systemImage: "waveform.badge.mic") }
             CalendarSettings(recorder: recorder, settings: settings)
@@ -19,7 +21,7 @@ struct SettingsView: View {
             StorageSettings(recorder: recorder, settings: settings)
                 .tabItem { Label("Depolama", systemImage: "internaldrive") }
         }
-        .frame(width: 520, height: 420)
+        .frame(width: 520, height: 460)
         .background(Color.oraPaper)
     }
 }
@@ -121,6 +123,106 @@ private struct GeneralSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Özetleme motoru: Apple'ın cihaz üstü modeli mi, indirilen bir model mi.
+///
+/// Ekran **ölçümü gösterir**, pazarlama yapmaz: kapsama yüzdesi, indirme
+/// boyutu ve gereken bellek yan yana durur (RESEARCH.md §37). Kullanıcı neyin
+/// karşılığında 6 GB indirdiğini bilerek seçsin.
+private struct SummarySettings: View {
+
+    let recorder: RecordingController
+    @Bindable var settings: OraSettings
+
+    private var model: LocalModel { recorder.localModel }
+
+    var body: some View {
+        Form {
+            Section("Özeti hangi model üretsin") {
+                Picker("", selection: Binding(get: { recorder.summaryEngine },
+                                              set: { recorder.summaryEngine = $0 })) {
+                    ForEach(SummaryEngine.allCases) { engine in
+                        Text(engine.turkishName).tag(engine)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+                .labelsHidden()
+
+                Text(recorder.summaryEngine == .apple
+                     ? "Sıfır indirme, iki kat hızlı. Toplantı notunun daha kısa ve "
+                       + "daha genel olmasını göze alırsınız."
+                     : "Daha ayrıntılı not: ölçümde yakalanan bilgi iki katına çıkıyor. "
+                       + "Karşılığında indirme, bellek ve süre.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section(model.displayName) {
+                LabeledContent("Yakalanan bilgi") {
+                    Text("%\(model.measuredCoverage) · Apple modeli %20")
+                }
+                LabeledContent("İndirme") { Text(model.sizeLabel) }
+                LabeledContent("Gereken bellek") {
+                    Text(model.memoryLabel
+                         + (recorder.localModelFits ? "" : " — bu Mac'te yetersiz"))
+                        .foregroundStyle(recorder.localModelFits ? Color.oraInk : Color.oraRed)
+                }
+
+                if let progress = recorder.modelDownload {
+                    // İndirme tek yerde görünür ve yüzde verir; 6 GB'lık bir
+                    // bekleyişte "bir şeyler oluyor" yetmez.
+                    ProgressView(value: progress) {
+                        Text("İndiriliyor — %\(Int(progress * 100))")
+                            .font(.system(size: 12))
+                    }
+                } else if recorder.localModelInstalled {
+                    HStack {
+                        Label("Kurulu · \(AudioArchive.sizeLabel(recorder.localModelBytes))",
+                              systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(Color.oraCarmine)
+                            .font(.system(size: 12))
+                        Spacer()
+                        Button("Modeli sil") { recorder.deleteLocalModel() }
+                    }
+                } else {
+                    HStack {
+                        Text("İndirilmedi")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.oraInkMuted)
+                        Spacer()
+                        Button("İndir (\(model.sizeLabel))") {
+                            Task { await recorder.downloadLocalModel() }
+                        }
+                        .disabled(!recorder.localModelFits)
+                    }
+                }
+
+                if let error = recorder.modelDownloadError {
+                    Text(error)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.oraRed)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Section {
+                Text("Model bilgisayarınızda çalışır; toplantı metni hiçbir yere "
+                     + "gönderilmez. İnternet yalnızca modeli indirirken kullanılır.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Noktalama, başlık ve toplantı sohbeti her hâlükârda Apple'ın "
+                     + "modelinde kalır — orada ölçülen bir eksik yok.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .formStyle(.grouped)
+        .task { recorder.refreshModelState() }
     }
 }
 

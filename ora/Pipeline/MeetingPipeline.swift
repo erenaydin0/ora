@@ -44,7 +44,23 @@ final class MeetingPipeline {
     private let vocabularyStore: VocabularyStore
     private let transcription: any Transcribing
     private let intelligence: any Intelligent
+    /// İsteğe bağlı ikinci motor. Kurulu değilse `engine` ona hiç bakmaz;
+    /// testte de öyle — model indirilmediği için Apple yolu koşar.
+    private let localIntelligence: any Intelligent
     private let settings: OraSettings
+
+    /// Özeti hangi motor üretecek?
+    ///
+    /// Karar **burada** verilir çünkü ayarı okuyan ve özeti başlatan yer
+    /// burası; `Intelligent`'ın kendisi ana aktörün dışında koşuyor ve ayara
+    /// senkron bakamaz. Yerel motor seçili ama model kurulu değilse sessizce
+    /// Apple'a düşülür — özet üretmemektense zayıf özet üretmek yeğdir ve
+    /// kullanıcı Ayarlar'da eksik modeli zaten görüyor.
+    private var engine: any Intelligent {
+        guard settings.summaryEngine == .local,
+              localIntelligence.availability.isAvailable else { return intelligence }
+        return localIntelligence
+    }
     private let deferReason: @Sendable () -> PowerState.DeferReason?
     private let prepareLocale: LocalePreparation
     private let detectLocale: LocaleDetection
@@ -60,7 +76,10 @@ final class MeetingPipeline {
     /// toplantıya dönüldüğünde animasyon kayboluyordu (RESEARCH.md §27).
     private var running: Set<Int64> = []
 
-    var modelAvailability: ModelAvailability { intelligence.availability }
+    /// Arayüz kapıları seçili motorun durumuna bakar.
+    var modelAvailability: ModelAvailability {
+        settings.summaryEngine == .local ? localIntelligence.availability : intelligence.availability
+    }
 
     /// Hat **herhangi bir** toplantı için koşuyor mu. Yetki kapıları buna bakar:
     /// ikinci bir hat aynı Speech ve Foundation Models yolunu paylaşır.
@@ -70,6 +89,7 @@ final class MeetingPipeline {
          vocabularyStore: VocabularyStore,
          transcription: any Transcribing,
          intelligence: any Intelligent,
+         localIntelligence: (any Intelligent)? = nil,
          settings: OraSettings,
          deferReason: @escaping @Sendable () -> PowerState.DeferReason?
             = PowerState.deferReason,
@@ -79,6 +99,7 @@ final class MeetingPipeline {
         self.vocabularyStore = vocabularyStore
         self.transcription = transcription
         self.intelligence = intelligence
+        self.localIntelligence = localIntelligence ?? LocalIntelligence(fallback: intelligence)
         self.settings = settings
         self.deferReason = deferReason
         self.prepareLocale = prepareLocale ?? Self.defaultLocalePreparation
@@ -165,7 +186,7 @@ final class MeetingPipeline {
         }
         emit(.deferCleared, meetingID)
 
-        let availability = intelligence.availability
+        let availability = engine.availability
         guard availability.isAvailable else {
             emit(.notice(availability.turkishMessage + ". " + availability.turkishDetail),
                  meetingID)
@@ -181,7 +202,7 @@ final class MeetingPipeline {
         var working = segments
         stage(.punctuating(0), meetingID)
         do {
-            let punctuated = try await intelligence.restorePunctuation(segments) { [weak self] value in
+            let punctuated = try await engine.restorePunctuation(segments) { [weak self] value in
                 Task { @MainActor in self?.stage(.punctuating(value), meetingID) }
             }
             working = punctuated
@@ -216,7 +237,7 @@ final class MeetingPipeline {
                 hasNamedSpeakers: working.contains {
                     !MeetingStore.isChannelLabel($0.speaker)
                 })
-            let result = try await intelligence.summarize(
+            let result = try await engine.summarize(
                 working, context: context, variation: variation) { [weak self] value in
                 Task { @MainActor in self?.stage(.summarizing(value), meetingID) }
             }
@@ -250,7 +271,7 @@ final class MeetingPipeline {
         // Yeniden özetlemede başlık **üretilmez**: toplantının adı zaten var ve
         // kullanıcı onu elle değiştirmiş olabilir.
         if record?.meeting.calendarEventId == nil, !variation,
-           let title = await intelligence.generateTitle(from: working, topics: producedTopics) {
+           let title = await engine.generateTitle(from: working, topics: producedTopics) {
             try? await store.updateTitle(meetingID, title: title)
         }
 

@@ -141,6 +141,39 @@ struct OnboardingView: View {
                     .frame(width: 120)
                 }
 
+                // Özetleme motoru. Onboarding'de **karar sorulur, indirme
+                // dayatılmaz**: 3,7 MB'lık bir uygulamayı yeni kuran birine ilk
+                // ekranda 6 GB indirtmek doğru değil. Seçerse düğme burada.
+                Row(icon: "square.and.arrow.down",
+                    title: "Not kalitesi",
+                    detail: recorder.summaryEngine == .apple
+                        ? "Apple'ın modeli: indirme yok, hızlı, notlar daha kısa ve genel."
+                        : "İndirilen model: ölçümde yakalanan bilgi iki katı "
+                          + "(%\(recorder.localModel.measuredCoverage) · Apple %20). "
+                          + "\(recorder.localModel.sizeLabel) indirme, "
+                          + "\(recorder.localModel.memoryLabel) bellek.",
+                    isDone: recorder.summaryEngine == .apple || recorder.localModelInstalled) {
+                    if recorder.summaryEngine == .local, !recorder.localModelInstalled {
+                        if let progress = recorder.modelDownload {
+                            Text("%\(Int(progress * 100))")
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(Color.oraInkMuted)
+                        } else {
+                            Button("İndir") { Task { await recorder.downloadLocalModel() } }
+                                .disabled(!recorder.localModelFits)
+                        }
+                    } else {
+                        Picker("", selection: Binding(get: { recorder.summaryEngine },
+                                                      set: { recorder.summaryEngine = $0 })) {
+                            ForEach(SummaryEngine.allCases) { engine in
+                                Text(engine.turkishName).tag(engine)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 150)
+                    }
+                }
+
                 // Çakışan takvim toplantılarını ayırmak için pencere başlığı.
                 // **İsteğe bağlı** — kapalı bırakılırsa ora çakışmada sorar.
                 Row(icon: "calendar.badge.questionmark",

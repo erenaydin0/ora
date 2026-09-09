@@ -141,6 +141,7 @@ final class RecordingController {
     init(capture: any AudioCapturing = AudioCapture(),
          transcription: any Transcribing = SpeechTranscription(),
          intelligence: any Intelligent = FoundationIntelligence(),
+         localIntelligence: (any Intelligent)? = nil,
          database: OraDatabase? = nil,
          settings: OraSettings = .shared,
          detector: MeetingDetector? = nil,
@@ -194,7 +195,9 @@ final class RecordingController {
         self.pipeline = MeetingPipeline(store: self.store,
                                         vocabularyStore: self.vocabularyStore,
                                         transcription: transcription,
-                                        intelligence: intelligence, settings: settings,
+                                        intelligence: intelligence,
+                                        localIntelligence: localIntelligence,
+                                        settings: settings,
                                         deferReason: deferReason,
                                         prepareLocale: prepareLocale)
         self.importer = MeetingImporter(store: self.store, settings: settings)
@@ -269,6 +272,7 @@ final class RecordingController {
             await refresh()
         }
         await refreshVocabulary()
+        refreshModelState()
         await refreshUpcoming()
         await purgeExpiredAudio()
         refreshStorage()
@@ -324,6 +328,65 @@ final class RecordingController {
 
     func refreshUpcoming() async {
         upcomingEvent = settings.calendarEnabled ? calendar.upcoming().first : nil
+    }
+
+    // MARK: - Özetleme motoru
+
+    /// Özeti hangi model üretiyor. Ayarın sahibi `OraSettings`; burası
+    /// arayüzün gördüğü yüzey.
+    var summaryEngine: SummaryEngine {
+        get { settings.summaryEngine }
+        set {
+            settings.summaryEngine = newValue
+            refreshModelState()
+        }
+    }
+
+    var localModel: LocalModel { settings.localModel }
+    /// Model diskte mi — dosya sistemi `body` içinde yoklanmaz, burada tutulur.
+    private(set) var localModelInstalled = false
+    private(set) var localModelBytes: Int64 = 0
+    /// İndirme sürüyorsa 0…1, sürmüyorsa `nil`.
+    private(set) var modelDownload: Double?
+    /// İndirme hatası — kullanıcıya Türkçe ulaşır, sessizce yutulmaz.
+    private(set) var modelDownloadError: String?
+    /// Bu makinenin belleği bu modele yetiyor mu (ölçülen tepe + pay).
+    var localModelFits: Bool { LocalModelStore.fits(localModel) }
+
+    func refreshModelState() {
+        localModelInstalled = LocalModelStore.isInstalled(localModel)
+        localModelBytes = localModelInstalled ? LocalModelStore.bytes(localModel) : 0
+    }
+
+    /// Modeli indirir. **Kullanıcı başlatır** — 6 GB sorulmadan inmez.
+    func downloadLocalModel() async {
+        guard modelDownload == nil, !localModelInstalled else { return }
+        modelDownloadError = nil
+        modelDownload = 0
+        let model = localModel
+        do {
+            try await LocalIntelligence.download(model) { [weak self] value in
+                Task { @MainActor in self?.modelDownload = value }
+            }
+        } catch {
+            Log.error(.intelligence, "Model indirilemedi: \(model.id)", error)
+            modelDownloadError = "Model indirilemedi. İnternet bağlantınızı kontrol edip "
+                + "tekrar deneyin.\n\n\(error.localizedDescription)"
+        }
+        modelDownload = nil
+        refreshModelState()
+        // Yarım inen bir model seçili kalmasın: kapı `engine` içinde de var
+        // ama kullanıcı ne olduğunu Ayarlar'da görmeli.
+        if !localModelInstalled, summaryEngine == .local, modelDownloadError == nil {
+            modelDownloadError = "İndirme tamamlanmadı."
+        }
+    }
+
+    func deleteLocalModel() {
+        guard modelDownload == nil else { return }
+        LocalModelStore.delete(localModel)
+        if summaryEngine == .local { settings.summaryEngine = .apple }
+        refreshModelState()
     }
 
     // MARK: - Sözlük

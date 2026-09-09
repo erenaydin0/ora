@@ -18,7 +18,11 @@ rm -rf "$BUILD"
 mkdir -p "$BUILD"
 
 echo "▸ Arşivleniyor (Release)…"
+# MLX bir derleme eklentisi (CudaBuild) ve bir makro (MLXHuggingFaceMacros)
+# getiriyor; ikisi de Xcode'da elle "güven" istiyor. Betikte bu onay verilemez,
+# atlanır — kaynak Apple'ın kendi deposu (RESEARCH.md §38).
 xcodebuild -project "$ROOT/ora.xcodeproj" -scheme ora -configuration Release \
+  -skipPackagePluginValidation -skipMacroValidation \
   -destination 'platform=macOS,arch=arm64' -archivePath "$ARCHIVE" archive \
   | grep -E "error:|warning: .*deprecated|ARCHIVE" || true
 

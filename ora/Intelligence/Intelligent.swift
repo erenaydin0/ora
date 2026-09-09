@@ -7,6 +7,8 @@ nonisolated enum ModelAvailability: Sendable, Equatable {
     case deviceNotEligible
     case appleIntelligenceNotEnabled
     case modelNotReady
+    /// İsteğe bağlı yerel model seçili ama indirilmemiş (ya da yarım inmiş).
+    case localModelMissing
 
     var isAvailable: Bool { self == .available }
 
@@ -16,6 +18,7 @@ nonisolated enum ModelAvailability: Sendable, Equatable {
         case .deviceNotEligible:          "Bu Mac Apple Intelligence'ı desteklemiyor"
         case .appleIntelligenceNotEnabled: "Apple Intelligence kapalı"
         case .modelNotReady:              "Apple Intelligence modeli henüz hazır değil"
+        case .localModelMissing:          "Seçili özetleme modeli indirilmemiş"
         }
     }
 
@@ -31,6 +34,9 @@ nonisolated enum ModelAvailability: Sendable, Equatable {
         case .modelNotReady:
             "Model indiriliyor veya hazırlanıyor. Birkaç dakika sonra tekrar deneyin; "
             + "bu sırada transkript oluşturulmaya devam eder."
+        case .localModelMissing:
+            "Ayarlar → Özetleme bölümünden modeli indirin ya da Apple modeline dönün. "
+            + "Transkript her hâlükârda oluşturulur."
         }
     }
 }

@@ -19,6 +19,7 @@ final class Harness {
     private let suiteName: String
 
     init(intelligence: any Intelligent,
+         localIntelligence: (any Intelligent)? = nil,
          transcription: any Transcribing = FakeTranscription(),
          deferReason: @escaping @Sendable () -> PowerState.DeferReason? = { nil },
          stopURL: URL = URL(fileURLWithPath: "/dev/null")) throws {
@@ -40,6 +41,7 @@ final class Harness {
         controller = RecordingController(capture: capture,
                                          transcription: transcription,
                                          intelligence: intelligence,
+                                         localIntelligence: localIntelligence,
                                          database: database,
                                          settings: settings,
                                          deferReason: deferReason,

@@ -28,7 +28,11 @@ oturum başında oku ve varsayımları yeniden tartışma.
 | PDF dışa aktarım | `ImageRenderer` / PDFKit | WeasyPrint yok |
 | İkonlar | SF Symbols | Lucide yok |
 
-**Tek harici bağımlılık GRDB.swift'tir.** Başka SPM paketi eklemeden önce sor.
+**Doğrudan bağımlılıklar: GRDB.swift, mlx-swift-lm, swift-transformers,
+swift-huggingface.** Başka SPM paketi eklemeden önce sor. Son üçü Faz 9'un
+(isteğe bağlı yerel özetleme motoru) bedelidir ve geçişlileriyle birlikte
+grafiği 1 paketten **14**'e çıkarır — bilinçli, ölçülmüş (§37) ve tek
+istisnadır. Yerel motor kapalıyken hiçbiri çalışma zamanında iş yapmaz.
 Python yok, Node yok, Electron yok.
 
 **"Model dosyası indirme yok" kuralı kalktı** (Faz 9 kararı, ölçüm §37). Sınır
@@ -817,6 +821,16 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       AAC kaynak → 1 kanal · 16 kHz, tepe 0,69, dört satır da "Katılımcı",
       toplam 0,81 sn. Mono kaynak `SpeechTranscription`'da dizi sınırını
       aşıyordu; ölçüm bunu yakaladı.
+      **Faz 9 — seçilebilir özetleme motoru** (kısmen): `LocalModel` +
+      `LocalModelStore` (katalog, HF önbellek düzeni, disk sayacı, bellek
+      kapısı), `LocalIntelligence` (MLX üzerinden Qwen3.5-9B, **tek geçiş**,
+      JSON çıktı ayıklama, konuları alıntı bağıyla transkripte demirleme),
+      motor seçimi `MeetingPipeline.engine`'de (yerel seçili ama model yoksa
+      sessizce Apple'a düşer), Ayarlar'da "Özetleme" sekmesi (indirme,
+      ilerleme, silme, bellek uyarısı) ve onboarding'de tek satır.
+      109 test. **Gerçek modelle uçtan uca denenmedi** — indirme ve üretim
+      yolu yalnızca sahtelerle test edildi; ilk gerçek indirme kullanıcı
+      makinesinde doğrulanacak.
     - Bekleyen:
       1. **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
@@ -880,7 +894,11 @@ ora/Transcribe/        — SpeechTranscription (tam geçiş),
                          TranscriptionLocale (dil + otomatik seçim), Segment,
                          TranscriptIndex (özet maddesi → transkript eşleştirme)
 ora/Intelligence/      — FoundationIntelligence (noktalama + map-reduce özet),
-                         Ozet (@Generable şemalar), TranscriptChunker, Intelligent
+                         Ozet (@Generable şemalar), TranscriptChunker, Intelligent,
+                         LocalModel + LocalModelStore (indirilebilir model
+                         kataloğu ve diskteki hâli), LocalIntelligence
+                         (isteğe bağlı ikinci motor — **yalnızca özetlemeyi**
+                         devralır, tek geçiş, map-reduce yok)
 ora/Store/             — OraDatabase (şema + migration), MeetingStore (tek kapı),
                          Records (GRDB kayıtları), VocabularyStore
 ora/Pipeline/          — RecordingSession (kayıt sürerken: ses yazımı + canlı
@@ -923,7 +941,12 @@ oraTests/              — swift-testing hedefi. `Support/Fakes.swift` yalnızca
                          `AudioConversionTests` `AVAudioConverter` girdi
                          bloğunun senkron kaldığını (§31) denetler.
 ```
-Testler `xcodebuild test -scheme ora` ile koşar (paylaşılan şema depoda).
+Testler şu komutla koşar (paylaşılan şema depoda):
+`xcodebuild test -scheme ora -skipPackagePluginValidation -skipMacroValidation`.
+**İki bayrak zorunlu:** MLX bir derleme eklentisi (`CudaBuild`) ve bir makro
+(`MLXHuggingFaceMacros`) getiriyor, ikisi de Xcode'da elle "güven" istiyor ve
+betikten verilemiyor. Bayraksız `test` "must be enabled before it can be used"
+ile düşer.
 `probes/meeting_switch.swift` bu hedefe taşındı ve kaldırıldı.
 Renkler asset kataloğundadır; `Color.oraPaper` gibi semboller derleme zamanında
 üretilir. Elle `Color("oraPaper")` yazma — yanlış isim derlenmez olsun.
