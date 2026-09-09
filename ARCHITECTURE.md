@@ -23,9 +23,12 @@ taşır. Bu kural, Transcribe'ın Intelligence'a veya Capture'ın Store'a
 sızmasını engeller.
 
 Faz 1-8 boyunca `Pipeline` ayrı bir tip değildi; rolünü `RecordingController`
-üstleniyordu. REFACTOR.md Adım 1-2 ile `ora/Pipeline/` altına çıkarıldı ve
-bağımlılık yönü kodda da gerçek oldu. Kayıt oturumu, liste/CRUD ve takvim
-eşleştirmesi hâlâ controller'da (REFACTOR.md Adım 3-6).
+üstleniyordu. REFACTOR.md Adım 1-3 ile `ora/Pipeline/` altına çıkarıldı ve
+bağımlılık yönü kodda da gerçek oldu. Katman iki tipten oluşur:
+`RecordingSession` kayıt **sürerkenini** yürütür (ses yazımı + canlı
+transkripsiyon), `MeetingPipeline` kayıt **bittikten sonrasını** (tam geçiş,
+noktalama, özet, depolama). Sırayı ikisi de değil `RecordingController` kurar.
+Liste/CRUD ve takvim eşleştirmesi hâlâ controller'da (REFACTOR.md Adım 5-6).
 
 ---
 
@@ -163,7 +166,28 @@ protocol Storing {
   `action_items` + `topic_segments`, ardından ses dosyası
 
 ### Pipeline
-`ora/Pipeline/` — `MeetingPipeline` + `PipelineEvent`.
+`ora/Pipeline/` — `RecordingSession` (kayıt sürerken) + `MeetingPipeline`
+(kayıt sonrası) + `PipelineEvent`.
+```swift
+@MainActor @Observable final class RecordingSession {
+    var state: CaptureState { get }              // AudioCapturing.state akışından
+    var liveSegments: [Segment] { get }          // kesinleşmiş canlı satırlar
+    var volatileText: [Int: String] { get }      // kanal başına akan metin
+    var liveNotice: String? { get }              // canlı duraklatıldıysa Türkçe not
+    var meetingID: Int64? { get }                // kaydedilen toplantı
+    var onError: ((OraError) -> Void)?
+
+    func start(meetingID: Int64, preferredApp: String?) async throws
+    func startLive(locale: Locale, vocabulary: [String]) async
+    func stop() async throws -> URL
+    func clearLive()
+}
+```
+- `meetingID` **`capture.start` başarılı olduktan sonra** kurulur: başarısız bir
+  başlangıç oturum açmamalı, yoksa `stop()` var olmayan bir kaydı kapatır
+- `startLive` ayrı çağrıdır ve kayıt başladıktan **sonra** gelir (kural #2).
+  Duraklarsa `liveNotice` dolar, kayıt kesintisiz sürer
+- `LiveTranscribing` protokolü sahtelenebilir; kural #2 testle korunuyor
 ```swift
 enum PipelineStage { case idle, preparingLanguage, downloadingLanguage(Double),
                           transcribing(Double), punctuating(Double),

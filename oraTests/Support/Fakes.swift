@@ -47,6 +47,45 @@ final class FakeCapture: AudioCapturing, @unchecked Sendable {
     }
 }
 
+/// Sahte canlı transkripsiyon. Speech'e hiç dokunmaz; güncellemeleri test
+/// kendisi besler.
+actor FakeLiveTranscription: LiveTranscribing {
+
+    nonisolated let updates: AsyncStream<LiveUpdate>
+    private let continuation: AsyncStream<LiveUpdate>.Continuation
+
+    private(set) var isPaused = false
+    private(set) var pauseReason: String?
+    private(set) var startCount = 0
+    private(set) var fedBuffers = 0
+    private(set) var didFinish = false
+    /// `start()` çağrıldığında duraklamış gelsin mi — kural #2 senaryosu.
+    private let pausesOnStart: String?
+
+    init(pausesOnStart: String? = nil) {
+        self.pausesOnStart = pausesOnStart
+        (updates, continuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(32))
+    }
+
+    func start(locale: Locale, vocabulary: [String]) async {
+        startCount += 1
+        if let pausesOnStart {
+            isPaused = true
+            pauseReason = pausesOnStart
+        }
+    }
+
+    func feed(_ live: LiveBuffer) { fedBuffers += 1 }
+
+    func finish() async {
+        didFinish = true
+        continuation.finish()
+    }
+
+    /// Test, canlı transkripsiyonun ürettiğini buradan besler.
+    func emit(_ update: LiveUpdate) { continuation.yield(update) }
+}
+
 /// Verilen segmentleri döndüren tam geçiş.
 struct FakeTranscription: Transcribing {
     var segments: [Segment] = []

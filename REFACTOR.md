@@ -169,7 +169,7 @@ hattın olay akışına abone olur, controller'a property eklemez.
 
 > Bu iki adım bugün bile kendini amorti eder. Adım 3-6 ertelenebilir.
 
-### Adım 3 — `RecordingSession`
+### Adım 3 — `RecordingSession` — ✅ tamam
 
 `start`, `stop`, `startLive`, `stopLive`, `apply(LiveUpdate)`, `startLevelUpdates`
 + `LiveRoute` + `activeMeetingID` / `activeEvent` (~160 satır).
@@ -316,6 +316,49 @@ Hiçbiri planın hedefi değildi; hattı ayırmak ortaya çıkardı.
   tarif ediyordu; gerçek `PipelineStage` + `PipelineEvent` ile değiştirildi.
 - ARCHITECTURE.md ve CLAUDE.md hâlâ `MeetingMetrics`'e atıf yapıyordu; tip
   kodda yok.
+
+---
+
+## 10. Adım 3 sonucu (2026-09-09)
+
+| Ölçüt | Adım 2 sonrası | Adım 3 sonrası |
+|---|---|---|
+| `RecordingController` satır | 958 | **861** |
+| `ora/Pipeline/` satır | 363 | 542 |
+| Test | 13 | **18** |
+
+`ora/Pipeline/RecordingSession` kayıt **sürerkenini** yürütüyor: ses yazımı
+(birincil) + canlı transkripsiyon (en iyi çaba). `MeetingPipeline`'ın simetriği
+— o kayıt bittikten sonrasını yürütür. Sırayı ikisi de değil controller kurar.
+
+`ora/Capture/` altında **değil**: Capture ile Transcribe'ı birlikte kullanıyor
+ve ARCHITECTURE.md'nin bağımlılık yönü alt modüllerin birbirini çağırmasını
+yasaklıyor.
+
+**Yeni protokol: `LiveTranscribing`.** `AudioCapturing` / `Transcribing` /
+`Intelligent` ile aynı gerekçe (ARCHITECTURE.md, Test edilebilirlik). Bu olmadan
+oturum testi gerçek `SpeechAnalyzer` kuruyor ve ölçüm makinenin Speech durumuna
+bağımlı kalıyordu — oysa **kural #2** (canlı transkripsiyon asla kaydın önüne
+geçmez) tam olarak burada ölçülmeli. Artık ölçülüyor: canlı transkripsiyon
+duraklatıldığında not düşüyor, kayıt sürüyor ve ses dosyası üretiliyor.
+
+Ölçülerek doğrulandı: `meetingID`, `capture.start` **başarılı olduktan sonra**
+kurulmalı. Eski sıra (önce kur, hatada geri al) geri konulduğunda
+`basarisizBaslangicOturumAcmaz` kırılıyor.
+
+### Adım 3'te çıkan bulgu: `channelLevels` ölü
+
+Hiçbir arayüz `channelLevels`'ı okumuyor. Menü bar native `NSMenu`'ye
+geçtiğinde (`.menuBarExtraStyle(.menu)`) seviye göstergesi düşmüş, besleyen
+zamanlayıcı kalmış: kayıt boyunca 100 ms'de bir MainActor'da boşa yazılıyor —
+60 dakikalık bir toplantıda 36.000 gereksiz uyanma. CLAUDE.md hâlâ "kayıt
+sırasında kırmızı nokta ve kanal seviyeleri" diyor; nokta var, seviyeler yok.
+
+**Silinmedi, işaretlendi.** İki yol var ve ikisi de kullanıcının kararı:
+göstergeyi geri getirmek (native menü çizemez — popover gerekir, DESIGN.md §2
+ile çakışır) ya da `channelLevels` + `levelTask` + `AudioCapturing.levels`
+zincirini birlikte silmek. İkincisi Capture katmanına dokunur, Adım 3'ün
+kapsamı değil.
 
 ### Kapsam dışı bırakılanlar
 

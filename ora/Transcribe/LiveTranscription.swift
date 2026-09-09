@@ -13,6 +13,22 @@ struct LiveUpdate: Sendable {
     let end: TimeInterval
 }
 
+/// Canlı transkripsiyon sözleşmesi.
+///
+/// `AudioCapturing` / `Transcribing` / `Intelligent` ile aynı gerekçe
+/// (ARCHITECTURE.md, Test edilebilirlik): testte sahtelenir. Protokol olmadan
+/// `RecordingSession` testi gerçek `SpeechAnalyzer` kuruyor ve ölçüm makinenin
+/// Speech durumuna bağımlı kalıyordu — oysa **kural #2** (canlı transkripsiyon
+/// asla kaydın önüne geçmez) tam olarak burada ölçülmeli.
+protocol LiveTranscribing: Actor {
+    nonisolated var updates: AsyncStream<LiveUpdate> { get }
+    var isPaused: Bool { get }
+    var pauseReason: String? { get }
+    func start(locale: Locale, vocabulary: [String]) async
+    func feed(_ live: LiveBuffer)
+    func finish() async
+}
+
 /// Kayıt sırasında akan transkripsiyon.
 ///
 /// **En iyi çabadır ve asla kaydın önüne geçmez** (CLAUDE.md kural #2):
@@ -21,9 +37,9 @@ struct LiveUpdate: Sendable {
 /// ve çelişki hâlinde **tam geçiş kazanır**.
 ///
 /// Ölçülen maliyet kanal başına tek çekirdeğin ~%1'i (RESEARCH.md §6).
-actor LiveTranscription {
+actor LiveTranscription: LiveTranscribing {
 
-    let updates: AsyncStream<LiveUpdate>
+    nonisolated let updates: AsyncStream<LiveUpdate>
     private let updateContinuation: AsyncStream<LiveUpdate>.Continuation
 
     private var sessions: [Int: ChannelSession] = [:]

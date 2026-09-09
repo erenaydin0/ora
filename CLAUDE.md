@@ -591,7 +591,14 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       `ora/Pipeline/MeetingPipeline` olarak çıkarıldı ve `PipelineEvent`
       yayıyor; hattın arayüze yazması **tek kapıya** indi
       (`RecordingController.apply(_:)` — eskiden 15 `onScreen` çağrısı).
-      `RecordingController` 1114 → 958 satır. Yol boyunca kapanan iki hata:
+      **Adım 3 tamam:** `ora/Pipeline/RecordingSession` kayıt sürerkenini
+      yürütüyor (ses yazımı + canlı transkripsiyon); `LiveTranscribing`
+      protokolü eklendi ve **kural #2** artık testle korunuyor.
+      `RecordingController` 1114 → 861 satır, 18 test.
+      **Bulgu:** `channelLevels` ölü — menü bar native `NSMenu`'ye geçince
+      seviye göstergesi düşmüş, besleyen 100 ms zamanlayıcı kalmış. Silinmedi,
+      REFACTOR.md §10'da işaretlendi; aşağıdaki Faz 7 satırındaki
+      "kanal seviyeleri" **artık doğru değil**. Yol boyunca kapanan iki hata:
       takvim başlığı "Şimdi özetle"/"Yeniden dene" yollarında üretilmiş
       başlıkla eziliyordu (karar artık `calendar_event_id`'den okunuyor) ve
       `isTranscribing` hat koşarken toplantı silinince false dönüp yetki
@@ -636,17 +643,21 @@ ora/Calendar/          — CalendarReader (EventKit, opt-in)
 ora/Capture/           — AudioCapture (orkestra), MicrophoneCapture,
                          SystemAudioTap, StereoRecordingWriter, AudioClock,
                          RecordingRecovery, MeetingApps, Channel
-ora/Transcribe/        — SpeechTranscription (tam geçiş), LiveTranscription,
+ora/Transcribe/        — SpeechTranscription (tam geçiş),
+                         LiveTranscription (+ LiveTranscribing protokolü),
                          TranscriptionLocale (dil + otomatik seçim), Segment,
                          TranscriptIndex (özet maddesi → transkript eşleştirme)
 ora/Intelligence/      — FoundationIntelligence (noktalama + map-reduce özet),
                          Ozet (@Generable şemalar), TranscriptChunker, Intelligent
 ora/Store/             — OraDatabase (şema + migration), MeetingStore (tek kapı),
                          Records (GRDB kayıtları), VocabularyStore
-ora/Pipeline/          — MeetingPipeline (işlem sırası: tam geçiş, noktalama,
-                         özet, depolama), PipelineEvent + PipelineStage.
-                         **Görünüm durumu tanımaz**; ürettiği her şeyi
-                         `meetingID` taşıyan olay olarak yayar
+ora/Pipeline/          — RecordingSession (kayıt sürerken: ses yazımı + canlı
+                         transkripsiyon), MeetingPipeline (kayıt sonrası: tam
+                         geçiş, noktalama, özet, depolama), PipelineEvent +
+                         PipelineStage. **Görünüm durumu tanımaz**; ürettiğini
+                         `meetingID` taşıyan olay olarak yayar. Capture ile
+                         Transcribe'ı birlikte kullandığı için `ora/Capture/`
+                         altında değil — alt modüller birbirini çağırmaz
 ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          MenuBarView (taşıyıcı yüzey), OnboardingView,
                          RecordingController (hattın olaylarını arayüz

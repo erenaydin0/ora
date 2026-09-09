@@ -2,25 +2,20 @@ import Foundation
 import Observation
 import AVFoundation
 
-/// Canlı buffer'ları o an açık olan `LiveTranscription`'a yönlendiren yönlendirici.
-private final class LiveRoute: @unchecked Sendable {
-    private let lock = NSLock()
-    private var target: LiveTranscription?
-    func set(_ target: LiveTranscription?) { lock.withLock { self.target = target } }
-    var current: LiveTranscription? { lock.withLock { target } }
-}
-
-/// Kayıt, transkripsiyon, özetleme ve depolamayı süren tek durum sahibi.
+/// Arayüzün durum sahibi: sırayı kurar, alt katmanların ürettiğini ekrana
+/// çevirir.
 ///
-/// ARCHITECTURE.md'deki `Pipeline` rolünü şimdilik bu tip üstleniyor: alt modüller
-/// (Capture, Transcribe, Intelligence, Store) birbirini çağırmaz, veriyi bu taşır.
+/// İşin kendisi iki yerde: `RecordingSession` kayıt sürerkenini yürütür,
+/// `MeetingPipeline` kayıt bittikten sonrasını. Bu tip hangi toplantının
+/// yaratılacağına, takvimle nasıl eşleşeceğine ve ne zaman hatta
+/// devredileceğine karar verir — ve **yalnızca o toplantı ekrandayken**
+/// üretimi yayınlanan duruma yazar (`apply(_:)`).
 @MainActor
 @Observable
 final class RecordingController {
 
     // MARK: - Yayınlanan durum
 
-    private(set) var state: CaptureState = .idle
     private(set) var interrupted: [InterruptedRecording] = []
     var error: OraError?
 
@@ -39,9 +34,13 @@ final class RecordingController {
     }
 
     private(set) var transcript: [Segment] = []
-    private(set) var liveSegments: [Segment] = []
-    private(set) var volatileText: [Int: String] = [:]
-    private(set) var liveNotice: String?
+
+    /// Kayıt sürerkenin durumu oturumun kendisindedir; arayüz buradan okur.
+    var state: CaptureState { session.state }
+    var liveSegments: [Segment] { session.liveSegments }
+    var volatileText: [Int: String] { session.volatileText }
+    var liveNotice: String? { session.liveNotice }
+    var channelLevels: [Int: Float] { session.channelLevels }
 
     /// Tüm toplantıların aksiyonları — pano bunu gösterir. Toplantı seçiminden
     /// bağımsızdır; liste her tazelemede yenilenir.
@@ -92,8 +91,6 @@ final class RecordingController {
     private(set) var calendarParticipants: [String] = []
     /// Menü barda gösterilecek sıradaki toplantı.
     private(set) var upcomingEvent: MeetingEvent?
-    /// Kanal başına anlık ses seviyesi (0…1).
-    private(set) var channelLevels: [Int: Float] = [:]
     /// Canlı transkriptin son satırı — menü bar popover'ında akar.
     var lastLiveLine: String? {
         volatileText.values.first(where: { !$0.isEmpty })
@@ -124,7 +121,6 @@ final class RecordingController {
 
     // MARK: - Bağımlılıklar
 
-    private let capture: any AudioCapturing
     private let intelligence: any Intelligent
     private let store: MeetingStore
     private let vocabularyStore: VocabularyStore
@@ -133,20 +129,13 @@ final class RecordingController {
     private let notifications: MeetingNotifications
     private let settings: OraSettings
 
-    /// İşlem hattı. Transkripsiyon, noktalama, özetleme ve depolama sırası
-    /// **orada** yürür; bu tip yalnızca hattın olaylarını arayüz durumuna
-    /// çevirir (REFACTOR.md Adım 1-2).
+    /// Kayıt sürerken: ses yazımı + canlı transkripsiyon (REFACTOR.md Adım 3).
+    let session: RecordingSession
+    /// Kayıt bittikten sonra: tam geçiş, noktalama, özet, depolama
+    /// (REFACTOR.md Adım 1-2).
     private let pipeline: MeetingPipeline
 
-    private let route = LiveRoute()
-    private var live: LiveTranscription?
-    private var liveUpdatesTask: Task<Void, Never>?
-    private var observation: Task<Void, Never>?
-    private var feedTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
-    private var levelTask: Task<Void, Never>?
-    /// Şu anda kaydedilen toplantının `meetings.id` değeri.
-    private var activeMeetingID: Int64?
 
     /// - Parameters:
     ///   - detector, calendar: `settings`'e bağlı oldukları için varsayılan
@@ -166,7 +155,7 @@ final class RecordingController {
          deferReason: @escaping @Sendable () -> PowerState.DeferReason?
             = PowerState.deferReason,
          prepareLocale: MeetingPipeline.LocalePreparation? = nil) {
-        self.capture = capture
+        self.session = RecordingSession(capture: capture)
         self.intelligence = intelligence
         self.settings = settings
         self.notifications = notifications
@@ -201,19 +190,7 @@ final class RecordingController {
         // Hattın **tek** tüketicisi burası. Süzme `apply(_:)` içinde yapılır;
         // hat hangi toplantının ekranda olduğunu bilmez.
         pipeline.observe { [weak self] event in self?.apply(event) }
-
-        observation = Task { [weak self] in
-            guard let stream = self?.capture.state else { return }
-            for await next in stream {
-                self?.state = next
-                if case .failed(let error) = next { self?.error = error }
-            }
-        }
-        feedTask = Task { [route, capture] in
-            for await buffer in capture.liveBuffers {
-                await route.current?.feed(buffer)
-            }
-        }
+        session.onError = { [weak self] error in self?.error = error }
         wireDetection()
     }
 
@@ -396,10 +373,7 @@ final class RecordingController {
         return String(format: "%02d:%02d", total / 60, total % 60)
     }
 
-    var micOnlyReason: String? {
-        if case .micOnly(let reason, _) = state { return reason }
-        return nil
-    }
+    var micOnlyReason: String? { session.micOnlyReason }
 
     var displayedSegments: [Segment] {
         transcript.isEmpty ? liveSegments : transcript
@@ -500,7 +474,7 @@ final class RecordingController {
             // git-gel'de iki yükleme yarışıyordu.
             guard selection == meetingID else { return }
             transcript = loaded.segments
-            liveSegments = []
+            session.clearLive()
             summary = loaded.summary
             topics = loaded.topics
             actions = loaded.actions
@@ -670,7 +644,6 @@ final class RecordingController {
             self.error = .audioWriteFailed(underlying: error)
             return
         }
-        activeMeetingID = meetingID
         selection = meetingID
 
         // Takvim açıksa o ana denk gelen etkinlik aranır (±10 dk tolerans).
@@ -689,67 +662,41 @@ final class RecordingController {
         let preferredApp = event?.meetingApp
             ?? signal.flatMap { MeetingApps.native.contains($0.bundleID) ? $0.bundleID : nil }
 
+        // Ses yazımı başlamazsa yarım toplantı satırı bırakılmaz.
         do {
-            try await capture.start(meetingID: meetingID, preferredApp: preferredApp)
-        } catch let error as OraError {
-            try? await store.delete(meetingID)
-            activeMeetingID = nil
-            self.error = error
-            return
+            try await session.start(meetingID: meetingID, preferredApp: preferredApp)
         } catch {
             try? await store.delete(meetingID)
-            activeMeetingID = nil
-            self.error = .audioWriteFailed(underlying: error)
+            self.error = error as? OraError ?? .audioWriteFailed(underlying: error)
             return
         }
         detector.recordingStarted(bundleID: signal?.bundleID ?? preferredApp)
-        startLevelUpdates()
         await refresh()
-        await startLive()
+        // Canlı transkripsiyon **ikincil** iştir ve kayıt başladıktan sonra
+        // açılır; hata verirse kayıt kesintisiz sürer (CLAUDE.md kural #2).
+        await session.startLive(locale: language.locale ?? Locale(identifier: "tr-TR"),
+                                vocabulary: (try? await vocabularyStore.activeWords()) ?? [])
     }
 
     func stop() async {
-        guard isRecording, let meetingID = activeMeetingID else { return }
-        levelTask?.cancel()
-        levelTask = nil
-        channelLevels = [:]
-        await stopLive()
+        guard isRecording, let meetingID = session.meetingID else { return }
         do {
-            let url = try await capture.stop()
+            let url = try await session.stop()
             let duration = Self.duration(of: url)
             try? await store.markProcessing(meetingID, audioPath: url, duration: duration)
             await refresh()
             await pipeline.fullPass(meetingID: meetingID, url: url)
-        } catch let error as OraError {
-            Log.error(.capture, "Kayıt kapatılamadı", error)
-            self.error = error
         } catch {
             Log.error(.capture, "Kayıt kapatılamadı", error)
-            self.error = .audioWriteFailed(underlying: error)
+            self.error = error as? OraError ?? .audioWriteFailed(underlying: error)
         }
-        activeMeetingID = nil
         detector.recordingStopped()
         await refresh()
     }
 
-    /// Seviye göstergesi 100 ms'de bir tazelenir — ses yoluna dokunmaz,
-    /// yalnızca son tepe değerini okur.
-    private func startLevelUpdates() {
-        levelTask?.cancel()
-        levelTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self, self.isRecording else { return }
-                self.channelLevels = self.capture.levels
-                try? await Task.sleep(for: .milliseconds(100))
-            }
-        }
-    }
-
     private func clearDisplayed() {
         transcript = []
-        liveSegments = []
-        volatileText = [:]
-        liveNotice = nil
+        session.clearLive()
         summary = nil
         topics = []
         actions = []
@@ -759,51 +706,6 @@ final class RecordingController {
         calendarParticipants = []
         retryableAudio = nil
         audioURL = nil
-    }
-
-    // MARK: - Canlı transkripsiyon (en iyi çaba)
-
-    private func startLive() async {
-        let locale = language.locale ?? Locale(identifier: "tr-TR")
-        let words = (try? await vocabularyStore.activeWords()) ?? []
-        let live = LiveTranscription()
-        self.live = live
-        route.set(live)
-        await live.start(locale: locale, vocabulary: words)
-
-        if await live.isPaused {
-            liveNotice = await live.pauseReason
-            route.set(nil)
-            self.live = nil
-            return
-        }
-        liveUpdatesTask = Task { [weak self] in
-            for await update in await live.updates {
-                await self?.apply(update)
-            }
-        }
-    }
-
-    private func stopLive() async {
-        route.set(nil)
-        liveUpdatesTask?.cancel()
-        liveUpdatesTask = nil
-        if let live { await live.finish() }
-        live = nil
-        volatileText = [:]
-    }
-
-    private func apply(_ update: LiveUpdate) {
-        if update.isFinal {
-            volatileText[update.channel.rawValue] = nil
-            liveSegments.append(Segment(channel: update.channel,
-                                        speaker: update.channel.speaker,
-                                        text: update.text, start: update.start,
-                                        end: update.end, confidence: nil, words: []))
-            liveSegments.sort { $0.start < $1.start }
-        } else {
-            volatileText[update.channel.rawValue] = update.text
-        }
     }
 
     // MARK: - İşlem hattı (sıra CLAUDE.md'de sabittir)
@@ -855,8 +757,9 @@ final class RecordingController {
     private func display(_ kind: PipelineEvent.Kind) {
         switch kind {
         case .transcript(let segments):
+            // Tam geçiş nihai gerçektir; canlı ön izleme bırakılır.
             transcript = segments
-            liveSegments = []
+            session.clearLive()
         case .summary(let ozet, let topics):
             summary = ozet
             self.topics = topics
