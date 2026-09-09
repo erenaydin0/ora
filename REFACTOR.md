@@ -516,9 +516,23 @@ Plandaki altı adım tamam. Kapanan hata ve ölü kod, adım adım §9-13'te.
 
 - **Kullanıcının elle değiştirdiği başlık.** "Şimdi özetle" hâlâ üretilmiş
   başlığı yazabilir; "yeniden adlandırıldı" diye bir işaret yok. Ayrı iş.
-- **`Pipeline`'ı `actor` yapmak.** Ağır iş zaten `Transcribing` ve
-  `Intelligent` içindeki asenkron API'lerde geçiyor; `@MainActor` kalması
-  davranışı birebir koruyor. Ayrı adım.
+- **`Pipeline`'ı `actor` yapmak — yapılmamalı, ertelenmiş değil.**
+  Ölçüldü (2026-09-09): hattın çağırdığı ağır işin tamamı zaten main
+  thread'den çıkıyor. `FoundationIntelligence` (struct), `SpeechTranscription`
+  (class), `MeetingStore` (struct) ve `AudioArchive.compress` (static) dördü de
+  `nonisolated async`; Swift 6 dil modunda böyle bir fonksiyon `@MainActor`'dan
+  çağrılsa bile çağıranın şeridini **devralmaz**, havuzda koşar. Main thread'de
+  kalan iş birkaç `await`, bir `Set` ekleme ve dinleyici çağrısı.
+
+  Bedeli ise gerçek: (1) `isRunning` yalnızca `await` ile okunabilir hâle
+  gelir, oysa `isTranscribing` / `canCorrect` / `canSummarize` / `canRetry`
+  SwiftUI `body` **içinde** senkron okunuyor — durumu MainActor'da aynalamak
+  gerekirdi, yani bu refactor'ın kaldırdığı "aynı bilgi iki yerde" problemi
+  geri gelirdi. (2) Adım 1'in senkron olay teslimi garantisi ("`await`
+  döndüğünde ekran zaten güncel") bozulur ve "işlem bitti ama ekran eski"
+  penceresi yeniden açılır. (3) `settings` okumaları hop'a döner.
+
+  Kazanç ~sıfır, bedel üç yapısal geri adım.
 - **Kalan 5 `selection == meetingID`.** Hepsi liste/CRUD tarafında
   (`load`, `delete`, `relinkEvent`) — Adım 5'in konusu.
 - `startLive()`'daki iki gereksiz `await` uyarısı: refactor'dan önce de

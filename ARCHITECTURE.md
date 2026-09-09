@@ -246,7 +246,14 @@ extension PipelineEvent {
 ---
 
 ## Eşzamanlılık
-- Modüller `actor`; UI durumu `@MainActor @Observable`
+- UI durumu `@MainActor @Observable`. Alt modüller **actor olmak zorunda
+  değil**: `Sendable` bir struct/class + `nonisolated async` metotlar aynı
+  hedefe varıyor, çünkü Swift 6 dil modunda böyle bir fonksiyon `@MainActor`'dan
+  çağrılsa bile çağıranın şeridini devralmaz, havuzda koşar. Bugün yalnızca
+  `LiveTranscription` actor (paylaşılan değişken durumu var);
+  `FoundationIntelligence`, `SpeechTranscription`, `MeetingStore` ve
+  `AudioArchive` bu yolu kullanıyor. `MeetingPipeline` ve `RecordingSession`
+  `@MainActor` **kalır** — gerekçesi REFACTOR.md "Yapılmaması gerekenler"de
 - **Polling yok.** Algılama CoreAudio olay dinleyicileriyle, öneri teslimi
   `withObservationTracking` ile çalışır. `onChange` `willSet` anında gelir ve
   kayıt tek seferliktir: bir tur sonraya geç, önce yeniden kur, sonra o anki
