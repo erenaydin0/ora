@@ -48,12 +48,27 @@ final class CalendarReader {
     private var store: EKEventStore?
     private var changeObserver: NSObjectProtocol?
 
+    /// Toplantı uygulamasının pencere başlıkları — eşleştirmenin **en güçlü**
+    /// sinyali. Closure olarak verilir: başlığı okuyan `WindowTitle`
+    /// `ora/Detect/` altındadır ve alt modüller birbirini çağırmaz
+    /// (ARCHITECTURE.md, bağımlılık yönü). Varsayılan "başlık okuma yok".
+    private let windowTitles: (String) -> [String]
+    /// Etkinlik kaynağı. Gerçekte EventKit; testte sentetik etkinlikler —
+    /// eşleştirme politikası (puanlama ve kararlılık eşiği) böylece EventKit'e
+    /// dokunmadan ölçülebiliyor.
+
     /// Takvim değişiklikleri — polling yok.
     let changes: AsyncStream<Void>
     private let changeContinuation: AsyncStream<Void>.Continuation
 
-    init(settings: OraSettings = .shared) {
+    private let eventSource: ((Date, Date) -> [MeetingEvent])?
+
+    init(settings: OraSettings = .shared,
+         windowTitles: @escaping (String) -> [String] = { _ in [] },
+         eventSource: ((Date, Date) -> [MeetingEvent])? = nil) {
         self.settings = settings
+        self.windowTitles = windowTitles
+        self.eventSource = eventSource
         (changes, changeContinuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(1))
     }
 
@@ -127,9 +142,58 @@ final class CalendarReader {
     }
 
     /// Tepe aday ikinciyi bu farkla geçiyorsa sormadan bağlanır.
-    static let decisiveMargin = 3
+    nonisolated static let decisiveMargin = 3
 
-    static func score(_ event: MeetingEvent, at date: Date,
+    /// Eşleştirmenin sonucu.
+    enum MatchOutcome: Sendable, Equatable {
+        /// Tepe aday ikinciyi `decisiveMargin` kadar geçti — sormadan bağlanır.
+        case decisive(MeetingEvent)
+        /// Belirsiz: **tahmin edilmez, sorulur.** Çakışan iki toplantıda yanlış
+        /// katılımcı listesi yazmak, boş bırakmaktan kötüdür (RESEARCH.md §29).
+        case ambiguous([MeetingEvent])
+        /// O ana denk gelen etkinlik yok (ya da takvim kapalı).
+        case none
+    }
+
+    /// Kayıt başlarken hangi takvim toplantısındayız?
+    ///
+    /// Karar **burada** verilir: puanlama, kararlılık eşiği ve pencere başlığı
+    /// okuma politikası bu modülün işidir. Eskiden çağıran tarafta (arayüz
+    /// katmanında) duruyordu ve ARCHITECTURE.md'nin bağımlılık yönüne
+    /// aykırıydı (REFACTOR.md Adım 6).
+    func match(at date: Date, app: String?) -> MatchOutcome {
+        let titles = app.map(windowTitles) ?? []
+        let matches = candidates(at: date, app: app, windowTitles: titles)
+        guard let best = matches.first else { return .none }
+
+        let runnerUp = matches.dropFirst().first?.score
+        if let runnerUp, best.score - runnerUp < Self.decisiveMargin {
+            Log.info(.calendar, "Takvim belirsiz (\(matches.count) aday, "
+                     + "puanlar \(matches.map(\.score))) — kullanıcıya soruluyor"
+                     + (titles.isEmpty
+                        ? " · pencere başlığı okunamadı (Erişilebilirlik yok)" : ""))
+            return .ambiguous(Array(matches.prefix(3).map(\.event)))
+        }
+        Log.info(.calendar, "Takvim eşleşmesi: \(best.event.title) — puan \(best.score)"
+                 + (best.reasons.isEmpty ? "" : " (\(best.reasons.joined(separator: ", ")))"))
+        return .decisive(best.event)
+    }
+
+    /// Tepe aday, kararlılık eşiğine **bakmadan**. Yalnızca bildirim metnini
+    /// zenginleştirmek için: orada en iyi tahmin yeterli, yanlışsa kimse
+    /// veritabanına yazılmıyor.
+    func bestGuess(at date: Date, app: String?) -> MeetingEvent? {
+        let titles = app.map(windowTitles) ?? []
+        return candidates(at: date, app: app, windowTitles: titles).first?.event
+    }
+
+    /// Bir toplantının tarihine denk gelen etkinlikler — kullanıcı yanlış
+    /// eşleşmeyi sonradan düzeltebilsin diye.
+    func choices(at date: Date) -> [MeetingEvent] {
+        candidates(at: date).map(\.event)
+    }
+
+    nonisolated static func score(_ event: MeetingEvent, at date: Date,
                       app: String?, windowTitles: [String]) -> EventMatch {
         var score = 0
         var reasons: [String] = []
@@ -183,7 +247,7 @@ final class CalendarReader {
     /// Birebir arama işe yaramaz: başlık "Bordro Görüşmesi | Microsoft Teams"
     /// gibi ek taşır, etkinlik adı da kısaltılmış olabilir. Ölçüt **anlamlı
     /// kelime örtüşmesi**: üç harften uzun kelimelerin en az yarısı tutmalı.
-    static func titleMatches(_ windowTitle: String, _ eventTitle: String) -> Bool {
+    nonisolated static func titleMatches(_ windowTitle: String, _ eventTitle: String) -> Bool {
         let strip = { (text: String) -> Set<String> in
             Set(text.lowercased(with: Locale(identifier: "tr_TR"))
                 .components(separatedBy: CharacterSet.alphanumerics.inverted)
@@ -208,6 +272,7 @@ final class CalendarReader {
     }
 
     private func upcoming(from: Date, to: Date) -> [MeetingEvent] {
+        if let eventSource { return eventSource(from, to).sorted { $0.start < $1.start } }
         guard isEnabled, authorizationStatus == .fullAccess else { return [] }
         let store = ensureStore()
 

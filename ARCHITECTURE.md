@@ -30,8 +30,9 @@ transkripsiyon), `MeetingPipeline` kayıt **bittikten sonrasını** (tam geçiş
 noktalama, özet, depolama). Sırayı ikisi de değil `RecordingController` kurar.
 Liste, arama, seçim ve seçili toplantının içeriği `MeetingLibrary`'de
 (REFACTOR.md Adım 5): hattın ürettiği içeriği süzen tek kapı orada, çünkü
-"ekranda ne var" bilgisinin sahibi orası. Takvim eşleştirmesi hâlâ
-controller'da (REFACTOR.md Adım 6).
+"ekranda ne var" bilgisinin sahibi orası. Takvim eşleştirme politikası
+`CalendarReader.match(at:app:)`'te (REFACTOR.md Adım 6); controller yalnızca
+sonucu taşır.
 
 ---
 
@@ -142,7 +143,11 @@ struct MeetingEvent {
 protocol CalendarReading {
     var isEnabled: Bool { get }              // kullanıcı ayarı; false ise EventKit'e dokunulmaz
     func authorize() async throws            // yalnızca kullanıcı açtığında çağrılır
-    func event(overlapping date: Date) async -> MeetingEvent?   // ±10 dk tolerans
+    /// Eşleştirme **kararı** burada verilir: puanlama, kararlılık eşiği ve
+    /// pencere başlığı okuma politikası bu modülün işi.
+    func match(at date: Date, app: String?) -> MatchOutcome   // .decisive/.ambiguous/.none
+    func bestGuess(at date: Date, app: String?) -> MeetingEvent?  // bildirim metni için
+    func choices(at date: Date) -> [MeetingEvent]                 // sonradan düzeltme
     func upcoming(within: TimeInterval) async -> [MeetingEvent]
     var changes: AsyncStream<Void> { get }   // EKEventStoreChangedNotification
 }

@@ -1777,3 +1777,18 @@ kullanmaya devam ederdi.
 Özellik **opt-in**: `OraSettings.windowTitleEnabled` varsayılan kapalı,
 onboarding'de ve Ayarlar → Takvim'de açılıyor. Kapalıyken `WindowTitle`
 çağrılmaz, Erişilebilirlik izni istenmez.
+
+**Güncelleme (2026-09-09).** Eşleştirme **politikası** (puanlama, kararlılık
+eşiği, pencere başlığı okuma) artık `CalendarReader.match(at:app:)` içinde;
+eskiden çağıran taraftaydı (`RecordingController`) ve ARCHITECTURE.md'nin
+bağımlılık yönüne aykırıydı (REFACTOR.md Adım 6). Sonuç üç halli bir enum:
+`.decisive` · `.ambiguous` · `.none`.
+
+Denetim de elle koşulan bir probe değil, test hedefinin parçası:
+`oraTests/CalendarMatchTests.swift`. Etkinlik kaynağı enjekte edildiği için
+(`eventSource`) EventKit'e dokunulmuyor ve çakışma senaryosu sentetik
+etkinliklerle kurulabiliyor; `probes/takvim_eslestirme.swift` kaldırıldı.
+**Karar katmanının daha önce hiç testi yoktu** — yalnızca puanlama
+ölçülüyordu. Artık ikisi de ölçülü: kararlılık eşiği kaldırıldığında
+"belirsizlikte sorulur" kontrolü kırılıyor.
+

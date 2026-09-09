@@ -193,7 +193,7 @@ yok" ilkesiyle de bu daha tutarlıdır.
 
 Controller'ın en "view model"vari kısmı; en sona bırakılabilir çünkü zararsızdır.
 
-### Adım 6 — Takvim eşleştirmesini Calendar'a geri ver
+### Adım 6 — Takvim eşleştirmesini Calendar'a geri ver — ✅ tamam
 
 `matchCalendar`'daki puanlama ve `decisiveMargin` kararı `CalendarReader`'a
 (ya da `CalendarMatcher`'a) taşınır. Controller'da yalnızca "kullanıcıya
@@ -450,6 +450,67 @@ test artık yazma adımını doğrudan çağırıyor. Bozulmuş kodla kırıldı
 
 Bu, ölçmeden "test var" demenin maliyetine dair somut bir örnek: kapıyı
 kaldırıp testin kırıldığını görmeden yazılmış bir test, olmayan bir ağ.
+
+---
+
+## 13. Adım 6 sonucu (2026-09-09) — plan tamamlandı
+
+| Ölçüt | Adım 5 sonrası | Adım 6 sonrası |
+|---|---|---|
+| `RecordingController` satır | 667 | **658** |
+| Test | 36 | **46** |
+
+Eşleştirme **politikası** `CalendarReader.match(at:app:)`'e taşındı ve sonuç
+üç halli bir enum oldu: `.decisive` · `.ambiguous` · `.none`. Controller'da
+yalnızca sonucu taşımak kaldı — puanlama, kararlılık eşiği ve pencere başlığı
+okuma kararı artık modülün kendi işi.
+
+Pencere başlığını okuyan `WindowTitle` `ora/Detect/` altında; Calendar ona
+doğrudan bağlanmıyor, çağrı closure olarak geçiyor (Adım 4'teki kalıbın aynısı).
+
+`CalendarReader.score` / `titleMatches` / `decisiveMargin` `nonisolated` oldu:
+puanlama saf bir işlev, aktör durumuna dokunmuyor.
+
+### Karar katmanının hiç testi yoktu
+
+RESEARCH.md §29 puanlamayı ölçmüştü ama **kararı** değil: "öne çıkması
+sormadan bağlanmaya yetiyor mu" sorusunun tek denetimi yoktu. Etkinlik kaynağı
+enjekte edilebilir olunca (`eventSource`) sentetik çakışma senaryosu
+kurulabildi ve `probes/takvim_eslestirme.swift` teste taşındı. Ölçüldü:
+kararlılık eşiği kaldırıldığında iki test kırılıyor.
+
+Bu, hattaki `meeting_switch` probe'uyla aynı hikâye — elle derlenen probe'lar
+imza değişiminde sessizce çürüyor. Kalan probe'lar canlı Apple API'lerini
+doğruluyor (tap, Speech, Foundation Models); onlar zaten CI'da koşamaz.
+
+### Sonuç
+
+| Ölçüt | Başlangıç | Bitiş |
+|---|---|---|
+| `RecordingController` satır | 1114 | **658** |
+| Test | **0** | **46** |
+| Hattın ürettiği içeriği süzen kapı | **15** | **1** |
+| Ayrı katman | yok | 5 tip (aşağıda) |
+
+Çıkan katmanlar: `MeetingPipeline` + `PipelineEvent` (kayıt sonrası),
+`RecordingSession` (kayıt sürerken), `MeetingLibrary` (liste, seçim, ekrandaki
+içerik), `MeetingSuggestions` (algılama → öneri → karar).
+
+**Dürüst olmak adına iki şey azalmadı:**
+
+- **Bağımlılık sayısı 11 → 10.** Değişen sayı değil, niteliği: dördü artık işi
+  yapan katmanlar (`library` 42, `session` 12, `suggestions` 10, `pipeline` 7
+  çağrı), kalanı ince. `store` hâlâ 12 yerde — toplantı yaratma, takvim bağı ve
+  `markProcessing` controller'da kaldı.
+- **Arayüze bakan yüzey ~80 üye.** Bu **bilinçli**: 8 arayüz dosyasına
+  dokunmamak için geçirgen bırakıldı. Yüzeyi daraltmak arayüzü de değiştirmek
+  demek ve bu planın kapsamı değildi.
+
+Kapı sayısı toplamda 19 → 7 (kütüphanede 5, controller'da 2); önemli olan
+hattın ürettiği içeriğin yolu: orada 15 kapı 1'e indi ve unutma ihtimali
+yapısal olarak kalktı.
+
+Plandaki altı adım tamam. Kapanan hata ve ölü kod, adım adım §9-13'te.
 
 ### Kapsam dışı bırakılanlar
 

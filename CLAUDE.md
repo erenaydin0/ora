@@ -595,6 +595,13 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       yürütüyor (ses yazımı + canlı transkripsiyon); `LiveTranscribing`
       protokolü eklendi ve **kural #2** artık testle korunuyor.
       `RecordingController` 1114 → 861 satır, 18 test.
+      **Adım 6 tamam — REFACTOR.md planı bitti.** Takvim eşleştirme
+      politikası (puanlama, kararlılık eşiği, pencere başlığı okuma)
+      `CalendarReader.match(at:app:)`'e taşındı; controller'da yalnızca sonucu
+      taşımak kaldı. Karar katmanının **hiç testi yoktu** (§29 yalnızca
+      puanlamayı ölçmüştü); `eventSource` enjekte edilebilir olunca
+      `probes/takvim_eslestirme.swift` teste taşındı ve kaldırıldı.
+      Özet: 1114 → 658 satır, 0 → 46 test, hattın içeriğini süzen kapı 15 → 1.
       **Adım 5 tamam:** `ora/UI/MeetingLibrary` liste, arama, seçim ve seçili
       toplantının ekrandaki içeriğini üstlendi; iki yarış (geç gelen yükleme,
       hattın ürettiği içerik) orada tek yerde kapanıyor. Controller'da
@@ -659,7 +666,11 @@ ora/Detect/            — MeetingDetector (CoreAudio olay dinleyicileri) +
                          (sinyal → öneri → karar; teslim
                          `withObservationTracking` ile, polling yok),
                          WindowTitle (opt-in)
-ora/Calendar/          — CalendarReader (EventKit, opt-in)
+ora/Calendar/          — CalendarReader (EventKit, opt-in). Eşleştirme
+                         **politikası** burada: `match(at:app:)` üç halli
+                         sonuç döner (`.decisive` · `.ambiguous` · `.none`).
+                         Pencere başlığını okuyan çağrı closure ile geçirilir —
+                         Calendar `ora/Detect/`'e bağlanmaz
 ora/Capture/           — AudioCapture (orkestra), MicrophoneCapture,
                          SystemAudioTap, StereoRecordingWriter, AudioClock,
                          RecordingRecovery, MeetingApps, Channel

@@ -147,17 +147,18 @@ final class RecordingController {
         self.settings = settings
         self.notifications = notifications
         let resolvedDetector = detector ?? MeetingDetector(settings: settings)
-        let resolvedCalendar = calendar ?? CalendarReader(settings: settings)
+        // Pencere başlığını okuyan `WindowTitle` `ora/Detect/` altında; Calendar
+        // ona doğrudan bağlanmaz, çağrı buradan geçirilir.
+        let resolvedCalendar = calendar
+            ?? CalendarReader(settings: settings,
+                              windowTitles: { WindowTitle.titles(for: $0) })
         self.calendar = resolvedCalendar
         // Takvim zenginleştirmesi **closure ile** verilir: `MeetingSuggestions`
         // böylece Calendar'a bağlanmaz (ARCHITECTURE.md, bağımlılık yönü).
         self.suggestions = MeetingSuggestions(
             detector: resolvedDetector, notifications: notifications, settings: settings,
-            matchingEvent: { [settings, resolvedCalendar] signal in
-                guard settings.calendarEnabled else { return nil }
-                return resolvedCalendar.candidates(
-                    at: Date(), app: signal.bundleID,
-                    windowTitles: WindowTitle.titles(for: signal.bundleID)).first?.event
+            matchingEvent: { [resolvedCalendar] signal in
+                resolvedCalendar.bestGuess(at: Date(), app: signal.bundleID)
             })
 
         // Veritabanı açılamazsa uygulama işlevsiz kalmaz: bellek içi bir
@@ -465,31 +466,23 @@ final class RecordingController {
     /// Bir toplantının tarihine denk gelen takvim etkinlikleri — kullanıcı
     /// sonradan doğrusunu seçebilsin diye.
     func eventChoices(for meeting: MeetingListItem) -> [MeetingEvent] {
-        guard settings.calendarEnabled else { return [] }
-        return calendar.candidates(at: meeting.date).map(\.event)
+        calendar.choices(at: meeting.date)
     }
 
-    /// Kayıt başlarken takvim eşleştirmesi. Tepe aday açık ara öndeyse bağlanır,
-    /// değilse soru arayüze bırakılır.
-    private func matchCalendar(meetingID: Int64, app: String?) async -> MeetingEvent? {
-        guard settings.calendarEnabled else { return nil }
-        let titles = app.map { WindowTitle.titles(for: $0) } ?? []
-        let matches = calendar.candidates(at: Date(), app: app, windowTitles: titles)
-        guard let best = matches.first else { return nil }
-
-        let runnerUp = matches.dropFirst().first?.score
-        if let runnerUp, best.score - runnerUp < CalendarReader.decisiveMargin {
-            eventChoices = Array(matches.prefix(3).map(\.event))
+    /// Kayıt başlarken takvim eşleştirmesi. Puanlama ve kararlılık eşiği
+    /// **Calendar'ın işi**; burada yalnızca sonucu taşımak kalır: kesinse
+    /// bağlanır, belirsizse soru arayüze bırakılır.
+    private func matchCalendar(meetingID: Int64, app: String?) -> MeetingEvent? {
+        switch calendar.match(at: Date(), app: app) {
+        case .decisive(let event):
+            return event
+        case .ambiguous(let choices):
+            eventChoices = choices
             choiceMeetingID = meetingID
-            Log.info(.calendar, "Takvim belirsiz (\(matches.count) aday, "
-                     + "puanlar \(matches.map(\.score))) — kullanıcıya soruluyor"
-                     + (titles.isEmpty
-                        ? " · pencere başlığı okunamadı (Erişilebilirlik yok)" : ""))
+            return nil
+        case .none:
             return nil
         }
-        Log.info(.calendar, "Takvim eşleşmesi: \(best.event.title) — puan \(best.score)"
-                 + (best.reasons.isEmpty ? "" : " (\(best.reasons.joined(separator: ", ")))"))
-        return best.event
     }
 
     // MARK: - Kayıt
@@ -520,7 +513,7 @@ final class RecordingController {
         // yalnızca hangi uygulamanın tap'leneceğini söylemek için okunur.
         eventChoices = []
         choiceMeetingID = nil
-        let event = await matchCalendar(meetingID: meetingID, app: signal?.bundleID)
+        let event = matchCalendar(meetingID: meetingID, app: signal?.bundleID)
         if let event {
             try? await store.linkCalendarEvent(meetingID, event: event)
             // Katılımcı adları sözlüğe beslenir — özel isim tanımanın en
