@@ -449,7 +449,7 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
   (RESEARCH.md §27)
 - **Hat arayüze doğrudan yazmaz.** `MeetingPipeline` ürettiği her şeyi
   `meetingID` taşıyan `PipelineEvent` olarak yayar; "kullanıcı hâlâ bu
-  toplantıya mı bakıyor" sorusu **tek yerde**, `RecordingController.apply(_:)`
+  toplantıya mı bakıyor" sorusu **tek yerde**, `MeetingLibrary.display(_:)`
   içinde sorulur. Hattın ürettiği yeni bir alan eklerken controller'a property
   değil, `PipelineEvent.Kind`'a bir vaka eklenir — o kapıyı çoğaltmak eski
   hata sınıfını geri getirir (REFACTOR.md §2)
@@ -595,6 +595,12 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       yürütüyor (ses yazımı + canlı transkripsiyon); `LiveTranscribing`
       protokolü eklendi ve **kural #2** artık testle korunuyor.
       `RecordingController` 1114 → 861 satır, 18 test.
+      **Adım 5 tamam:** `ora/UI/MeetingLibrary` liste, arama, seçim ve seçili
+      toplantının ekrandaki içeriğini üstlendi; iki yarış (geç gelen yükleme,
+      hattın ürettiği içerik) orada tek yerde kapanıyor. Controller'da
+      `selection == meetingID` kontrolü **kalmadı** (5 taneydi) ve arayüz
+      yüzeyi geçirgenlere indi — 8 arayüz dosyasına dokunulmadı.
+      667 satır, 36 test.
       **Adım 4 tamam:** `ora/Detect/MeetingSuggestions` algılama → öneri →
       karar zincirini üstlendi; öneri teslimi 1 sn'lik `while` döngüsünden
       `withObservationTracking`'e geçti (CLAUDE.md'nin "polling yok" ilkesi
@@ -674,8 +680,10 @@ ora/Pipeline/          — RecordingSession (kayıt sürerken: ses yazımı + ca
                          altında değil — alt modüller birbirini çağırmaz
 ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          MenuBarView (taşıyıcı yüzey), OnboardingView,
-                         RecordingController (hattın olaylarını arayüz
-                         durumuna çevirir — süzme tek yerde, `apply(_:)`),
+                         RecordingController (sırayı kurar; arayüz yüzeyi
+                         geçirgenlerden oluşur), MeetingLibrary (liste, arama,
+                         seçim ve seçili toplantının içeriği — "ekranda ne var"
+                         bilgisinin sahibi, iki yarış orada kapanır),
                          MeetingSidebar, MeetingDetail,
                          TranscriptView, SummaryView, ActionBoardView,
                          AudioPlayback (+ PlaybackBar), MeetingExport, SettingsView,

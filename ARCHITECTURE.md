@@ -28,7 +28,10 @@ bağımlılık yönü kodda da gerçek oldu. Katman iki tipten oluşur:
 `RecordingSession` kayıt **sürerkenini** yürütür (ses yazımı + canlı
 transkripsiyon), `MeetingPipeline` kayıt **bittikten sonrasını** (tam geçiş,
 noktalama, özet, depolama). Sırayı ikisi de değil `RecordingController` kurar.
-Liste/CRUD ve takvim eşleştirmesi hâlâ controller'da (REFACTOR.md Adım 5-6).
+Liste, arama, seçim ve seçili toplantının içeriği `MeetingLibrary`'de
+(REFACTOR.md Adım 5): hattın ürettiği içeriği süzen tek kapı orada, çünkü
+"ekranda ne var" bilgisinin sahibi orası. Takvim eşleştirmesi hâlâ
+controller'da (REFACTOR.md Adım 6).
 
 ---
 

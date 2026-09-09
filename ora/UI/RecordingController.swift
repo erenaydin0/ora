@@ -19,54 +19,46 @@ final class RecordingController {
     private(set) var interrupted: [InterruptedRecording] = []
     var error: OraError?
 
-    /// Kenar çubuğu listesi ve seçim.
-    private(set) var meetings: [MeetingListItem] = []
-    /// Arama sonucunun transkriptte nerede eşleştiği — toplantı başına bir
-    /// parçacık. Arama boşken boştur.
-    private(set) var searchSnippets: [Int64: String] = [:]
-    var searchText = "" { didSet { scheduleRefresh() } }
-    var selection: Int64? {
-        didSet {
-            guard selection != oldValue else { return }
-            if selection != nil { showsActionBoard = false }
-            loadSelected()
-        }
-    }
-
-    private(set) var transcript: [Segment] = []
-
-    /// Kayıt sürerkenin durumu oturumun kendisindedir; arayüz buradan okur.
+    /// Kayıt sürerkenin durumu oturumun, liste ve seçili toplantının içeriği
+    /// kütüphanenin. Arayüz yüzeyi değişmedi: aşağıdaki geçirgenler eskiden
+    /// bu tipin kendi alanlarıydı.
     var state: CaptureState { session.state }
     var liveSegments: [Segment] { session.liveSegments }
     var volatileText: [Int: String] { session.volatileText }
     var liveNotice: String? { session.liveNotice }
 
-    /// Tüm toplantıların aksiyonları — pano bunu gösterir. Toplantı seçiminden
-    /// bağımsızdır; liste her tazelemede yenilenir.
-    private(set) var boardActions: [BoardAction] = []
-    /// Kenar çubuğundaki sayı: açık aksiyon adedi.
-    var openActionCount: Int { boardActions.count { !$0.isDone } }
-    /// Aksiyon panosu açık mı — açıkken orta panel toplantı yerine panoyu gösterir.
-    var showsActionBoard = false { didSet { if showsActionBoard { selection = nil } } }
+    var meetings: [MeetingListItem] { library.meetings }
+    var searchSnippets: [Int64: String] { library.searchSnippets }
+    var searchText: String {
+        get { library.searchText }
+        set { library.searchText = newValue }
+    }
+    var selection: Int64? {
+        get { library.selection }
+        set { library.selection = newValue }
+    }
+    var showsActionBoard: Bool {
+        get { library.showsActionBoard }
+        set { library.showsActionBoard = newValue }
+    }
+    var boardActions: [BoardAction] { library.boardActions }
+    var openActionCount: Int { library.openActionCount }
+    var transcript: [Segment] { library.transcript }
+    var summary: Ozet? { library.summary }
+    var topics: [TopicSegment] { library.topics }
+    var actions: [MeetingAction] { library.actions }
+    var summaryNotice: String? { library.summaryNotice }
+    var deferReason: PowerState.DeferReason? { library.deferReason }
+    var audioURL: URL? { library.audioURL }
+    var retryableAudio: URL? { library.retryableAudio }
+    var calendarParticipants: [String] { library.calendarParticipants }
+    var chatTurns: [MeetingStore.ChatTurn] { library.chatTurns }
+
     /// Kullanıcının kendi adı — "Bana düşenler" grubu buna bakar.
     var userDisplayName: String { settings.userDisplayName }
 
-    private(set) var summary: Ozet?
-    private(set) var topics: [TopicSegment] = []
-    /// Aksiyonlar özetten ayrı taşınır: onay kutusu satır kimliği ister.
-    private(set) var actions: [MeetingAction] = []
-    private(set) var summaryNotice: String?
     /// Veritabanı açılamadıysa kullanıcıya söylenecek not.
     private(set) var storageNotice: String?
-
-    /// Seçili toplantının sesi diskte duruyor ama transkripti yok — işlem
-    /// yeniden denenebilir. Hata mesajı "daha sonra tekrar deneyebilirsiniz"
-    /// diyor; o vaadin karşılığı budur.
-    private(set) var retryableAudio: URL?
-
-    /// Seçili toplantının diskteki ses dosyası — oynatıcı bunu çalar.
-    /// `retryableAudio`'dan ayrı: ses transkript **varken de** durur.
-    private(set) var audioURL: URL?
 
     /// Bildirim izni yoksa Türkçe not. Öneri yine gelir ama yalnızca
     /// penceredeki şeritte görünür; kullanıcı bunu bilmeli.
@@ -79,15 +71,9 @@ final class RecordingController {
     var pendingSignal: MeetingSignal? { suggestions.pendingSignal }
     /// Toplantı uygulaması mikrofonu 30 sn'den uzun bıraktı.
     var suggestsStop: Bool { suggestions.suggestsStop }
-    /// Güç/termal nedeniyle özetleme ertelendiyse nedeni.
-    private(set) var deferReason: PowerState.DeferReason?
-    /// Sohbet geçmişi ve durumu.
-    private(set) var chatTurns: [MeetingStore.ChatTurn] = []
     private(set) var isAnswering = false
     /// Sözlük onayı bekleyen kelimeler dahil tüm sözlük.
     private(set) var vocabulary: [VocabularyStore.Word] = []
-    /// Takvimden gelen katılımcılar (Özet'te Kişiler bölümü).
-    private(set) var calendarParticipants: [String] = []
     /// Menü barda gösterilecek sıradaki toplantı.
     private(set) var upcomingEvent: MeetingEvent?
     /// Canlı transkriptin son satırı — menü bar popover'ında akar.
@@ -129,13 +115,14 @@ final class RecordingController {
     private let notifications: MeetingNotifications
     private let settings: OraSettings
 
+    /// Liste, arama, seçim ve seçili toplantının ekrandaki içeriği
+    /// (REFACTOR.md Adım 5). "Ekranda ne var" bilgisinin sahibi orası.
+    private let library: MeetingLibrary
     /// Kayıt sürerken: ses yazımı + canlı transkripsiyon (REFACTOR.md Adım 3).
     let session: RecordingSession
     /// Kayıt bittikten sonra: tam geçiş, noktalama, özet, depolama
     /// (REFACTOR.md Adım 1-2).
     private let pipeline: MeetingPipeline
-
-    private var refreshTask: Task<Void, Never>?
 
     /// - Parameters:
     ///   - detector, calendar: `settings`'e bağlı oldukları için varsayılan
@@ -191,6 +178,11 @@ final class RecordingController {
         self.store = MeetingStore(database: resolved)
         self.vocabularyStore = VocabularyStore(database: resolved)
         self.storageNotice = notice
+        let store = self.store
+        let session = self.session
+        self.library = MeetingLibrary(store: store,
+                                      isRecording: { session.isRecording },
+                                      clearLivePreview: { session.clearLive() })
         self.pipeline = MeetingPipeline(store: self.store,
                                         vocabularyStore: self.vocabularyStore,
                                         transcription: transcription,
@@ -206,6 +198,16 @@ final class RecordingController {
         // kaydet") — kaydı başlatan taraf burasıdır.
         suggestions.onRecord = { [weak self] signal in
             Task { @MainActor in await self?.start(signal: signal) }
+        }
+        library.onError = { [weak self] error in self?.error = error }
+        // Düzeltmeden çıkan özel isimler sözlüğe **aday** olur; kullanıcı
+        // onaylamadan transkripsiyona verilmez. Kütüphane sözlüğe dokunmaz.
+        library.onCorrection = { [weak self] mistake, correct in
+            Task { @MainActor in
+                try? await self?.vocabularyStore.proposeFromCorrection(mistake: mistake,
+                                                                       correct: correct)
+                await self?.refreshVocabulary()
+            }
         }
     }
 
@@ -274,7 +276,7 @@ final class RecordingController {
         }
         if removed > 0 {
             Log.info(.store, "Saklama süresi dolan \(removed) ses dosyası silindi (\(days) gün)")
-            if let selection { await load(selection) }
+            await library.reload()
         }
         refreshStorage()
     }
@@ -285,7 +287,7 @@ final class RecordingController {
         guard let file = files.first(where: { $0.id == meetingID }) else { return }
         AudioArchive.delete(file.path)
         try? await store.setAudioPath(meetingID, path: nil)
-        if selection == meetingID { await load(meetingID) }
+        if library.isOnScreen(meetingID) { await library.reload() }
         refreshStorage()
     }
 
@@ -317,15 +319,14 @@ final class RecordingController {
     // MARK: - Toplantı sohbeti
 
     func ask(_ question: String) async {
-        guard let meetingID = selection, !transcript.isEmpty, !isAnswering else { return }
+        guard selection != nil, !transcript.isEmpty, !isAnswering else { return }
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         isAnswering = true
         defer { isAnswering = false }
         do {
             let answer = try await intelligence.answer(question: trimmed, over: transcript)
-            try? await store.appendChat(meetingID, question: trimmed, answer: answer)
-            chatTurns = (try? await store.chatHistory(meetingID)) ?? []
+            await library.appendChat(question: trimmed, answer: answer)
         } catch let error as OraError {
             self.error = error
         } catch {
@@ -358,14 +359,7 @@ final class RecordingController {
     /// ayrılmazsa A işlenirken B'nin ekranında A'nın animasyonu belirir.
     var isProcessingSelected: Bool { transcriptionStage.isActive }
 
-    /// Hattın ürettiği içerik arayüze yazılmalı mı? Kullanıcı başka bir
-    /// toplantıya geçtiyse üretim yalnızca veritabanına gider; ekranda seçili
-    /// toplantı durmaya devam eder.
-    private func onScreen(_ meetingID: Int64) -> Bool { selection == meetingID }
-
-    var selectedMeeting: MeetingListItem? {
-        meetings.first { $0.id == selection }
-    }
+    var selectedMeeting: MeetingListItem? { library.selectedMeeting }
 
     /// Kayıt sürerken veya işlem sürerken düzeltme yapılmaz — metin değişecek.
     var canCorrect: Bool {
@@ -403,125 +397,31 @@ final class RecordingController {
                                      participants: calendarParticipants)
     }
 
-    // MARK: - Liste
+    // MARK: - Liste (kütüphaneye devredildi — REFACTOR.md Adım 5)
 
-    func refresh() async {
-        do {
-            meetings = try await store.list(search: searchText)
-        } catch {
-            Log.error(.store, "Toplantı listesi okunamadı", error)
-        }
-        boardActions = (try? await store.allActions()) ?? boardActions
-        searchSnippets = (try? await store.snippets(search: searchText)) ?? [:]
-    }
-
+    func refresh() async { await library.refresh() }
     /// Panodan kaynak toplantıya git.
-    func openMeeting(_ meetingID: Int64) {
-        showsActionBoard = false
-        selection = meetingID
-    }
-
-    private func scheduleRefresh() {
-        refreshTask?.cancel()
-        refreshTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(150))
-            guard !Task.isCancelled else { return }
-            await self?.refresh()
-        }
-    }
-
-    private func loadSelected() {
-        guard let selection, !isRecording else { return }
-        Task { [weak self] in await self?.load(selection) }
-    }
-
-    private func load(_ meetingID: Int64) async {
-        do {
-            guard let loaded = try await store.load(meetingID) else { return }
-            // Okuma asenkron: bu arada kullanıcı başka bir toplantıya geçmiş
-            // olabilir. Geç gelen sonuç yeni seçimin üstüne yazılmaz — hızlı
-            // git-gel'de iki yükleme yarışıyordu.
-            guard selection == meetingID else { return }
-            transcript = loaded.segments
-            session.clearLive()
-            summary = loaded.summary
-            topics = loaded.topics
-            actions = loaded.actions
-            summaryNotice = nil
-            // Erteleme nedeni seçili toplantıya aittir; taşınırsa başka bir
-            // toplantının ekranında "Şimdi özetle" belirir.
-            deferReason = nil
-            // Aşama burada **kurulmaz**: hattın kendi kaydı (`stages`) tek
-            // kaynaktır. Eskiden veritabanının yarım hâlinden türetiliyordu ve
-            // işlenmekte olan toplantıya dönüldüğünde animasyon kayboluyordu.
-            audioURL = MeetingPipeline.existingAudio(loaded.meeting)
-            retryableAudio = loaded.segments.isEmpty ? audioURL : nil
-            chatTurns = (try? await store.chatHistory(meetingID)) ?? []
-            calendarParticipants = (try? await store.calendarParticipants(meetingID)) ?? []
-        } catch {
-            Log.error(.store, "Toplantı yüklenemedi: \(meetingID)", error)
-            self.error = .audioWriteFailed(underlying: error)
-        }
-    }
-
-    func delete(_ meetingID: Int64) async {
-        do {
-            try await store.delete(meetingID)
-            stages[meetingID] = nil
-            refreshStorage()
-            if selection == meetingID {
-                selection = nil
-                clearDisplayed()
-            }
-            await refresh()
-        } catch {
-            Log.error(.store, "Toplantı silinemedi: \(meetingID)", error)
-        }
-    }
-
+    func openMeeting(_ meetingID: Int64) { library.openMeeting(meetingID) }
     func rename(_ meetingID: Int64, to title: String) async {
-        try? await store.updateTitle(meetingID, title: title)
-        await refresh()
+        await library.rename(meetingID, to: title)
     }
-
-    /// Transkriptte tıklayarak düzeltme — `corrections` tablosunu besler.
     func correct(_ segment: Segment, to text: String) async {
-        guard let meetingID = selection else { return }
-        do {
-            try await store.applyCorrection(meetingID: meetingID, original: segment,
-                                            corrected: text)
-            // Düzeltmede beliren yeni özel isimler sözlüğe **aday** olur;
-            // kullanıcı onaylamadan transkripsiyona verilmez.
-            try? await vocabularyStore.proposeFromCorrection(mistake: segment.text,
-                                                             correct: text)
-            await refreshVocabulary()
-            await load(meetingID)
-        } catch {
-            Log.error(.store, "Düzeltme kaydedilemedi", error)
-        }
+        await library.correct(segment, to: text)
     }
-
-    /// Transkript satırını siler. Ham ses duruyorsa "Yeniden dene" ile
-    /// transkript baştan üretilebilir; bu yüzden geri alınamaz bir kayıp değil.
-    func deleteSegment(_ segment: Segment) async {
-        guard let meetingID = selection else { return }
-        do {
-            try await store.deleteSegment(meetingID: meetingID, segment: segment)
-            await load(meetingID)
-        } catch {
-            Log.error(.store, "Satır silinemedi", error)
-        }
-    }
-
-    /// Konuşmacı etiketini değiştirir (kanal değişmez).
+    func deleteSegment(_ segment: Segment) async { await library.deleteSegment(segment) }
     func setSpeaker(_ segment: Segment, to speaker: String) async {
-        guard let meetingID = selection else { return }
-        do {
-            try await store.setSpeaker(meetingID: meetingID, segment: segment, speaker: speaker)
-            await load(meetingID)
-        } catch {
-            Log.error(.store, "Konuşmacı değiştirilemedi", error)
-        }
+        await library.setSpeaker(segment, to: speaker)
+    }
+    func setActionDone(_ actionID: Int64, _ done: Bool) {
+        library.setActionDone(actionID, done)
+    }
+
+    /// Toplantıyı siler. Aşama kaydı ve depolama sayacı kütüphanenin işi
+    /// değil; onları burası temizler.
+    func delete(_ meetingID: Int64) async {
+        await library.delete(meetingID)
+        stages[meetingID] = nil
+        refreshStorage()
     }
 
     /// Kayıt başlarken hangi takvim toplantısında olduğumuz **kesinleşmediyse**
@@ -555,7 +455,7 @@ final class RecordingController {
                 try await store.unlinkCalendarEvent(meetingID)
                 Log.info(.calendar, "Takvim bağı kaldırıldı: toplantı \(meetingID)")
             }
-            if selection == meetingID { await load(meetingID) }
+            if library.isOnScreen(meetingID) { await library.reload() }
             await refresh()
         } catch {
             Log.error(.calendar, "Takvim bağı değiştirilemedi", error)
@@ -604,7 +504,7 @@ final class RecordingController {
     ///   ve takvimde hangi etkinliğe denk geldiğini belirlemekte kullanılır.
     func start(signal: MeetingSignal?) async {
         guard !isRecording else { return }
-        clearDisplayed()
+        library.clearDisplayed()
 
         let meetingID: Int64
         do {
@@ -663,19 +563,6 @@ final class RecordingController {
         await refresh()
     }
 
-    private func clearDisplayed() {
-        transcript = []
-        session.clearLive()
-        summary = nil
-        topics = []
-        actions = []
-        summaryNotice = nil
-        deferReason = nil
-        chatTurns = []
-        calendarParticipants = []
-        retryableAudio = nil
-        audioURL = nil
-    }
 
     // MARK: - İşlem hattı (sıra CLAUDE.md'de sabittir)
 
@@ -685,12 +572,12 @@ final class RecordingController {
         guard let meetingID = selection, let url = retryableAudio,
               !isRecording, !isTranscribing else { return }
         Log.info(.pipeline, "İşlem elle yeniden başlatıldı — toplantı \(meetingID)")
-        retryableAudio = nil
+        library.clearRetryable()
         try? await store.markProcessing(meetingID, audioPath: url,
                                         duration: Self.duration(of: url))
         await refresh()
         await pipeline.fullPass(meetingID: meetingID, url: url)
-        if onScreen(meetingID), transcript.isEmpty { retryableAudio = url }
+        library.restoreRetryable(url, for: meetingID)
         await refresh()
     }
 
@@ -710,65 +597,15 @@ final class RecordingController {
             self.error = error
         case .storeChanged:
             refreshStorage()
-            scheduleRefresh()
+            library.scheduleRefresh()
         case .finished(let title):
             Task { await self.notifications.summaryReady(title: title) }
 
-        // Buradan aşağısı **arayüz içeriğidir**: yalnızca o toplantı
-        // ekrandayken yazılır. Veritabanına her hâlükârda yazıldı; kullanıcı
-        // geri döndüğünde `load(_:)` oradan okur.
+        // Geri kalanı **arayüz içeriğidir**. Süzme kütüphanede: "ekranda ne
+        // var" bilgisinin sahibi orası. Veritabanına her hâlükârda yazıldı;
+        // kullanıcı geri döndüğünde oradan okunur.
         default:
-            guard onScreen(event.meetingID) else { return }
-            display(event.kind)
-        }
-    }
-
-    private func display(_ kind: PipelineEvent.Kind) {
-        switch kind {
-        case .transcript(let segments):
-            // Tam geçiş nihai gerçektir; canlı ön izleme bırakılır.
-            transcript = segments
-            session.clearLive()
-        case .summary(let ozet, let topics):
-            summary = ozet
-            self.topics = topics
-        case .actions(let actions):
-            self.actions = actions
-        case .audio(let url):
-            audioURL = url
-            // Sıkıştırma dosyanın yerini değiştirdiyse "Yeniden dene" de artık
-            // yeni dosyayı işler. `retryableAudio` boşsa dokunulmaz: hattın
-            // başında yayılan ses olayı düğmeyi yoktan var etmemeli.
-            if retryableAudio != nil { retryableAudio = url }
-        case .notice(let text):
-            summaryNotice = text
-        case .deferred(let reason):
-            deferReason = reason
-        case .deferCleared:
-            deferReason = nil
-        case .retryable(let url):
-            retryableAudio = url
-        case .stage, .failed, .storeChanged, .finished:
-            break   // `apply(_:)` bunları seçimden bağımsız işledi
-        }
-    }
-
-
-    /// Aksiyonu tamamlandı olarak işaretler. Ekran hemen güncellenir,
-    /// yazma arkada yapılır — kutuya basınca beklemek gerekmez.
-    func setActionDone(_ actionID: Int64, _ done: Bool) {
-        if let index = actions.firstIndex(where: { $0.id == actionID }) {
-            actions[index].isDone = done
-        }
-        // Pano ve toplantı görünümü aynı satırı gösterebilir; ikisi de hemen
-        // güncellenir, yazma arkada yapılır.
-        if let index = boardActions.firstIndex(where: { $0.id == actionID }) {
-            boardActions[index].status = (done ? MeetingStore.ActionStatus.done
-                                               : .pending).rawValue
-        }
-        Task { [store] in
-            do { try await store.setActionDone(actionID, done) }
-            catch { Log.error(.store, "Aksiyon durumu yazılamadı", error) }
+            library.display(event)
         }
     }
 
@@ -778,8 +615,7 @@ final class RecordingController {
         // Foundation Models yolunu paylaşıyor.
         guard let meetingID = selection, !transcript.isEmpty,
               !isRecording, !isTranscribing else { return }
-        deferReason = nil
-        summaryNotice = nil
+        library.clearSummaryNotice()
         await pipeline.summarize(meetingID: meetingID, segments: transcript)
     }
 
@@ -791,8 +627,7 @@ final class RecordingController {
     func resummarize() async {
         guard canResummarize, let meetingID = selection else { return }
         Log.info(.intelligence, "Özet yeniden üretiliyor — toplantı \(meetingID)")
-        deferReason = nil
-        summaryNotice = nil
+        library.clearSummaryNotice()
         await pipeline.summarize(meetingID: meetingID, segments: transcript,
                                  variation: true)
     }

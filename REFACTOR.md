@@ -186,7 +186,7 @@ döngüsüyle** `detector.pendingSignal`'i yokluyor. `detector` zaten `@Observab
 `withObservationTracking` ile olay tabanlı hale gelir. CLAUDE.md'nin "polling
 yok" ilkesiyle de bu daha tutarlıdır.
 
-### Adım 5 — `MeetingLibrary`
+### Adım 5 — `MeetingLibrary` — ✅ tamam
 
 `refresh`, `load`, `delete`, `rename`, `correct`, `deleteSegment`, `setSpeaker`,
 `searchText`, `selection`, `searchSnippets`, `boardActions` (~190 satır).
@@ -417,6 +417,39 @@ bırakıldığında iki test kırılıyor.
 
 Arayüzden `recorder.detector` erişimi de tamamen kalktı (üç yerdeydi): şerit,
 menü bar ve Ayarlar artık controller'ın kendi metotlarını çağırıyor.
+
+---
+
+## 12. Adım 5 sonucu (2026-09-09)
+
+| Ölçüt | Adım 4 sonrası | Adım 5 sonrası |
+|---|---|---|
+| `RecordingController` satır | 830 | **667** |
+| `selection == meetingID` (controller) | 5 | **0** |
+| Test | 27 | **36** |
+
+`ora/UI/MeetingLibrary` liste, arama, seçim **ve seçili toplantının ekrandaki
+içeriğini** üstlendi. "Ekranda ne var" bilgisinin tek sahibi orası; iki yarış
+da orada, tek yerde kapanıyor:
+
+1. **Geç gelen yükleme** — `apply(_:chat:participants:for:)` yazımdan önce
+   seçimi doğrular.
+2. **Hattın ürettiği içerik** — `display(_:)` süzer. Adım 2'de controller'da
+   olan tek kapı, artık bilginin sahibinin yanında.
+
+Controller'ın arayüze bakan yüzeyi **değişmedi**: 17 geçirgen (`meetings`,
+`selection`, `transcript`, `summary`, …) eskiden kendi alanlarıydı, artık
+kütüphaneye yönleniyor. Sekiz arayüz dosyasının hiçbirine dokunulmadı.
+
+### Testin yanlış güven verdiği yer
+
+İlk yazdığım "geç gelen yükleme" testi **bozulmuş kodla da geçiyordu**: iki
+bellek içi okuma da hızlı bitiyor ve tamamlanma sırası deterministik değil, o
+yüzden yarış hiç kurulmuyordu. Yükleme, "oku" ve "ekrana yaz" olarak ayrıldı;
+test artık yazma adımını doğrudan çağırıyor. Bozulmuş kodla kırıldığı ölçüldü.
+
+Bu, ölçmeden "test var" demenin maliyetine dair somut bir örnek: kapıyı
+kaldırıp testin kırıldığını görmeden yazılmış bir test, olmayan bir ağ.
 
 ### Kapsam dışı bırakılanlar
 
