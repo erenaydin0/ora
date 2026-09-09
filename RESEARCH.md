@@ -2215,3 +2215,87 @@ Sürümden bağımsız denenmemiş tek fikir: kısıtı isteme değil **şemaya*
 (madde tek bir cümle yerine iki alan olarak istenirse — "ne oldu" ve "sonucu" —
 aktarma cümlesi kurulacak yer kalmaz). Küçük modelde yapı, yönergeden güçlüdür;
 ölçülmedi.
+
+## 35. Bilgi kapsaması: iki gerçek toplantıda Circleback kıyası
+
+**Soru:** §33-34 biçimi düzeltti (anlatım %50 → %19). Ama kullanıcı biçim değil
+**bilgi** istiyor: aynı transkriptten Circleback'in çıkardığı olguların ne
+kadarını çıkarıyoruz?
+
+**Yöntem:** İki gerçek toplantı, uygulamanın **kendi ayrıştırıcısı ve kendi
+hattıyla** işlendi (`circleback-meeting-01/02-transkript.md`). Puanlama ayrı bir
+betikte, çıktı diske yazıldığı için modeli yeniden koşturmadan yeniden
+puanlanabiliyor. İki ölçüt:
+
+- **Referans kapsaması:** referans notlardaki olguların (sayılar, tutarlar,
+  özel adlar) kaçı ora'nın çıktısında da geçiyor.
+- **Uydurma sayı:** ora'nın yazdığı ama **transkriptte hiç geçmeyen** sayılar.
+
+### 35.1 Temel durum
+
+| | 01 (5 konuşmacı, 58 bin krk) | 02 (12 konuşmacı, 65 bin krk) |
+|---|---|---|
+| madde | 62 | 61 |
+| anlatım | %17 | **%45** |
+| sayı içeren madde | %19 | %3 |
+| aksiyon (referans) | 8 (6) | 6 (11) |
+| **referans kapsaması** | **%24** | **%13** |
+| **uydurma sayı** | **0** | **0** |
+| süre | 158 sn | 178 sn |
+
+**Toplam kapsama %20.** Gerçek boyut bu: Circleback'in yakaladığı her beş
+olgudan birini yakalıyoruz.
+
+**Hata modu ihmal, uydurma değil.** İki toplantıda da transkriptte geçmeyen tek
+bir sayı üretilmedi. Bu, ürün açısından doğru taraftaki hata: eksik not, yanlış
+nottan iyidir.
+
+**Tek sunucu en kötü hâl.** 02 bir ürün sunumu ve konuşmanın çoğu tek kişide;
+maddelerin %45'i "Hicret Akkuç, X'i açıkladı" kalıbına düşüyor. Genel bakışın
+altı maddesinin altısı da aynı adla başlıyor. Çok konuşmacılı tartışmada
+(01) model belirgin biçimde daha iyi.
+
+### 35.2 Reddedilen varyant: somut veriyi ayrı alan olarak istemek
+
+Fikir: kısıtı isteme değil **şemaya** koymak — `KonuBlogu`'na "bu bölümde geçen
+sayı, tutar, tarih, ürün adı" diye ikinci bir alan eklemek. Küçük modelde yapı
+yönergeden güçlü olduğu için kapsamayı artırması bekleniyordu.
+
+| | 01 temel | 01 varyant | 01 varyant (tekrar) | 02 temel | 02 varyant |
+|---|---|---|---|---|---|
+| madde | 62 | 75 | 77 | 61 | 95 |
+| sayı içeren | %19 | %28 | %25 | %3 | %11 |
+| **kapsama** | **%24** | %17 | %23 | **%13** | %23 |
+
+Sayı yoğunluğu ikisinde de arttı, kapsama **kıpırdamadı**. Çıktıya bakınca
+nedeni görülüyor: alan cümle değil **kırıntı** üretiyor.
+
+```
+  - Levenstein algoritması, %85 eşleşme oranıyla çalışıyor.   ← madde
+  - %85                                                       ← "veri"
+  - 40
+  - 50
+  - Levenstein algoritması
+```
+
+**Ders — ölçüt kandırılabilir.** "Sayı içeren madde yüzdesi" iyi görünürken
+notu bozan bir değişikliği ödüllendirdi; kapsama ölçütü ise doğruyu söyledi.
+Varyant **geri alındı**.
+
+### 35.3 Değerlendirme
+
+Kalan boşluk istem mühendisliğiyle kapanmıyor. §33'ten beri denenenler:
+istem yeniden yazımı (büyük kazanç), şema kılavuzu (kazanç), kod süzgeçleri
+(kazanç), son kontrolde anlatım düzeltmesi (§34, çalışmıyor), şemaya veri alanı
+(§35.2, çalışmıyor). Kapsama üç turdur ~%20'de duruyor.
+
+Modelin **yapabildiği** ve **yapamadığı** ayrışıyor:
+
+| Yapabiliyor | Yapamıyor |
+|---|---|
+| konuşmayı konulara ayırmak | bir konuşmadan tek bir olguyu **seçmek** |
+| tek cümlelik olguyu aktarmak | dağınık bilgiyi **toplayıp** özetlemek ("4 firma, ödeme 5 Ağustos") |
+| sahibi belli bir işi aksiyona çevirmek | sayıyı bağlamıyla taşımak (₺1.588.788,60) |
+| uydurmamak | tek sunuculu anlatımı nota çevirmek |
+
+Sağdaki sütun seçim ve birleştirme yeteneği istiyor; 3B modelde yok.

@@ -269,6 +269,11 @@ Bu sıra asla değişmez:
   bloğu (`summaryInstructions` — örnek **istemin gövdesine konmaz**, oradan
   çıktıya madde olarak sızıyor, §24.4'ün aynısı) ve kod (`isEmptyNarration`,
   `isPromptEcho`, konuşmacı öneki ve tırnak temizliği).
+- **Şemaya "somut veriler" diye ikinci bir alan eklenmez.** Denendi
+  (RESEARCH.md §35.2): alan cümle değil kırıntı üretiyor ("%85", "40",
+  "işleme al") ve referans kapsaması değişmiyor. Ölçüt seçerken dikkat:
+  "sayı içeren madde yüzdesi" bu değişikliği **ödüllendirdi**, dürüst ölçüt
+  referans kapsamasıdır.
 - **Son kontrol adımına (`polished`) anlatım düzeltmesi eklenmez.** Denendi
   ve ölçüldü (RESEARCH.md §34): model "X, Y olduğunu belirtti" cümlesini
   olguya çevirmiyor — toplu istemde fiili eşanlamlısıyla değiştiriyor, tek
