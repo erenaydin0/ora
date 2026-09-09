@@ -247,8 +247,17 @@ Bu sıra asla değişmez:
   süre aynı, guardrail ikisinde de 8/8. Model İngilizce ağırlıklı eğitilmiş.
   Kullanıcıya görünen hiçbir metin bundan etkilenmez.
 - **Daha güçlü bir cihaz üstü model yok** (§24.1). `.contentTagging` daha büyük
-  bir model değil, aynı modelin başka kullanım biçimi. Tek kaldıraç
-  `SystemLanguageModel.Adapter` — cihazda kalan, eğitilmiş bir LoRA katmanı.
+  bir model değil, aynı modelin başka kullanım biçimi.
+- **`SystemLanguageModel.Adapter` (LoRA) bir yol değil — ölçüldü (§36).**
+  Çalışma zamanı tarafı uygun (`Adapter(fileURL:)` paketten okur, indirme ve
+  Team ID istemez; uyumsuzluk çökme değil fırlatılan hata). Kapatan şey eğitim
+  tarafı: araç zincirinin **son sürümü 26.0.0 ve macOS 27 ile uyumsuz**,
+  adaptör başına **160 MB** ve **sistem model sürümü başına ayrı adaptör**
+  gerekiyor (ora'nın .dmg'si 3,7 MB). Son kullanma tarihi olan bir yola
+  ürünün çekirdek kalitesi bağlanmaz.
+- **`Adapter(name:)` ve `removeObsoleteAdapters()` ASLA çağrılmaz.** İkisi de
+  Background Assets yolundan geçiyor ve Team ID'si olmayan derlemede
+  `fatalError` ile **süreci öldürüyor** (§36.1).
 - **Kullanıcı özeti beğenmezse yeniden ürettirebilir.** Aynı istem çoğu zaman
   aynı özeti verdiği için yeniden üretimde örnekleme serbestleştirilir
   (`GenerationOptions(sampling: .random(probabilityThreshold: 0.95),

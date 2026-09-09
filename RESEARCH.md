@@ -2299,3 +2299,90 @@ Modelin **yapabildiği** ve **yapamadığı** ayrışıyor:
 | uydurmamak | tek sunuculu anlatımı nota çevirmek |
 
 Sağdaki sütun seçim ve birleştirme yeteneği istiyor; 3B modelde yok.
+
+## 36. `SystemLanguageModel.Adapter` (LoRA): ölçüldü, yapılmamalı
+
+**Soru:** §35 istem mühendisliğinin tavanını gösterdi (kapsama %20). Kalan tek
+cihaz üstü kaldıraç olarak adaptör duruyordu. Gerçekten yol mu?
+
+**Yöntem:** Tahmin yok — önce SDK arayüzü okundu
+(`FoundationModels.swiftinterface`), sonra API bu makinede canlı çağrıldı,
+sonra eğitim tarafı Apple'ın kendi belgesinden alındı.
+
+### 36.1 Çalışma zamanı — ölçülen davranış
+
+| Çağrı | Sonuç |
+|---|---|
+| `Adapter(fileURL:)` | **Çalışıyor.** Paketten okuma, indirme yok, Team ID istemiyor |
+| `Adapter(name:)` | **Süreci öldürüyor**: `[AssetPackManager] The process lacks a team ID` → `fatalError` |
+| `removeObsoleteAdapters()` | Aynı şekilde **öldürüyor** — aynı Background Assets yolu |
+| `compatibleAdapterIdentifiers(name:)` | 0,0002 sn'de `["fmadapter-<ad>-9799725"]` |
+
+`init(name:)` Background Assets üzerinden **indirmeye** dayanıyor; bu hem
+"model dosyası indirme yok" kuralıyla çakışır hem de ad-hoc imzalı
+derlemelerimizde çökme demek. Kullanılabilir tek yol `fileURL`.
+
+**Sürüm bağı görünür ve yumuşak.** `.fmadapter` bir dizin paketi ve içindeki
+`metadata.json` `baseModelSignature` taşıyor; sistem imzayı karşılaştırıyor.
+Uyumsuzsa hata **fırlatılıyor** (`AssetError.compatibleAdapterNotFound`),
+çökme değil — yani adaptör bir iyileştirme olarak eklenip uyumsuzlukta bugünkü
+davranışa düşülebilirdi. Hata metni doğrudan söylüyor:
+
+```
+Adapter "…" is not compatible with the current system base model.
+The property "baseModelSignature" is missing in metadata.json.
+```
+
+Bu makinedeki imza `9799725` ve `compatibleAdapterIdentifiers` ile her an
+sorulabiliyor. Buraya kadar tablo olumlu.
+
+### 36.2 Eğitim tarafı — kararı bu değiştirdi
+
+Apple'ın adapter training toolkit belgesinden, birebir:
+
+> "Version 26.0.0 is the last release of this toolkit and is not compatible
+> with macOS, iOS, iPadOS, or visionOS 27 and later."
+
+> "Each adapter is compatible with a _single specific_ system model version.
+> To support people using your app who have devices on OS versions using
+> different system model versions, you will need to train a different adapter
+> for **every** version of the system model."
+
+> "Each adapter will take approximately 160 MB of storage space in your app."
+
+Gereksinimler: Apple silicon + **en az 32 GB** bellek (bu makine: M5, 32 GB ✔),
+**Python 3.11+** (bu makinede 3.9.6, kurulum gerekir), veri **JSONL** biçiminde
+`{"role": "user"…}` çiftleri, "basit görev için 100-1.000 örnek, karmaşık görev
+için 5.000+".
+
+### 36.3 Karar: yapılmamalı
+
+Üç sayı yan yana konunca yol kapanıyor:
+
+1. **Araç zincirinin son sürümü bu ve macOS 27 ile uyumsuz.** Ardılı
+   duyurulmamış. Yani eğitilecek adaptörün **son kullanma tarihi** var:
+   macOS 27 çıktığında hem adaptör ölür hem de yeniden eğitecek araç olmaz.
+2. **Adaptör başına 160 MB ve sistem model sürümü başına ayrı adaptör.**
+   ora'nın .dmg'si 3,7 MB (§18). Tek bir 26.x sürümünü desteklemek uygulamayı
+   ~44 katına çıkarır; birkaç sürümü aynı anda desteklemek katlar.
+3. **Veri maliyeti gerçek.** Özetleme "karmaşık görev" sınıfında; 5.000 örnek
+   parça-düzeyinde hizalanmış transkript→not çifti demek. Elimizde iki toplantı
+   var (≈20 parça).
+
+Kazanç ise **ölçülemiyor**: adaptörün kapsamayı %20'den nereye taşıyacağını
+bilmenin tek yolu bütün bu maliyeti ödemek. Son kullanma tarihi olan bir yola
+ürünün çekirdek kalitesi bağlanmaz.
+
+**§24.1'deki "tek kaldıraç adaptördür" cümlesi bu ölçümle geçersizleşti.**
+
+### 36.4 Geriye kalan
+
+Cihaz üstü kalarak kaliteyi gerçekten değiştirebilecek tek yol **kendi
+modelimizi paketlemek** (MLX ya da llama.cpp, 8-12B). Adaptörün aksine son
+kullanma tarihi yok: model sürümünü biz donduruyoruz. Bedeli boyut, bellek ve
+yeni bir bağımlılık.
+
+Bunu **taahhüt etmeden ölçmek mümkün**: aynı iki transkript aday bir modelden
+geçirilip §35'in puanlama betiğiyle puanlanır. Kapsama %20 → %60 çıkıyorsa
+tartışma biter; %30'da kalıyorsa uğraşmaya değmez. Model geliştirme makinesine
+iner, uygulamaya değil.
