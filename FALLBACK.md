@@ -44,11 +44,23 @@ ne olursa olsun bu seçenek masada kalsın.
 arama, dışa aktarım, düzeltmeler — hepsi çalışır; yalnızca özet ve sohbet
 devre dışı kalır. Bu, Faz 4'ün kabul kriteridir.
 
-**Gerekirse:** `Intelligent` protokolünün ikinci uygulaması olarak
-`llama.cpp` (Metal) + Qwen3 4B GGUF. Yine C/C++, yine Python yok.
-Kazanç: 32k+ bağlam penceresi, map-reduce ihtiyacı azalır.
-Maliyet: ~2.5 GB model indirmesi — yani eski ora'nın en ağır parçasının geri
-dönmesi. Bu yüzden **son çare**, ilk hamle değil.
+**Bu bölüm artık spekülasyon değil — ölçüldü (RESEARCH.md §37) ve karara
+bağlandı.** İkinci bir `Intelligent` uygulaması **eklenecek**, ama tahmin
+edilenden farklı bir biçimde:
+
+| Tahmin (eski) | Ölçüm (§37) |
+|---|---|
+| llama.cpp + Qwen3 **4B** GGUF | MLX + Qwen3.5 **9B** — 4B iki toplantının birinde hiç çıktı vermedi |
+| ~2,5 GB | **6,0 GB** indirme, 7,2 GB tepe bellek |
+| "map-reduce ihtiyacı azalır" | 256K bağlam: map-reduce **tümüyle kalkıyor**, kazancın büyük kısmı buradan |
+| "son çare" | **isteğe bağlı ikinci motor**; Apple modeli varsayılan kalır |
+
+Referans kapsaması %20 → %38. Gemma 4 12B denendi ve elendi (kapsama %12,
+en yavaş, 10,2 GB tepe bellek).
+
+**Değişmeyen:** uygulama Apple Intelligence olmadan da çökmez ve işlevsiz
+kalmaz — transkripsiyon, arama, dışa aktarım, düzeltmeler çalışır. Bu, Faz 4'ün
+kabul kriteriydi ve ikinci motor eklenince de kabul kriteri kalır.
 
 ---
 

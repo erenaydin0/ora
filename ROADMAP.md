@@ -290,7 +290,19 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
   eşleştirme ucuz (transkript başına bir dizin)
 - Oynatıcı canlı modda yok — kayıt sürerken çalınacak bir dosya yok
 
-## Faz 9 — Not Defteri (sıradaki, COMPETITION.md §7)
+## Faz 9 — Seçilebilir özetleme motoru (sıradaki, RESEARCH.md §37)
+Ölçüldü: Apple'ın 3B modeli referans kapsamasının %20'sini yakalıyor,
+Qwen3.5-9B tek geçişle %38'ini. Kullanıcı hangi bedeli ödeyeceğine kendi
+karar versin.
+- [ ] `OraSettings.summaryEngine` — Apple (varsayılan) · yerel model
+- [ ] Model kataloğu: ad, boyut, gereken bellek, bağlam penceresi
+- [ ] İndirme yöneticisi: ilerleme, sürdürme, doğrulama, silme, disk sayacı
+- [ ] Ayarlar ekranında motor seçimi + indirme + bellek uyarısı
+- [ ] Onboarding'de tek adım: "iyi not mu, hızlı not mu"
+- [ ] `Intelligent`'ın ikinci uygulaması (MLX) — map-reduce yok, tek geçiş
+- [ ] Yetersiz bellekte yerel motor seçilemez; seçiliyken düşülür
+
+## Faz 10 — Not Defteri (COMPETITION.md §7)
 - [ ] Kullanıcının kendi notu + kayıt sonrası zenginleştirme (§4.6)
 - [ ] Kayıt sırasında "önemli an" işareti (§4.9)
 - [ ] Toplantı şablonları (§4.7)

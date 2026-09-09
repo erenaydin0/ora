@@ -22,13 +22,20 @@ oturum başında oku ve varsayımları yeniden tartışma.
 | Ses yakalama (sistem) | CoreAudio süreç tap'i (`CATapDescription`) | Ekran kaydı izni **istemez**; süreç/bundle bazlı seçim yapar |
 | Ses yakalama (mikrofon) | AVAudioEngine | |
 | Transkripsiyon | `Speech.DictationTranscriber` + `SpeechAnalyzer` | tr_TR destekli, cihaz üstü |
-| Özetleme / sohbet | `FoundationModels` (Apple yerel ~3B LLM) | tr-Latn-TR destekli, indirme yok |
+| Özetleme / sohbet (varsayılan) | `FoundationModels` (Apple yerel ~3B LLM) | tr-Latn-TR destekli, indirme yok |
+| Özetleme (isteğe bağlı, Faz 9) | Yerel model — Qwen3.5-9B, MLX | Kullanıcı seçerse ilk kullanımda indirilir; ölçüm §37 |
 | Veritabanı | SQLite + FTS5, **GRDB.swift** üzerinden | SwiftData'da tam metin arama yok; tek SPM bağımlılığı |
 | PDF dışa aktarım | `ImageRenderer` / PDFKit | WeasyPrint yok |
 | İkonlar | SF Symbols | Lucide yok |
 
 **Tek harici bağımlılık GRDB.swift'tir.** Başka SPM paketi eklemeden önce sor.
-Python yok, Node yok, Electron yok, model dosyası indirme yok.
+Python yok, Node yok, Electron yok.
+
+**"Model dosyası indirme yok" kuralı kalktı** (Faz 9 kararı, ölçüm §37). Sınır
+şu: uygulama **modelsiz tam çalışır** ve indirme yalnızca kullanıcı isteğe bağlı
+ikinci motoru **açıkça seçerse** yapılır. Varsayılan yol hâlâ sıfır indirme.
+Kural #3 (hiçbir veri cihazı terk etmez) değişmedi — inen model dosyasıdır,
+çıkan veri değil.
 
 ## Kritik Mimari Kurallar — ASLA İHLAL ETME
 1. Kayıt sırasında **LLM çağrısı yok** (Foundation Models yalnızca kayıt bittikten sonra).
@@ -246,6 +253,19 @@ Bu sıra asla değişmez:
   çıkarılan karar 3,3→5,7, aksiyon 2,7→3,7, genel bakış/karar tekrarı 1,7→0,7;
   süre aynı, guardrail ikisinde de 8/8. Model İngilizce ağırlıklı eğitilmiş.
   Kullanıcıya görünen hiçbir metin bundan etkilenmez.
+- **Apple'ın modelinin tavanı ölçüldü: referans kapsamasının %20'si** (§35).
+  İstem mühendisliği bu tavanı kaldırmıyor — üç tur denendi (§33, §34, §35.2).
+  Model konuşmayı konulara ayırabiliyor ve tek cümlelik olguyu aktarabiliyor;
+  **seçemiyor ve birleştiremiyor.**
+- **İkinci motor kararı (Faz 9, ölçüm §37):** Qwen3.5-9B, MLX, **tek geçiş**
+  (map-reduce yok — 256K bağlam bütün toplantıyı alıyor). Kapsama %20 → %38 ve
+  ora'nın en kötü hâli olan tek sunuculu toplantı %13 → %44. Bedeli 6 GB
+  indirme, 7,2 GB tepe bellek, ~2 kat süre; bu yüzden **varsayılan değil,
+  seçenek**. Gemma 4 12B elendi (%12, en yavaş, 10,2 GB), Qwen3.5-4B güvenilir
+  değil (iki toplantının birinde hiç çıktı vermedi).
+- **Uydurma sayı dört modelde de sıfır.** ora'nın en değerli özelliği bu ve
+  motor değişince de korunuyor; yeni bir motor eklenirse §35'in puanlama
+  betiğiyle **bu ölçülmeden** kabul edilmez.
 - **Daha güçlü bir cihaz üstü model yok** (§24.1). `.contentTagging` daha büyük
   bir model değil, aynı modelin başka kullanım biçimi.
 - **`SystemLanguageModel.Adapter` (LoRA) bir yol değil — ölçüldü (§36).**
@@ -665,7 +685,8 @@ CLAUDE.md'de yazan bir yaklaşımdan **daha iyisi için** vazgeçildiyse
 güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu bırakma.
 
 ## Ne YAPILMAMALI
-- Gereksiz SPM paketi ekleme (GRDB dışında bir şey eklemeden önce sor)
+- Gereksiz SPM paketi ekleme (GRDB dışında bir şey eklemeden önce sor —
+  Faz 9'un MLX bağımlılığı bu kuralın bilinçli ve tek istisnasıdır)
 - Herhangi bir bulut API'si kullanma
 - Windows/Linux için soyutlama katmanı yazma — kapsam dışı
 - Kayıt sırasında Speech veya LLM çalıştırma
