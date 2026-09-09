@@ -129,8 +129,10 @@ final class RecordingController {
         }
     }
 
+    /// Kalıcılığı `OraSettings` taşır — kullanıcı ayarları tek yerden okunur.
     var language: TranscriptionLanguage {
-        didSet { UserDefaults.standard.set(language.rawValue, forKey: Self.languageKey) }
+        get { settings.transcriptionLanguage }
+        set { settings.transcriptionLanguage = newValue }
     }
 
     var modelAvailability: ModelAvailability { intelligence.availability }
@@ -144,8 +146,25 @@ final class RecordingController {
     private let vocabularyStore: VocabularyStore
     let detector: MeetingDetector
     let calendar: CalendarReader
-    private let notifications = MeetingNotifications()
+    private let notifications: MeetingNotifications
     private let settings: OraSettings
+    /// Tam geçiş öncesi dil paketi hazırlığı. Gerçek Speech varlıklarına
+    /// dokunduğu için testte devre dışı bırakılır — yoksa ölçüm makinede
+    /// kurulu dil paketlerine bağımlı olur.
+    typealias LocalePreparation =
+        @Sendable (Locale, @escaping @Sendable (Double) -> Void) async throws -> Void
+
+    static let defaultLocalePreparation: LocalePreparation = { locale, progress in
+        let module = SpeechTranscription.makeTranscriber(locale: locale, live: false)
+        try await TranscriptionLocale.ensureInstalled(locale, module: module,
+                                                      progress: progress)
+    }
+
+    private let prepareLocale: LocalePreparation
+    /// Güç/termal ertelemesinin kaynağı. Varsayılanı `PowerState.deferReason`;
+    /// testler kendi değerini verir — `isLowPowerModeEnabled` dışarıdan
+    /// ayarlanamaz ve o hâlde bu dal hiç ölçülemezdi.
+    private let deferReasonProvider: @Sendable () -> PowerState.DeferReason?
 
     private let route = LiveRoute()
     private var live: LiveTranscription?
@@ -159,19 +178,31 @@ final class RecordingController {
     /// Kaydın takvimden eşleşen etkinliği (varsa).
     private var activeEvent: MeetingEvent?
 
-    private static let languageKey = "transcriptionLanguage"
-
+    /// - Parameters:
+    ///   - detector, calendar: `settings`'e bağlı oldukları için varsayılan
+    ///     değer veremezler; `nil` verilirse burada kurulurlar.
+    ///   - notifications: testte de gerçek tip verilir — izin alınmadığı için
+    ///     `prepare()` çağrılmadıkça hiçbir bildirim gönderilmez.
     init(capture: any AudioCapturing = AudioCapture(),
          transcription: any Transcribing = SpeechTranscription(),
          intelligence: any Intelligent = FoundationIntelligence(),
          database: OraDatabase? = nil,
-         settings: OraSettings = .shared) {
+         settings: OraSettings = .shared,
+         detector: MeetingDetector? = nil,
+         calendar: CalendarReader? = nil,
+         notifications: MeetingNotifications = MeetingNotifications(),
+         deferReason: @escaping @Sendable () -> PowerState.DeferReason?
+            = PowerState.deferReason,
+         prepareLocale: LocalePreparation? = nil) {
         self.capture = capture
         self.transcription = transcription
         self.intelligence = intelligence
         self.settings = settings
-        self.detector = MeetingDetector(settings: settings)
-        self.calendar = CalendarReader(settings: settings)
+        self.notifications = notifications
+        self.deferReasonProvider = deferReason
+        self.prepareLocale = prepareLocale ?? Self.defaultLocalePreparation
+        self.detector = detector ?? MeetingDetector(settings: settings)
+        self.calendar = calendar ?? CalendarReader(settings: settings)
 
         // Veritabanı açılamazsa uygulama işlevsiz kalmaz: bellek içi bir
         // veritabanıyla sürer ve kullanıcıya Türkçe not düşülür.
@@ -191,8 +222,6 @@ final class RecordingController {
         self.store = MeetingStore(database: resolved)
         self.vocabularyStore = VocabularyStore(database: resolved)
         self.storageNotice = notice
-        self.language = UserDefaults.standard.string(forKey: Self.languageKey)
-            .flatMap(TranscriptionLanguage.init(rawValue:)) ?? .turkish
 
         observation = Task { [weak self] in
             guard let stream = self?.capture.state else { return }
@@ -845,9 +874,8 @@ final class RecordingController {
         }
 
         do {
-            let module = SpeechTranscription.makeTranscriber(locale: locale, live: false)
             Log.debug(.transcribe, "Tam geçiş: dil hazırlanıyor (\(locale.identifier))")
-            try await TranscriptionLocale.ensureInstalled(locale, module: module) { [weak self] value in
+            try await prepareLocale(locale) { [weak self] value in
                 Task { @MainActor in self?.stages[meetingID] = .downloadingLanguage(value) }
             }
             stages[meetingID] = .transcribing(0)
@@ -911,7 +939,7 @@ final class RecordingController {
 
         // Kayıt bitince işlem hemen başlar. **Tek istisna:** düşük güç modu veya
         // termal baskı — o zaman otomatik başlatılmaz, kullanıcıya sorulur.
-        if let reason = PowerState.deferReason() {
+        if let reason = deferReasonProvider() {
             if onScreen(meetingID) {
                 deferReason = reason
                 summaryNotice = reason.turkishMessage + ". " + reason.turkishDetail

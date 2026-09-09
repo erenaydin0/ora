@@ -636,9 +636,17 @@ ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
 ora/Resources/Assets.xcassets/Colors    — BRAND paletinin tek kaynağı
 ora/Resources/Assets.xcassets/AppIcon   — scripts/make-icon.swift üretir
 scripts/               — make-icon.swift (ikon), build-release.sh (arşiv → .dmg)
-probes/meeting_switch.swift — gerçek `RecordingController` ile toplantı geçişi
-                         denetimi (uygulama kaynaklarıyla derlenir; başlıkta
-                         komut var)
+oraTests/              — swift-testing hedefi. `Support/Fakes.swift` yalnızca
+                         **dış dünyaya dokunan** katmanları sahteler (ses
+                         donanımı, Speech, Foundation Models); veritabanı
+                         sahtelenmez, bellek içi SQLite gerçeğin kendisidir.
+                         `Support/Harness.swift` izole `UserDefaults` verir —
+                         `OraSettings.shared` geliştiricinin gerçek ayarlarını
+                         okuyor ve testi makineye bağımlı kılıyordu.
+                         `MeetingSwitchTests` RESEARCH §27'yi, `PipelineTests`
+                         hattın kırılma noktalarını denetler.
 ```
+Testler `xcodebuild test -scheme ora` ile koşar (paylaşılan şema depoda).
+`probes/meeting_switch.swift` bu hedefe taşındı ve kaldırıldı.
 Renkler asset kataloğundadır; `Color.oraPaper` gibi semboller derleme zamanında
 üretilir. Elle `Color("oraPaper")` yazma — yanlış isim derlenmez olsun.

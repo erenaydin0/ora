@@ -28,6 +28,16 @@ final class OraSettings {
     /// Transkriptte konuşmacı etiketi **değişmez**.
     var userDisplayName: String { didSet { store(userDisplayName, .userDisplayName) } }
 
+    // MARK: - Transkripsiyon
+
+    /// Transkripsiyon dili. Eskiden `RecordingController` bunu doğrudan
+    /// `UserDefaults.standard`'a yazıyordu — tek kullanıcı ayarı buradan
+    /// kaçmıştı ve test kendi deposunu verse bile bu değer gerçek ayarlardan
+    /// okunuyordu. Anahtar aynı (`transcriptionLanguage`), mevcut seçim korunur.
+    var transcriptionLanguage: TranscriptionLanguage {
+        didSet { store(transcriptionLanguage.rawValue, .transcriptionLanguage) }
+    }
+
     // MARK: - Takvim
 
     /// Opt-in, varsayılan kapalı. Kapalıyken EventKit'e hiç dokunulmaz.
@@ -93,8 +103,11 @@ final class OraSettings {
         "com.apple.speech.speechsynthesisd",
     ]
 
-    private init() {
-        let defaults = UserDefaults.standard
+    /// Hangi `UserDefaults` üzerinde durduğu verilebilir. Varsayılan `.standard`;
+    /// **testler kendi deposunu verir** — aksi hâlde ölçüm geliştiricinin gerçek
+    /// ayarlarını okur ve sonuç makineye göre değişir.
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         detectionEnabled = defaults.object(forKey: Key.detectionEnabled.rawValue) as? Bool ?? true
         calendarEnabled = defaults.bool(forKey: Key.calendarEnabled.rawValue)
         // Varsayılan kapalı: pencere başlığı okumak Erişilebilirlik izni ister,
@@ -108,6 +121,8 @@ final class OraSettings {
         announceRecording = defaults.bool(forKey: Key.announceRecording.rawValue)
         compressAudio = defaults.bool(forKey: Key.compressAudio.rawValue)
         audioRetentionDays = defaults.integer(forKey: Key.audioRetentionDays.rawValue)
+        transcriptionLanguage = defaults.string(forKey: Key.transcriptionLanguage.rawValue)
+            .flatMap(TranscriptionLanguage.init(rawValue:)) ?? .turkish
     }
 
     /// Kendi süreci de dahil, dışlanan tüm bundle ID'ler.
@@ -122,9 +137,12 @@ final class OraSettings {
         case calendarEnabled, selectedCalendars, windowTitleEnabled
         case userDisplayName
         case compressAudio, audioRetentionDays, announceRecording
+        case transcriptionLanguage
     }
 
+    private let defaults: UserDefaults
+
     private func store(_ value: Any, _ key: Key) {
-        UserDefaults.standard.set(value, forKey: key.rawValue)
+        defaults.set(value, forKey: key.rawValue)
     }
 }

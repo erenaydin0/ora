@@ -1504,6 +1504,14 @@ Ek olarak: özetleme başarısız olduğunda artık `saveSummary` **çağrılmaz
 Eskiden yeniden üretim denemesi başarısız olsa bile satır silinip yeniden
 yazılıyordu; işaretlenmiş aksiyonların durumu böyle kayboluyordu.
 
+**Güncelleme (2026-09-09).** Bu denetim artık elle koşulan bir probe değil,
+test hedefinin parçası: `oraTests/MeetingSwitchTests.swift`. Aynı senaryoyu
+aynı sahte modelle koşar ve `xcodebuild test -scheme ora` ile her derlemede
+çalışır; `probes/meeting_switch.swift` kaldırıldı (uygulama kaynaklarını elle
+derliyordu ve imza değişiminde sessizce çürüyordu). Testin gerçekten
+yakaladığı doğrulandı: `runIntelligence`'taki `onScreen` kapısı kaldırıldığında
+"B'nin ekranı A'nın özetiyle ezilmedi" kontrolü kırılıyor.
+
 ## 28. Algılama→bildirim zinciri neden hiç çalışmadı
 
 Kullanıcı bir Teams toplantısı başlattı, kayıt önerisi gelmedi. Zincirin iki
