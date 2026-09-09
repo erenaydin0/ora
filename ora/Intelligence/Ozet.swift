@@ -19,8 +19,10 @@ nonisolated struct Ozet: Sendable, Equatable {
     struct Aksiyon: Sendable, Equatable, Identifiable {
         @Guide(description: "Sorumlu kişinin adı, belli değilse 'belirtilmedi'")
         var kisi: String
-        @Guide(description: "Yapılacak iş, emir kipiyle ve kısa. Yalnızca "
-               + "henüz yapılmamış işler; tamamlanmış işler aksiyon değildir")
+        @Guide(description: "Yapılacak iş, emir kipiyle ve kısa: cümle işle "
+               + "başlar, fiille biter. Yalnızca toplantıdan sonra yapılacak "
+               + "işler; toplantıda anlatılan, gösterilen ya da tamamlanmış "
+               + "bir şey aksiyon değildir")
         var gorev: String
         /// Görevin kendisi değil, **neden çıktığı**. Referans çıktılarda her
         /// aksiyonun altında bir cümlelik gerekçe var ("Çağrı'nın talebi: …")
@@ -51,9 +53,13 @@ nonisolated struct KonuBlogu: Sendable, Equatable {
 
     /// Tavan 8: az konu istendiğinde her konu daha ayrıntılı yazılmalı, yoksa
     /// uzun toplantının notu seyreliyor (referansta 66 dk → 6 bölüm / 42 madde).
-    @Guide(description: "Bu konuda konuşulanlar. Her madde tek cümle ama iki "
-           + "bölümlü olsun: önce ne olduğu, sonra sonucu ya da kimin ne "
-           + "yapacağı", .maximumCount(8))
+    /// **"Konuşulanlar" demek anlatım üretiyor** (ölçüldü, RESEARCH.md §33):
+    /// maddelerin %40'ı "X, Y'yi açıkladı" kalıbındaydı. Kılavuz metni
+    /// üretimin en yakınındaki yönergedir; bilgi istenmeli, konuşma değil.
+    @Guide(description: "Bu konudan çıkan bilgiler: kararlar, sayılar, bir "
+           + "şeyin nasıl çalıştığı, sorunlar, kimin ne yapacağı. Kimin "
+           + "konuştuğu değil, ne olduğu yazılır. Her madde tek cümle",
+           .maximumCount(8))
     var maddeler: [String]
 }
 
@@ -93,8 +99,8 @@ nonisolated struct ParcaOzeti: Sendable, Equatable {
 /// Aksiyonlar `ParcaOzeti`'nden gelir.
 @Generable
 nonisolated struct ToplantiOzeti: Sendable, Equatable {
-    @Guide(description: "Toplantının en önemli sonuçları; her madde tek cümle",
-           .maximumCount(6))
+    @Guide(description: "Toplantının en önemli sonuçları; her madde tek cümle "
+           + "ve mümkünse sayı, ad ya da sonuç taşısın", .maximumCount(6))
     var genelBakis: [String]
 
     @Guide(description: "Toplantıda alınan kararlar", .maximumCount(6))
@@ -137,6 +143,10 @@ nonisolated struct SummaryContext: Sendable, Equatable {
     var participants: [String]
     /// Mikrofon kanalındaki kişi. Boşsa modele yalnızca "Ben" denir.
     var userName: String?
+    /// Transkriptin satırları **gerçek adlarla** mı başlıyor (içe aktarılan
+    /// döküm) yoksa kanal etiketleriyle mi ("Ben" / "Katılımcı", kendi
+    /// kaydımız)? İstem buna göre değişir — bkz. `speakerLine`.
+    var hasNamedSpeakers = false
 
     static let empty = SummaryContext(meetingDate: .now, participants: [], userName: nil)
 }

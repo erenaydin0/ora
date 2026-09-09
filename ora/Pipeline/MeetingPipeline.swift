@@ -210,7 +210,12 @@ final class MeetingPipeline {
                 meetingDate: record?.meeting.date ?? Date(),
                 participants: people + named + [settings.userDisplayName]
                     .compactMap { $0.isEmpty ? nil : $0 },
-                userName: settings.userDisplayName.isEmpty ? nil : settings.userDisplayName)
+                userName: settings.userDisplayName.isEmpty ? nil : settings.userDisplayName,
+                // İçe aktarılan dökümde satırlar gerçek adlarla başlıyor;
+                // orada "Ben kaydı tutan kişidir" cümlesi zarar veriyor (§33).
+                hasNamedSpeakers: working.contains {
+                    !MeetingStore.isChannelLabel($0.speaker)
+                })
             let result = try await intelligence.summarize(
                 working, context: context, variation: variation) { [weak self] value in
                 Task { @MainActor in self?.stage(.summarizing(value), meetingID) }

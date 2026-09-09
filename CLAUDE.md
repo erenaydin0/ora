@@ -262,6 +262,25 @@ Bu sıra asla değişmez:
   Ölçüldü (RESEARCH.md §15.1): önekli istem 8 denemenin 6'sında
   `guardrailViolation` veriyor, öneksiz 8/8 geçiyor. Özetleme isteminde önek
   sorun çıkarmıyor ve **korunmalı** — kimin neyi üstlendiğini oradan çıkarıyor.
+- **Not bilgi yazar, konuşma değil.** "X, Y'yi açıkladı" bir not değildir;
+  ölçüldü (RESEARCH.md §33): maddelerin %50'si bu kalıptayken Circleback
+  referansında sıfır. Üç yerden birden bastırılır ve **üçü de gerekli**:
+  şema kılavuzu (`KonuBlogu.maddeler` bilgi ister), özetlemeye özel talimat
+  bloğu (`summaryInstructions` — örnek **istemin gövdesine konmaz**, oradan
+  çıktıya madde olarak sızıyor, §24.4'ün aynısı) ve kod (`isEmptyNarration`,
+  `isPromptEcho`, konuşmacı öneki ve tırnak temizliği).
+- **Anlatım ölçütü gövde değil, gövde + çekim.** "paylaştı" anlatımdır,
+  "paylaş" gerçek bir iştir. `words(of:)` kelimeyi 5 harfe kırptığı için
+  `isStatusNotTask` yıllarca hiç çalışmamıştı — o filtre **ham kelimeye**
+  bakar, gövdelenmişe değil (§33.2).
+- **Birleştirmeye konu başlıkları gönderilmez, yalnızca maddeler.** 11 konulu
+  gerçek bir toplantıda kararların altısı da başlığın kopyasıydı (§33.2).
+- **Aksiyonlar kanıtına göre sıralanıp 8'de kesilir.** Parça başına 3 aksiyon ×
+  10 parça = 30 aday; uzun ve zayıf bir liste gerçek aksiyonları gömüyor.
+  Kanıt: adı olan sahip, gerekçe cümlesi, son tarih.
+- **"Ben bu kaydı tutan kişidir" cümlesi yalnızca kendi kaydımızda yazılır.**
+  İçe aktarılan dökümde satırlar gerçek adlarla başlar; o cümle orada
+  aksiyonların üçte birini sahipsiz bırakıyordu (`SummaryContext.hasNamedSpeakers`).
 - **Noktalama adımı, girdi zaten noktalıysa atlanır**
   (`FoundationIntelligence.isPunctuated`: 12 karakterden uzun satırların
   %80'i noktalamayla bitiyorsa). Türkçe dikte çıktısı bu eşiği hiç geçmez;
@@ -417,7 +436,12 @@ Kurallar:
    öyle gelir ve adım orada kazanç sağlamadan dakikalar sürer.
 9. **Kayıt ya da işlem sürerken içe aktarma yapılmaz** (`canImport`). İkinci
    bir hat aynı Speech ve Foundation Models yolunu paylaşır.
-10. Yüzeyler: araç çubuğunda "İçe aktar" menüsü (ses · transkript dosyası ·
+10. **Markdown dökümü ilk sınıf girdidir:** `**Ad**: metin` biçimindeki
+    konuşmacı vurgusu adın parçası değildir ve **tek geçişte de** konuşmacı
+    sayılır (düz metindeki ">= 2 tekrar" kuralı orada geçersiz). Belgenin
+    künyesi (`# Başlık`, `**Date**:`, `**People**:`) transkripte girmez;
+    ilk `#` başlığı toplantı adı olur (§33.6).
+11. Yüzeyler: araç çubuğunda "İçe aktar" menüsü (ses · transkript dosyası ·
     transkript yapıştır) ve pencerenin tamamına sürükle-bırak. Tanınmayan
     dosya sessizce yutulmaz, Türkçe hata verir.
 

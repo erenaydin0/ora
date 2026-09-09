@@ -168,6 +168,7 @@ nonisolated enum TranscriptParser {
             speaker = candidate.name
             text = candidate.rest
         }
+
         return (speaker, text)
     }
 
@@ -186,11 +187,23 @@ nonisolated enum TranscriptParser {
 
     static func plainLines(_ text: String, userName: String = "") -> [Line] {
         var candidates: [String: Int] = [:]
-        var rows: [(time: TimeInterval?, candidate: (name: String, rest: String)?, text: String)] = []
+        var rows: [(time: TimeInterval?,
+                    candidate: (name: String, rest: String, emphasized: Bool)?,
+                    text: String)] = []
+        /// Belgenin başındaki künye — başlık satırı ve `Tarih:`, `Katılımcılar:`
+        /// gibi alanlar. Konuşma değil; transkripte girerse hem "Katılımcı"
+        /// diye dört sahte replik olur hem de katılımcı adları özetleme
+        /// istemine veri diye girer (ölçüldü, RESEARCH.md §33).
+        var inHeader = true
 
         for row in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let raw = row.trimmingCharacters(in: .whitespaces)
             let stripped = stripMarkers(String(row))
             guard !stripped.isEmpty else { continue }
+            if inHeader {
+                if raw.hasPrefix("#") || isMetadata(stripped) { continue }
+                inHeader = false
+            }
             let (time, rest) = leadingTime(stripped)
             guard !rest.isEmpty else { continue }
             let candidate = speakerCandidate(in: rest)
@@ -214,12 +227,41 @@ nonisolated enum TranscriptParser {
 
         return rows.map { row in
             if let candidate = row.candidate,
-               accepted.contains(candidate.name) || isSelfName(candidate.name, userName: userName) {
+               candidate.emphasized || accepted.contains(candidate.name)
+                || isSelfName(candidate.name, userName: userName) {
                 return Line(speaker: candidate.name, text: candidate.rest,
                             start: row.time, end: nil)
             }
             return Line(speaker: nil, text: row.text, start: row.time, end: nil)
         }
+    }
+
+    /// Künyede geçen alan adları. Karşılaştırma Türkçe locale ile yapılır.
+    private static let metadataKeys: Set<String> = [
+        "date", "tarih", "duration", "süre", "sure", "time", "saat",
+        "people", "participants", "attendees", "katılımcılar", "katilimcilar",
+        "konum", "location", "toplantı", "meeting",
+    ]
+
+    /// `**Date**: Wednesday…`, `Katılımcılar: Ayşe, Mehmet` — konuşma değil künye.
+    static func isMetadata(_ row: String) -> Bool {
+        guard let colon = row.firstIndex(of: ":") else { return false }
+        let key = String(row[..<colon])
+            .trimmingCharacters(in: CharacterSet(charactersIn: " \t*_`"))
+            .lowercased(with: Locale(identifier: "tr_TR"))
+        return metadataKeys.contains(key)
+    }
+
+    /// Belgenin başlığı: ilk Markdown başlık satırı. Dosya adından ve
+    /// tarihten iyidir — dökümü üreten araç toplantının adını oraya yazıyor.
+    static func title(in raw: String) -> String? {
+        for row in normalized(raw).split(separator: "\n").prefix(5) {
+            let line = row.trimmingCharacters(in: .whitespaces)
+            guard line.hasPrefix("#") else { continue }
+            let text = stripMarkers(line)
+            if !text.isEmpty { return text }
+        }
+        return nil
     }
 
     /// Markdown ve döküm işaretleri: `#`, `>`, `-`, `*`, `•`.
@@ -255,9 +297,14 @@ nonisolated enum TranscriptParser {
     ///
     /// Ad gibi durmayan hiçbir şey kabul edilmez: cümle noktalaması taşıyan,
     /// dört kelimeden uzun ya da 40 karakteri geçen bir önek konuşmacı değildir.
-    static func speakerCandidate(in row: String) -> (name: String, rest: String)? {
+    static func speakerCandidate(in row: String) -> (name: String, rest: String,
+                                                     emphasized: Bool)? {
         guard let colon = row.firstIndex(of: ":") else { return nil }
-        let name = String(row[..<colon]).trimmingCharacters(in: .whitespaces)
+        // `**Ayşe Yılmaz**: …` — Markdown dökümlerinin standart biçimi. Vurgu
+        // işareti adın parçası değil; kesilmezse "Ayşe Yılmaz**" diye bir kişi
+        // özetleme istemine kadar gider (ölçüldü, RESEARCH.md §33).
+        let name = String(row[..<colon])
+            .trimmingCharacters(in: CharacterSet(charactersIn: " \t*_`"))
         let rest = String(row[row.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty, !rest.isEmpty, name.count <= 40,
               name.split(whereSeparator: \.isWhitespace).count <= 4,
@@ -265,7 +312,12 @@ nonisolated enum TranscriptParser {
         else { return nil }
         // "12:34 kadar" gibi saat parçalarını ad sanma.
         guard !name.allSatisfy({ $0.isNumber }) else { return nil }
-        return (name, rest)
+        // `**Ad**:` — Markdown dökümünde vurgu, "bu bir konuşmacıdır"
+        // demenin biçimsel yoludur ve tek geçişte bile güvenilir. Tekrar
+        // koşulu (>= 2) düz metin için var: orada önek "Not:" de olabilir.
+        let raw = String(row[..<colon]).trimmingCharacters(in: .whitespaces)
+        let emphasized = raw.hasSuffix("**") || raw.hasSuffix("*") || raw.hasSuffix("_")
+        return (name, rest, emphasized)
     }
 
     // MARK: - Segmentler

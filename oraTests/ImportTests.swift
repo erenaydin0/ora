@@ -181,6 +181,53 @@ struct ImportTests {
         #expect(segments[0].channel == .system)
     }
 
+    /// Markdown dökümü: `**Ad**: metin`. Vurgu işareti adın parçası değil —
+    /// kesilmezse "Ayşe Yılmaz**" diye bir kişi özetleme istemine kadar gider.
+    @Test
+    func markdownVurgusuAddanKesilir() {
+        let segments = TranscriptParser.parse("""
+            **Ayşe Yılmaz**: Bordro ne durumda?
+            **Mehmet Kaya**: Bu hafta bitiyor.
+            **Ayşe Yılmaz**: Teşekkürler.
+            """)
+
+        #expect(segments.map(\.speaker) == ["Ayşe Yılmaz", "Mehmet Kaya", "Ayşe Yılmaz"])
+    }
+
+    /// Belgenin başındaki künye konuşma değildir: transkripte girerse hem
+    /// sahte replikler olur hem de katılımcı adları özetleme istemine veri
+    /// diye girer.
+    @Test
+    func belgeKunyesiTranskriptDegildir() {
+        let text = """
+            # Agentic payroll product
+            **Date**: Wednesday, July 29, 2026 at 11:00 AM
+            **Duration**: 1:18:29
+            **People**: Çağrı Kilit, Osman Baykal
+            **Çağrı Kilit**: Başlayalım.
+            **Osman Baykal**: Hazırım.
+            """
+        let segments = TranscriptParser.parse(text)
+
+        #expect(segments.count == 2, "künyeden replik üretilmedi")
+        #expect(segments.map(\.speaker) == ["Çağrı Kilit", "Osman Baykal"])
+        #expect(TranscriptParser.title(in: text) == "Agentic payroll product",
+                "başlık belgenin kendisinden geliyor")
+    }
+
+    /// Konuşmanın **içindeki** iki nokta korunur; künye yalnızca belgenin
+    /// başındadır.
+    @Test
+    func konusmaIcindekiKunyeKelimesiSilinmez() {
+        let segments = TranscriptParser.parse("""
+            **Ayşe**: Başlayalım.
+            **Mehmet**: Tarih: 3 Eylül olarak konuşmuştuk.
+            **Ayşe**: Doğru.
+            """)
+        #expect(segments.count == 3)
+        #expect(segments[1].text == "Tarih: 3 Eylül olarak konuşmuştuk.")
+    }
+
     // MARK: - Depolamanın dayattıkları
 
     /// `MeetingStore` satırı `(meeting_id, start_time, channel)` ile

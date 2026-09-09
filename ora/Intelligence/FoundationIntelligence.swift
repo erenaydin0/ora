@@ -27,6 +27,25 @@ nonisolated struct FoundationIntelligence: Intelligent {
         Keep numbers, dates and proper nouns exactly as written.
         """
 
+    /// Özetleme çağrılarının talimatı: temel talimat + **not yazma biçimi**.
+    ///
+    /// Örnek çifti neden burada, istemde değil: istemin gövdesine konduğunda
+    /// örnek cümlelerin kendisi çıktıya madde olarak sızdı (ölçüldü,
+    /// RESEARCH.md §33 — "Zayıf: 'Ayşe, ödeme akışını açıkladı.'" bir konu
+    /// maddesi olarak göründü). Bu, §24.4'teki desenin aynısı: model içeriği
+    /// olmayan alanı istemdeki en yakın metinle dolduruyor. Talimat bloğu
+    /// isteme her turda eşlik eder ama üretilecek alana komşu değildir.
+    ///
+    /// Örnek **şart**: örneksiz istemle maddelerin üçte biri "X, Y'yi
+    /// açıkladı" kalıbına dönüyor (§33, C varyantı).
+    private static let summaryInstructions = instructions + """
+
+        Meeting notes state facts, not who spoke. A note tells the reader what
+        something is, what was decided, what a number is, or what will be
+        done. "Ayşe, ödeme akışını açıkladı" is not a note; "Ödeme akışı üç
+        adımdan oluşuyor" is.
+        """
+
     var availability: ModelAvailability {
         switch SystemLanguageModel.default.availability {
         case .available:
@@ -192,6 +211,8 @@ nonisolated struct FoundationIntelligence: Intelligent {
         let chunks = TranscriptChunker.chunks(of: segments,
                                               limit: TranscriptChunker.summaryLimit)
         let target = Self.topicTarget(chunkCount: chunks.count)
+        // Maddeye sızan konuşmacı öneki ancak bu listeyle tanınır.
+        let speakers = Set(segments.map(\.speaker))
         Log.info(.intelligence, "Özetleme: \(chunks.count) parça, "
                  + "\(segments.count) segment, parça başına \(target) konu hedefi")
 
@@ -215,7 +236,8 @@ nonisolated struct FoundationIntelligence: Intelligent {
                     let baslik = konu.baslik.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !baslik.isEmpty else { continue }
                     topics.append(TopicSegment(title: baslik,
-                                               bullets: Self.cleaned(konu.maddeler),
+                                               bullets: Self.cleaned(konu.maddeler,
+                                                                     speakers: speakers),
                                                start: first.start, end: last.end))
                 }
                 aksiyonlar.append(contentsOf: parca.aksiyonlar
@@ -235,6 +257,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
         }
 
         topics = Self.deduplicatedTopics(topics)
+        aksiyonlar = Self.ranked(aksiyonlar)
         guard !topics.isEmpty else {
             throw OraError.modelUnavailable(reason: "Toplantı özetlenemedi")
         }
@@ -244,7 +267,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
         // eritiyordu.
         let combined = Self.fit(topics, limit: TranscriptChunker.summaryLimit)
 
-        let session = LanguageModelSession(instructions: Self.instructions)
+        let session = LanguageModelSession(instructions: Self.summaryInstructions)
         do {
             // Birleştirme **aksiyon üretmez** — sorumlu kişiyi bilemez.
             let response = try await session.respond(to: """
@@ -254,9 +277,15 @@ nonisolated struct FoundationIntelligence: Intelligent {
                 Rules:
                 - Each overview bullet is one sentence; first what happened,
                   then its consequence.
+                - Do not copy a bullet from the notes word for word; combine
+                  what belongs together and state the outcome.
+                - Prefer the facts that carry numbers, amounts, dates and
+                  names; drop notes that only report that somebody spoke.
                 - Do not write the meeting's date or duration in the overview.
-                - Do not repeat the topic headings verbatim; write what happened.
-                - Write as decisions only things that were actually decided.
+                - A decision is something the group settled on; a subject
+                  heading or a topic name is not a decision.
+                - Write as decisions only things that were actually decided;
+                  if nothing was decided, leave the list empty.
                 - The overview and the decisions must not be the same sentences.
                 \(Self.dateLine(context))
 
@@ -294,28 +323,37 @@ nonisolated struct FoundationIntelligence: Intelligent {
                              context: SummaryContext,
                              options: GenerationOptions) async -> ParcaOzeti? {
         let prompt = """
-            Split this meeting excerpt into its topics. Produce at most
+            Turn this meeting excerpt into written notes. Produce at most
             \(target) topics. For each topic write a 2-6 word Turkish heading
-            and bullets describing what was discussed. If few topics are
-            requested, write each one in more detail; give every important
-            point its own bullet.
+            and bullets. If few topics are requested, write each one in more
+            detail; give every important point its own bullet.
+
+            Write for someone who was not in the room: every bullet must teach
+            a fact — a number, a decision, how something works, a problem, a
+            plan. Reporting that somebody spoke teaches nothing.
+
             Rules:
-            - Each bullet is one sentence and must stand on its own.
-            - Keep numbers, dates, company and person names exactly as in the text.
-            - Do not write filler like "this was discussed"; write what happened.
-            - Name whoever took something on. \(Self.selfLine(context))
-            - Do not write speaker labels such as "Ben" or "Katılımcı" in a bullet.
-            - Write each bullet as a note in the third person, describing what
-              happened. Never write in the first person ("Ben", "yapacağım",
-              "ediyorum").
+            - Write each bullet as your own sentence. Never quote the speakers
+              and never begin a bullet with a name followed by a colon.
+            - Never end a bullet with a speech verb (açıkladı, anlattı,
+              belirtti, söyledi, bahsetti, sordu, gösterdi).
+            - Keep numbers, amounts, dates, product, company and person names
+              exactly as in the text; a bullet carrying a concrete detail is
+              worth more than a general one.
+            - Write a person's name only when they take work on, ask for a
+              change, object, or state a position that matters.
+            - Each bullet is one sentence, third person, Turkish, and stands
+              on its own. Never write in the first person ("yapıyoruz",
+              "ediyorum", "bahsedeceğim"); the notes are written by an
+              observer.
+            \(Self.speakerLine(context))
             Action rules:
-            - Only write work someone explicitly took on. Status statements
-              ("this works", "this is finished") are not actions.
-            - An excerpt may contain no actions at all; do not force any,
-              leave the list empty.
+            - An action is work that will be done after the meeting.
+            - Write the task as a command: the work first, the verb last.
+            - Leave the list empty unless someone clearly committed to work;
+              most excerpts contain none.
             - Take the owner from whoever took the work on in the text; write
               "belirtilmedi" if it is unclear.
-            - Write work still to be done, not work already finished.
             - In the context field write which part of the conversation the
               work came from.
             - Write a due date only if the text states one.
@@ -324,7 +362,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
             \(text)
             """
         for attempt in 1 ... 2 {
-            let session = LanguageModelSession(instructions: Self.instructions)
+            let session = LanguageModelSession(instructions: Self.summaryInstructions)
             do {
                 return try await session.respond(to: prompt,
                                                  generating: ParcaOzeti.self,
@@ -347,13 +385,67 @@ nonisolated struct FoundationIntelligence: Intelligent {
     /// bildirir. Ölçüldü (RESEARCH.md §23.9): anlatım ağırlıklı bir toplantıda
     /// üretilen 12 "aksiyon"un çoğu bu kalıptaydı.
     static func isStatusNotTask(_ gorev: String) -> Bool {
-        guard let last = words(of: gorev).last else { return true }
+        // **Ham kelimeye bakılır.** `words(of:)` her kelimeyi 5 harfe kırpıyor
+        // (Türkçe ek kuyruğunu atmak için) ve tam da aradığımız eki siliyordu:
+        // "açıklıyor" → "acikl". Ölçüldü (RESEARCH.md §33): bu yüzden filtre
+        // pratikte hiç çalışmıyordu ve gerçek bir toplantıda üretilen 8
+        // aksiyonun 8'i anlatım cümlesiydi.
+        let plain = gorev.lowercased(with: Locale(identifier: "tr_TR"))
+            .split { !$0.isLetter && !$0.isNumber }
+            .map { String($0.folding(options: .diacriticInsensitive,
+                                     locale: Locale(identifier: "tr_TR"))) }
+        guard let last = plain.last else { return true }
         // Şimdiki zaman: "kontrol ediliyor"
         if last.hasSuffix("yor") || last.hasSuffix("yorlar") { return true }
+        // Konuşma fiili: "…hakkında bilgi istedi", "…olduğunu açıkladı".
+        // Bu bir iş değil, toplantının kendisinin anlatımıdır.
+        if Self.reportsSpeech(plain) { return true }
         // Belirli geçmiş: "belirtti", "yazdı", "kontrol etti" — olmuş bir şey
-        // anlatılıyor, yapılacak bir şey değil. Fiil listesi yetmedi (ölçüm:
-        // "yazdı", "etti" listede yoktu); ek kalıbının kendisi aranır.
+        // anlatılıyor, yapılacak bir şey değil.
         return Self.pastEndings.contains { last.hasSuffix($0) }
+    }
+
+    /// Konuşmayı anlatan fiillerin gövdeleri (diakritiksiz).
+    static let speechStems = [
+        "acikla", "anlat", "belirt", "soyle", "bahset", "sor", "aktar",
+        "paylas", "vurgula", "degin", "konus", "tartis", "goster", "sun",
+        "iste", "ver",
+    ]
+
+    /// Cümle **birinin konuştuğunu** mu anlatıyor?
+    ///
+    /// Ölçüt gövde değil, gövde **artı çekim**: "paylaştı" bir anlatımdır ama
+    /// "paylaş" gerçek bir iştir ve emir kipindedir. Yalnızca gövdeye bakan
+    /// ilk sürüm "Webinar lead listesini paylaş" aksiyonunu eliyordu
+    /// (test: `gercekIsAksiyonKalir`).
+    ///
+    /// "bilgi verdi" / "bilgi istedi" iki kelimedir; "ver" gövdesi tek başına
+    /// aranırsa "veri" ve "verildi" de yanar, bu yüzden yalnızca "bilgi"nin
+    /// ardından sayılır.
+    static func reportsSpeech(_ words: [String]) -> Bool {
+        guard var last = words.last else { return false }
+        for plural in ["lar", "ler"] where last.hasSuffix(plural) && last.count > plural.count + 2 {
+            last = String(last.dropLast(plural.count))
+        }
+        let inflections = Self.pastEndings + ["yor"]
+        for stem in Self.speechStems where last.hasPrefix(stem) && last.count > stem.count {
+            guard inflections.contains(where: { last.hasSuffix($0) }) else { continue }
+            // "ver" ve "iste" ancak "bilgi"nin ardından konuşma fiilidir.
+            if stem == "ver" || stem == "iste" {
+                guard words.count > 1, words[words.count - 2].hasPrefix("bilgi") else { continue }
+            }
+            return true
+        }
+        return false
+    }
+
+    /// Madde bilgi mi taşıyor, konuşmayı mı anlatıyor? Konu maddelerinde tek
+    /// başına **atma gerekçesi değildir** (bkz. `isEmptyNarration`).
+    static func isNarration(_ text: String) -> Bool {
+        reportsSpeech(text.lowercased(with: Locale(identifier: "tr_TR"))
+            .split { !$0.isLetter && !$0.isNumber }
+            .map { String($0.folding(options: .diacriticInsensitive,
+                                     locale: Locale(identifier: "tr_TR"))) })
     }
 
     /// Yeniden üretimde örnekleme ayarı. Varsayılan geçişte hiçbir seçenek
@@ -450,6 +542,23 @@ nonisolated struct FoundationIntelligence: Intelligent {
         return "\"Ben\" is the person recording, named \(name)."
     }
 
+    /// Konuşmacıların kim olduğunu anlatan satır.
+    ///
+    /// Kendi kaydımızda konuşmacı **kanal etiketidir** ("Ben", "Katılımcı") ve
+    /// modele "Ben"in kim olduğu söylenmezse `kisi` hep "belirtilmedi" geliyor
+    /// (RESEARCH.md §15.2). İçe aktarılan bir dökümde ise satırların başında
+    /// **gerçek adlar** var; orada "Ben kaydı tutan kişidir" cümlesi zararlı —
+    /// ölçüldü (§33): model birinci tekil konuşan herkesi "Ben" sayıp
+    /// aksiyonların üçünü sahipsiz bıraktı.
+    static func speakerLine(_ context: SummaryContext) -> String {
+        context.hasNamedSpeakers
+            ? "- Every line begins with the speaker's name; take owners and "
+                + "positions from those names."
+            : "- Name whoever took something on. \(Self.selfLine(context))\n"
+                + "- Do not write speaker labels such as \"Ben\" or "
+                + "\"Katılımcı\" in a bullet."
+    }
+
     /// Katılımcı listesi **isteme yazılmaz.** A/B ölçüldü (RESEARCH.md §23):
     /// kapalı isim listesi verildiğinde model onu bir kısıt değil bir *menü*
     /// gibi kullanıyor, üstelik görevler belirsizleşiyor ve son tarihlere
@@ -507,25 +616,126 @@ nonisolated struct FoundationIntelligence: Intelligent {
         return String(render(topics, bulletCap: 1).prefix(limit))
     }
 
+    /// Birleştirmeye **başlıklar gönderilmez**, yalnızca maddeler.
+    ///
+    /// Ölçüldü (RESEARCH.md §33): 58.000 karakterlik gerçek bir toplantıda
+    /// 11 konu çıkıyor ve birleştirme adımı kararların **altısını da** konu
+    /// başlığından kopyalıyordu ("Levenshtein Algoritması" bir karar değildir).
+    /// Kısa parçada görünmüyor, çünkü orada başlık sayısı az. Başlık
+    /// gönderilmezse model kopyalayacak bir başlık bulamıyor; konu sınırı boş
+    /// satırla korunuyor.
     static func render(_ topics: [TopicSegment], bulletCap: Int) -> String {
         topics.map { topic in
-            ([topic.title] + topic.bullets.prefix(bulletCap).map { "- \($0)" })
-                .joined(separator: "\n")
+            topic.bullets.prefix(bulletCap).map { "- \($0)" }.joined(separator: "\n")
         }
+        .filter { !$0.isEmpty }
         .joined(separator: "\n\n")
     }
 
     /// Boş ve yinelenen maddeleri eler, madde başındaki listeleme işaretini atar.
-    static func cleaned(_ bullets: [String]) -> [String] {
+    ///
+    /// - Parameter speakers: transkriptteki konuşmacı adları. Model "yazma"
+    ///   dendiği hâlde maddeyi alıntı olarak kuruyor ("Çağrı Kilit: 'Bunu da
+    ///   no code yaptık abi.'") — ölçüldü, RESEARCH.md §33. Kanal etiketleri
+    ///   zaten kesiliyordu; içe aktarılan dökümde önek **gerçek bir addır** ve
+    ///   ancak o toplantının konuşmacı listesi verilerek tanınabilir.
+    static func cleaned(_ bullets: [String], speakers: Set<String> = []) -> [String] {
         var seen: Set<String> = []
         return bullets.compactMap { raw -> String? in
             let text = raw
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .trimmingPrefix(while: { $0 == "-" || $0 == "•" || $0 == " " })
-            let value = withoutSpeakerPrefix(String(text))
-            guard !value.isEmpty, seen.insert(normalized(value)).inserted else { return nil }
+            let value = unquoted(withoutNamePrefix(withoutSpeakerPrefix(String(text)),
+                                                   speakers: speakers))
+            guard !value.isEmpty, !isEmptyNarration(value, speakers: speakers),
+                  !isPromptEcho(value),
+                  seen.insert(normalized(value)).inserted else { return nil }
             return value
         }
+    }
+
+    /// Aksiyonları kanıtına göre sıralar ve kuyruğu keser.
+    ///
+    /// Parça başına en fazla 3 aksiyon isteniyor; 10 parçalık bir toplantıda
+    /// bu 30 aday demek ve model boş bölümde de bir şeyler uyduruyor
+    /// (RESEARCH.md §23.9). Uzun ve zayıf bir liste, gerçek aksiyonları
+    /// gömüyor — referans çıktıda (Circleback) 78 dakikalık toplantıda **6**
+    /// aksiyon var.
+    ///
+    /// Sıra **kanıttır**: adı olan sahip, gerekçe cümlesi ve son tarih. Eşit
+    /// olanlar arasında konuşma sırası korunur, çünkü sıra da bir bilgidir.
+    static func ranked(_ aksiyonlar: [Ozet.Aksiyon], cap: Int = 8) -> [Ozet.Aksiyon] {
+        guard aksiyonlar.count > cap else { return aksiyonlar }
+        func score(_ aksiyon: Ozet.Aksiyon) -> Int {
+            var value = 0
+            if !MeetingStore.isUnspecified(aksiyon.kisi) { value += 2 }
+            if !aksiyon.baglam.trimmingCharacters(in: .whitespaces).isEmpty { value += 1 }
+            if !MeetingStore.isUnspecified(aksiyon.sonTarih) { value += 1 }
+            return value
+        }
+        return aksiyonlar.enumerated()
+            .sorted { left, right in
+                let first = score(left.element), second = score(right.element)
+                return first == second ? left.offset < right.offset : first > second
+            }
+            .prefix(cap)
+            .map(\.element)
+    }
+
+    /// Madde **hiçbir şey öğretmiyor** mu?
+    ///
+    /// "Mert Pamuk, ürün hakkında genel bilgi verdi." — konuşma fiiliyle
+    /// bitiyor, sayı taşımıyor ve konuşmacı adı ile dolgu kelimeler
+    /// çıkarıldığında geriye tek kelime kalıyor. Ölçüt üçünün **birlikte**
+    /// sağlanması: "…verilerinin merge olduğunu belirtti" de konuşma fiiliyle
+    /// biter ama bir olgu taşır ve atılmaz (RESEARCH.md §33).
+    static func isEmptyNarration(_ text: String, speakers: Set<String>) -> Bool {
+        guard isNarration(text), !text.contains(where: \.isNumber) else { return false }
+        let names = Set(speakers.flatMap { words(of: $0) })
+        let content = Set(words(of: text)).subtracting(Self.vacuousStems).subtracting(names)
+        return content.count < 5
+    }
+
+    /// Tek başına bilgi taşımayan gövdeler — "genel bilgi", "… hakkında".
+    private static let vacuousStems =
+        Set(words(of: "hakkında konusunda üzerine genel bilgi konu durum şekilde "
+                      + "detaylı kısaca ayrıntılı süreç"))
+
+    /// Talimattaki örnek cümle maddeye sızdı mı? Örnek modeli belirgin biçimde
+    /// düzeltiyor ama 3B model onu ara sıra çıktıya kopyalıyor; sınırlı ve
+    /// tanınabilir olduğu için kodda kesilir.
+    static func isPromptEcho(_ text: String) -> Bool {
+        let key = normalized(text)
+        return key.contains(normalized("ödeme akışı"))
+            || key.hasPrefix(normalized("Zayıf")) || key.hasPrefix(normalized("İyi:"))
+    }
+
+    /// "Mert Pamuk: Doka tarafında…" → "Doka tarafında…". Yalnızca **bu
+    /// toplantının** konuşmacı adları kesilir; "Karar: …" gibi meşru bir önek
+    /// hayatta kalır.
+    static func withoutNamePrefix(_ text: String, speakers: Set<String>) -> String {
+        guard !speakers.isEmpty, let colon = text.firstIndex(of: ":") else { return text }
+        let head = String(text[..<colon]).trimmingCharacters(in: .whitespaces)
+        guard head.count <= 40,
+              speakers.contains(where: { normalized($0) == normalized(head) })
+        else { return text }
+        let rest = String(text[text.index(after: colon)...])
+            .trimmingCharacters(in: .whitespaces)
+        guard let first = rest.first else { return text }
+        return String(first).uppercased(with: Locale(identifier: "tr_TR")) + rest.dropFirst()
+    }
+
+    /// Baştaki ve sondaki tırnakları atar: model repliği olduğu gibi alıntılıyor.
+    static func unquoted(_ text: String) -> String {
+        let quotes = CharacterSet(charactersIn: "\"'“”‘’«»")
+        var value = text.trimmingCharacters(in: .whitespaces)
+        while let first = value.unicodeScalars.first, quotes.contains(first) {
+            value.removeFirst()
+        }
+        while let last = value.unicodeScalars.last, quotes.contains(last) {
+            value.removeLast()
+        }
+        return value.trimmingCharacters(in: .whitespaces)
     }
 
     /// "Ben: Kayıt paylaşımını kontrol ediyorum." → "Kayıt paylaşımını kontrol

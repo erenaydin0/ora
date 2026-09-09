@@ -2010,3 +2010,128 @@ toplam  : 0,81 sn (çevrim + tepe ölçümü + transkripsiyon)
 stereo bir WAV ile ölçüyor (mono·16 kHz·süre·ilerleme). Gerçek konuşmayla
 yapılan yukarıdaki koşu geçiciydi — Speech varlıklarına ve makinedeki bir ses
 dosyasına bağlı olduğu için testte tutulmadı.
+
+## 33. Özet kalitesi: Circleback ile karşılaştırma
+
+**Soru:** Aynı toplantının aynı transkripti Circleback'e ve ora'ya verildiğinde
+arada ne var, ne kadarı model kapasitesi, ne kadarı bizim istemimiz?
+
+**Yöntem:** Circleback'in 78 dakikalık bir ürün toplantısı için ürettiği döküm
+(58.006 karakter, 5 konuşmacı) ora'ya içe aktarıldı; çıktısı Circleback'in
+kendi notlarıyla (`circleback-meeting-01.md`) karşılaştırıldı. Ölçüm gerçek
+`FoundationIntelligence` üzerinden koştu. Sayılan şeyler:
+
+- **anlatım maddesi** — konuşma fiiliyle biten madde ("X, Y'yi açıkladı")
+- **sayılı madde** — içinde rakam geçen madde (somutluk göstergesi)
+- **bağlamlı aksiyon** — `baglam` alanı dolu olan aksiyon
+
+### 33.1 Başlangıç durumu
+
+| | ora (önce) | Circleback |
+|---|---|---|
+| madde | 54 | 51 |
+| anlatım maddesi | **27 (%50)** | 0 |
+| sayılı madde | **1 (%2)** | 19 (%37) |
+| genel bakış konu maddesinin kopyası | 5/6 | 0 |
+| aksiyon | 8 | 6 |
+| bağlamlı aksiyon | **1/8** | 6/6 |
+
+Örnek — aynı olgu, iki çıktı:
+
+```
+ora        : "Mert Pamuk, dosya yükleme sürecini açıkladı."
+Circleback : "Veri girişi 3 farklı kanaldan yapılabiliyor: dosya yükleme,
+              Luna chat arayüzü ve entegrasyon akışları"
+```
+
+Aksiyonların **sekizi de** toplantının anlatımıydı ("Levenshtein algoritmasını
+ve işleyişini açıklıyor"), yani hiçbiri bir iş değildi.
+
+### 33.2 Kök nedenler — dördü bizim, biri modelin
+
+1. **`isStatusNotTask` hiç çalışmıyordu.** Süzgeç `words(of:)`'ten geçen kelimeye
+   bakıyor, o da her kelimeyi **5 harfe kırpıyor**: "açıklıyor" → "acikl".
+   Aradığı ek (`yor`, `dı`) kırpmada gidiyor. Filtre 2024'ten beri kodda ama
+   pratikte hiçbir aksiyonu elemiyordu.
+2. **Şema kılavuzu anlatım istiyordu.** `KonuBlogu.maddeler` için yazan metin
+   "Bu konuda **konuşulanlar**"dı. `@Guide` üretimin en yakınındaki yönergedir;
+   "konuşulanlar" denince model konuşmayı yazıyor.
+3. **"Ben kaydı tutan kişidir" cümlesi içe aktarılan dökümde zararlı.** Satırlar
+   gerçek adlarla başlıyorken model birinci tekille konuşan herkesi "Ben" sayıp
+   aksiyonları sahipsiz bıraktı (3/8).
+4. **Birleştirmeye konu başlıkları gidiyordu.** 11 konulu gerçek bir toplantıda
+   kararların **altısı da** başlıktan kopyaydı ("Levenshtein Algoritması" bir
+   karar değildir). Kısa örnekte görünmüyor; başlık sayısı azken model
+   kopyalamıyor.
+5. **Kalanı model kapasitesi.** Circleback rakamları toplayıp sentezliyor
+   (₺1.588.788,60, 296/318/371 talep, 3/8 dönem); 3B cihaz üstü model bunu
+   yapmıyor. Bu fark istemle kapanmaz.
+
+### 33.3 Varyantlar (18.000 karakterlik ilk bölüm, tek koşu)
+
+| | anlatım | sayılı | emir kipi | bağlamlı aksiyon |
+|---|---|---|---|---|
+| A — mevcut | %40 | %8 | 0/8 | 1/8 |
+| B — istemde "Zayıf/İyi" örneği | **%4** | %8 | — | 6/8 |
+| C — örnek kaldırıldı | ~%30 | %8 | — | 5/8 |
+| D — örnek talimat bloğuna taşındı | %9 | %14 | 4/8 | 5/8 |
+| E — D + birinci tekil yasağı | %17 | %6 | 1/8 | 4/8 |
+
+**B'nin iki yan etkisi ölçüldü ve ikisi de kabul edilemezdi:**
+- İstemdeki örnek cümlelerin **kendisi** çıktıya madde olarak sızdı
+  (`Zayıf: "Ayşe, ödeme akışını açıkladı."` bir konu maddesi olarak göründü).
+  §24.4'teki desenin aynısı — model içeriği olmayan alanı istemdeki en yakın
+  metinle dolduruyor.
+- Model anlatımdan **alıntıya** kaçtı: maddelerin bir bölümü
+  `Çağrı Kilit: "Bunu da no code yaptık abi."` biçiminde ham replik oldu.
+
+Örnek talimat bloğuna (`summaryInstructions`) taşınınca kazanç kaldı, sızıntı
+büyük ölçüde gitti; kalan sızıntı tanınabilir olduğu için kodda kesiliyor
+(`isPromptEcho`).
+
+**D ile E arasındaki fark gürültüdür.** Aynı varyantın iki koşusu %9 ve %32
+verdi; tek koşuya bakarak varyant seçilemez. E seçildi çünkü D'nin çıktısında
+gözle görülen bir kusur vardı (maddeler birinci tekile kayıyordu: "Şu an HR
+rolündeyim…") ve iki koşusu daha kararlıydı (%17, %14). A'dan D/E'ye geçiş ise
+gürültünün **çok dışında**.
+
+### 33.4 Sonuç (tam transkript, nihai kod)
+
+| | önce | sonra | Circleback |
+|---|---|---|---|
+| anlatım maddesi | %50 | **%16** | 0 |
+| sayılı madde | %2 | **%16** | %37 |
+| bağlamlı aksiyon | 1/8 | **8/8** | 6/6 |
+| genel bakış kopyası | 5/6 | 0-4/6 | 0 |
+| kararlar | başlık kopyası | gerçek cümle | gerçek cümle |
+
+Aksiyonlar artık iş: "Şirket ayarları kısmında token'ı oluşturup
+entegrasyonlara eklemek", "Meslek kodları için Levenshtein toleransını
+ayarlamak", "Osman ile ilk kez konuşacak olan Alen'e güncelleme yap".
+
+### 33.5 Yapılan değişiklikler
+
+- `isStatusNotTask` ham kelimeye bakıyor; ölçüt gövde değil **gövde + çekim**
+  ("paylaştı" anlatımdır, "paylaş" iştir — ilk düzeltme gerçek aksiyonları
+  eliyordu, test bunu yakaladı).
+- `KonuBlogu.maddeler` kılavuzu bilgi istiyor, konuşma değil.
+- Özetleme çağrıları kendi talimat bloğunu kullanıyor; not yazma biçimi örneği
+  orada.
+- `speakerLine` transkriptte gerçek ad varsa "Ben" cümlesini yazmıyor.
+- Birleştirmeye **yalnızca maddeler** gidiyor, başlıklar değil.
+- Aksiyonlar kanıtına göre sıralanıp 8'de kesiliyor (parça başına 3 aksiyon ×
+  10 parça = 30 aday; uzun ve zayıf liste gerçek aksiyonları gömüyor).
+- Maddeden konuşmacı öneki, tırnak ve içeriksiz anlatım kodda kesiliyor.
+
+### 33.6 İçe aktarmada bulunan üç hata
+
+Aynı dosya ayrıştırıcıyı da denedi (§32'nin devamı):
+
+1. `**Ayşe Yılmaz**:` biçiminde konuşmacı adının sonundaki `**` ada yapışıyordu;
+   "Mert Pamuk**" diye bir kişi özetleme istemine kadar gidiyordu.
+2. Belgenin künyesi (`# Başlık`, `**Date**:`, `**People**:`) dört sahte replik
+   oluyordu — üstelik katılımcı adlarını isteme veri diye sokuyordu.
+3. Vurgulu ad **tek geçişte de** konuşmacıdır; ">= 2 tekrar" kuralı düz metin
+   için doğru ama Markdown dökümünde bir kez konuşan kişiyi kaybettiriyordu.
+
+Belgenin ilk `#` başlığı artık toplantı adı oluyor (dosya adından iyidir).

@@ -62,11 +62,15 @@ final class MeetingImporter {
         case .audio(let url):
             return try await importAudio(url)
         case .transcriptFile(let url):
-            return try await importTranscript(try Self.readText(url),
-                                              title: url.deletingPathExtension().lastPathComponent,
-                                              date: Self.fileDate(url))
+            let text = try Self.readText(url)
+            // Belgenin kendi başlığı dosya adından iyidir.
+            return try await importTranscript(
+                text, title: TranscriptParser.title(in: text)
+                    ?? url.deletingPathExtension().lastPathComponent,
+                date: Self.fileDate(url))
         case .transcriptText(let text):
-            return try await importTranscript(text, title: nil, date: Date())
+            return try await importTranscript(text, title: TranscriptParser.title(in: text),
+                                              date: Date())
         }
     }
 
