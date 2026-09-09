@@ -1,4 +1,4 @@
-# ora (native) — Codex Project Memory
+# ora (native) — Claude Code Project Memory
 
 ## Project Overview
 ora, toplantıları kaydeden, transkribe eden ve özetleyen bir macOS uygulamasıdır.
@@ -60,8 +60,11 @@ Python yok, Node yok, Electron yok, model dosyası indirme yok.
    çubuğundaki canlı kayıt noktası için
 9b. Uygulamanın vurgu rengi (`AccentColor`) `.oraCarmine`’dir — sistem
     mavisi ve eski Soft Apricot kullanılmaz. Anahtarlar, sekmeler ve
-    varsayılan butonlar Carmine alır. Kenar çubuğu seçimi `.oraChrome`
-    şerittir; sohbet araç çubuğu kapalıyken mürekkep, açıkken Carmine. Active Red
+    varsayılan butonlar Carmine alır. **Kenar çubuğunda seçili kart dolu
+    Carmine'dir**, metni kâğıt rengidir (eski `.oraChrome` şerit bırakıldı:
+    sistemin seçim kapsülü liste odağı gidince griye dönüyor ve kartın altında
+    ikinci bir renk bırakıyordu — bu yüzden `List` seçimi de kullanılmaz).
+    Sohbet araç çubuğu kapalıyken mürekkep, açıkken Carmine. Active Red
     Carmine’den açıkça ayırt edilebilir kalmalı.
 10. Uygulama adı her zaman küçük harf "ora"
 11. Kayıt **stereo** yazılır: kanal 0 = mikrofon, kanal 1 = sistem sesi.
@@ -97,10 +100,17 @@ Bu sıra asla değişmez:
 ## Ses Yakalama Kuralları — ölçülmüş davranış
 - Sistem sesi: `CATapDescription` + `AudioHardwareCreateProcessTap`.
   Doğrulandı: `OSStatus 0`, 48 kHz stereo float32, **ekran kaydı izni istenmedi**.
-- Tercih edilen kurulum — toplantı uygulamasını **adıyla** yakala:
+- Tercih edilen kurulum — toplantı uygulamasını **adıyla** yakala. Hedef
+  listesi `MeetingApps.tapTargets(preferring:)`'ten gelir ve uygulamanın
+  **yardımcı süreçlerini de** içerir: ölçüldü (RESEARCH.md §28.3) — Teams'te
+  sesi `com.microsoft.teams2` değil `...helper` / `...modulehost` üretiyor;
+  ana bundle ID'yi hedefleyen tap tek frame bile vermiyor. Liste
+  `NSWorkspace`'ten değil **CoreAudio süreç listesinden** toplanır.
   ```swift
   let desc = CATapDescription()
-  desc.bundleIDs = ["com.microsoft.teams2", "us.zoom.xos"]  // macOS 26+
+  desc.bundleIDs = MeetingApps.tapTargets(preferring: "com.microsoft.teams2")
+  // → ["com.microsoft.teams2", "com.microsoft.teams2.helper",
+  //    "com.microsoft.teams2.modulehost", "com.microsoft.teams2.notificationcenter"]
   desc.isExclusive = false          // yalnızca bunları yakala
   desc.isMono     = true            // mono mixdown — WAV'ın ch1'i tek kanal
   desc.isMixdown  = true
@@ -114,6 +124,9 @@ Bu sıra asla değişmez:
   tarayıcı sesi ana uygulamadan değil yardımcı süreçten çıkıyor
   (Safari → `com.apple.WebKit.GPU`). `com.apple.Safari`'yi hedefleyen bir tap
   **sessizlik** yakalar. Tarayıcı toplantıları doğrudan global tap'e gider.
+  Yardımcı süreci hedeflemek teknik olarak **çalışıyor** (§28.3) ama tarayıcı
+  yardımcısı tüm sekmelere hizmet ettiği için "yalnızca toplantı" garantisi
+  vermez; kural bu yüzden değişmedi.
 - Toplantı uygulaması tespit edilemiyorsa global tap'e düş:
   `desc.processes = [kendi süreç nesnemiz]; desc.isExclusive = true`
   (kendimizi hariç tut — geri besleme döngüsünü önler).
@@ -210,6 +223,13 @@ Bu sıra asla değişmez:
 - **Daha güçlü bir cihaz üstü model yok** (§24.1). `.contentTagging` daha büyük
   bir model değil, aynı modelin başka kullanım biçimi. Tek kaldıraç
   `SystemLanguageModel.Adapter` — cihazda kalan, eğitilmiş bir LoRA katmanı.
+- **Kullanıcı özeti beğenmezse yeniden ürettirebilir.** Aynı istem çoğu zaman
+  aynı özeti verdiği için yeniden üretimde örnekleme serbestleştirilir
+  (`GenerationOptions(sampling: .random(probabilityThreshold: 0.95),
+  temperature: 0.9)`). **İlk geçiş varsayılan örneklemeyle kalır** — §23-24
+  ölçümleri onunla alındı, değiştirilirse ölçümler geçersizleşir.
+  Yeniden üretim aksiyonları da yeniden yazar; işaretli aksiyon varsa
+  kullanıcıya sorulur.
 - Her map-reduce parçası için **yeni `LanguageModelSession`** aç; oturumu
   tekrar kullanırsan geçmiş bağlamı yiyip 4096'yı taşırır.
 - **Noktalama istemine konuşmacı öneki ("Ben:", "Katılımcı:") EKLEME.**
@@ -247,6 +267,12 @@ Bu sıra asla değişmez:
   (pid → bundleID, görünen ad, ikon). İzin gerekmez. **Alt-dize eşleşmesi
   kullanma** — tam bundle ID karşılaştır (eski ora'da `if app not in output`
   Slack Helper süreçlerinde bile tutuyordu).
+- **Tek istisna, mikrofon sahibi:** Electron/WebView uygulamalarında mikrofonu
+  ana süreç değil yardımcı süreç tutar. `MeetingApps.resolve(_:)` gözlenen
+  kimliği **`bilinen + "."`** ön ekiyle ana uygulamaya çözer. Bu alt-dize
+  eşleşmesi değildir (nokta sınırı zorunlu) ve yukarıdaki kuralla çelişmez:
+  o kural "uygulama açık mı" testi içindi, bu test "mikrofonu tutuyor mu"
+  (RESEARCH.md §28.2).
 - **Dışlama listesi zorunlu.** Gözlenen yanlış pozitif: `com.apple.CoreSpeech`
   sistem TTS/dikte sırasında mikrofonu açık gösteriyor. Varsayılan dışlananlar:
   `com.apple.CoreSpeech`, Siri, kendi bundle ID'miz. Liste ayarlardan düzenlenebilir.
@@ -265,6 +291,10 @@ Bu sıra asla değişmez:
   toplantı değil. Düşük güvenli algılama say ve öyle sun ("Chrome mikrofonu
   kullanıyor"). Sekme başlığı okumak ekran kaydı/erişilebilirlik izni ister —
   **isteme**.
+- **Pencere başlığı yalnızca takvim eşleştirmesi için okunur**, opt-in
+  (`windowTitleEnabled`, varsayılan kapalı) ve yalnızca Erişilebilirlik izni
+  verilmişse. Başlık hiçbir yere yazılmaz. Kapalıyken eşleştirme başlıksız
+  çalışır, belirsizlikte sorar (§29.2-29.4).
 - **Otomatik başlık pencere başlığından ÜRETİLMEZ.** `kCGWindowName` sandbox'lı
   uygulamada ekran kaydı izni ister — tap sayesinde kurtulduğumuz izni geri
   getirir. Başlık transkriptten Foundation Models ile üretilir; takvim
@@ -286,9 +316,17 @@ Bu sıra asla değişmez:
   `participantStatus != .declined`. Bu filtre olmadan "Toplantı Odası 3"
   katılımcı olarak kaydedilir.
 - Takvim değişiklikleri `EKEventStoreChangedNotification` ile dinlenir — polling yok.
-- **Eşleştirme:** mikrofon sinyali geldiğinde o ana denk gelen etkinlik aranır
-  (başlangıcına ±10 dk tolerans). Bulunursa öneri bildirimi etkinlik adını ve
-  katılımcı sayısını gösterir; bulunamazsa uygulama adına düşer.
+- **Eşleştirme puanlıdır, "ilk bulunan" değil** (RESEARCH.md §29). ±10 dk
+  penceresindeki adaylar elenir (iptal edilmiş etkinlik aday değildir) ve
+  puanlanır: pencere başlığı eşleşmesi +6, toplantı linki mikrofonu tutan
+  uygulamayla aynıysa +3, başlangıca 5 dk içinde +3, sürüyorsa +2, kabul
+  ettiysem +2, organizatörsem +2, **reddettiysem −3** (elenmez — insan
+  reddettiği toplantıya katılabiliyor). Tepe aday ikinciyi 3 puan geçemezse
+  **tahmin edilmez, kullanıcıya sorulur**; cevap gelene kadar katılımcı ve
+  başlık yazılmaz. Sözlük de ancak seçim kesinleşince beslenir.
+- **Yanlış eşleşme sonradan düzeltilebilir:** kenar çubuğu bağlam menüsünde
+  "Takvim toplantısını değiştir". Eski `source='calendar'` katılımcıları
+  silinir, `source='transcript'` satırlarına dokunulmaz.
 - **Katılımcı adları vocabulary'ye beslenir** ve `DictationTranscriber`'a
   `ContentHint.customizedLanguage` ile verilir. Özel isimler tanımanın en zayıf
   noktasıdır; bu, takvimin en somut teknik kazancıdır.
@@ -373,6 +411,8 @@ bir üründe kullanıcının kendi verisine erişebilmesi bir özelliktir.
 ## Dosya Yolları
 - Uygulama verisi: `~/Library/Application Support/ora/`
 - Ses kayıtları:   `{base}/recordings/{meeting_id}.wav`
+  (sıkıştırma açıksa işlem sonrası `.m4a` olur ve `meetings.audio_path`
+  güncellenir; ölçüm RESEARCH.md §25.3 — 11,5× kazanç, kanal ayrımı korunuyor)
 - Veritabanı:      `{base}/ora.sqlite`
 - Loglar:          `{base}/logs/ora.log`
 Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirectory)`.
@@ -380,18 +420,39 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 ## UI Kuralları
 - UI kodu yazmadan önce **BRAND.md** oku
 - SwiftUI; ikonlar SF Symbols
-- Düzen: 3 sütun — `NavigationSplitView` kenar çubuğu 240-300pt, orta panel esnek
-  (sekmeler: **Özet | Transkript**), sağ sohbet paneli `.inspector` ile katlanabilir.
+- Düzen: `NavigationSplitView` kenar çubuğu 240-300pt + orta panel
+  (sekmeler: **Özet | Transkript**). Sohbet, orta panelin **içinde** 320 pt'lik
+  katlanabilir bir bölmedir — `.inspector` **kullanılmaz**: üçüncü sütun
+  açıldığında orta sütun ~655 pt'nin altına inmediği için SwiftUI kenar
+  çubuğunu pencerenin dışına itiyordu (RESEARCH.md §26.2).
   "Konuşmacılar" sekmesi yoktur (DESIGN.md §4)
 - **Özet sırası: Kişiler → Aksiyonlar → Genel bakış → Kararlar → Konular.**
   Aksiyon önce gelir; kullanıcının toplantı notuna ilk sorusu "bana ne düştü"
-- **Pencere minimumu sohbet paneline göre değişir** (900 → 1180) ve `Window`
+- **Pencere minimumu sohbet paneline göre değişir** (900 → 940, ölçüldü) ve `Window`
   sahnesinde `.windowResizability(.contentMinSize)` ile sert sınır yapılır.
   Bu olmadan `NavigationSplitView` + `.inspector` sığmadığında kenar çubuğunu
   pencerenin dışına taşıyıp kırpıyor (§24.5)
+- **Kenar çubuğu araması bir simgedir**, sürekli duran alan kutusu değil;
+  tıklanınca açılır, Escape kapatır. Toplantı kartı: başlık üstte, altında
+  tarih-saat, sağ uçta süre
+- **Oynatıcı ve ⌘F arama paneli yüzer** — kenardan kenara şerit çizmezler.
+  Oynatıcıda kanal seçici yoktur; oynatma karışımdır
 - **İlerleme çubuğu yoktur.** İşlem sürerken Özet sekmesinin tamamı ortalanmış
   `ProcessingState` olur: `CurveLoader` + yalnızca yüzde. Boş durumların düğmesi
   (Yeniden dene / Şimdi özetle) metnin altında ortalanır, tepede şerit yok
+- **İşlem durumu toplantı başınadır** (`stages: [Int64: Stage]`), uygulama
+  genelinde tek bir aşama değil. Animasyon yalnızca **işlenen toplantı
+  seçiliyken** görünür (`isProcessingSelected`); yetki kapıları "herhangi bir
+  toplantı işleniyor mu"ya bakar (`isTranscribing`). Hattın ürettiği içerik
+  arayüze yalnızca o toplantı ekrandayken yazılır, veritabanına her hâlükârda.
+  Aşama **veritabanından türetilmez** — tek kaynağı hattın kendisidir
+  (RESEARCH.md §27)
+- **Hat arayüze doğrudan yazmaz.** `MeetingPipeline` ürettiği her şeyi
+  `meetingID` taşıyan `PipelineEvent` olarak yayar; "kullanıcı hâlâ bu
+  toplantıya mı bakıyor" sorusu **tek yerde**, `RecordingController.apply(_:)`
+  içinde sorulur. Hattın ürettiği yeni bir alan eklerken controller'a property
+  değil, `PipelineEvent.Kind`'a bir vaka eklenir — o kapıyı çoğaltmak eski
+  hata sınıfını geri getirir (REFACTOR.md §2)
 - **Konuşma payı / ölü hava kartı yoktur.** Kanal başına iki kova kişi bilgisi
   taşımıyordu ve okuma akışını kesiyordu; `MeetingMetrics` kaldırıldı
 - Gradyan yok
@@ -407,11 +468,19 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 - `NSCalendarsFullAccessUsageDescription` — yalnızca takvim özelliği açıksa
   istenir; metin "yazmaz, veri çıkmaz" güvencesini içerir
 - `NSAudioCaptureUsageDescription` — sistem sesi tap'i için (ekran kaydı izni DEĞİL)
-- Sandbox girişleri: `com.apple.security.device.audio-input`,
-  **`com.apple.security.personal-information.calendars`** (takvim için).
-  Ölçüldü (RESEARCH.md §19): takvim yetkisi olmadan `requestFullAccessToEvents`
-  sandbox'lı uygulamada **istem çıkarmadan** başarısız oluyor. Yeni bir izin
-  eklerken TCC metniyle birlikte entitlement'ı da yaz.
+- **App Sandbox KAPALI** (RESEARCH.md §29.4). Çakışan takvim toplantılarını
+  ayırmanın tek yerel yolu pencere başlığını okumak ve Erişilebilirlik API'si
+  sandbox'ta başka süreçler için çalışmıyor — izin istemi bile çıkmıyor.
+  Dolayısıyla `com.apple.security.*` yetkileri kaldırıldı; mikrofon ve takvim
+  TCC ile (yukarıdaki Info.plist metinleri) sorulmaya devam ediyor.
+  Eski kural — "takvim için `personal-information.calendars` yetkisi şart"
+  (§19) — yalnızca sandbox'lı derlemeler için geçerliydi.
+- **Ağ girişi yok ve eklenmeyecek.** Kural #3'ün (hiçbir veri cihazı terk
+  etmez) yapısal garantisi buydu; sandbox kalksa da entitlement listesinde ağ
+  yok. Dağıtım .dmg + Developer ID, Mac App Store hedeflenmiyor.
+- **Erişilebilirlik izni opt-in.** `OraSettings.windowTitleEnabled` varsayılan
+  **kapalı**; kapalıyken `WindowTitle`'a hiç dokunulmaz ve izin istenmez.
+  Onboarding'de ve Ayarlar → Takvim'de açılabilir.
 - Sistem sesi izni reddedilirse yalnız-mikrofon moduna düş, çökme
 
 ## Hata Yönetimi
@@ -435,6 +504,9 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 - **ARCHITECTURE.md** — modüller arası sözleşmeler
 - **FALLBACK.md** — Apple yığını yetmezse ne yapılacağı (whisper.cpp yolu)
 - **BRAND.md** — UI kodu yazmadan önce
+- **COMPETITION.md** — rakip incelemesi ve önceliklendirilmiş iyileştirme
+  listesi. Faz 8 ve sonrası buradan besleniyor; "hangi rakipte var → ora'da
+  neye karşılık gelir → hangi kuralla çakışır" biçiminde
 
 ### Geliştirme Verisi
 Gerçek bir toplantıyla denetim için `probes/bordro_toplanti.json` (29 dk'lık
@@ -450,8 +522,8 @@ transkripsiyonu hakkında sonuç çıkarma. Yalnızca **özetleme hattını** de
 için kullanılır.
 
 ### Bu Dosyayı Güncel Tutma Kuralı
-AGENTS.md'de yazan bir yaklaşımdan **daha iyisi için** vazgeçildiyse
-(kütüphane, algoritma, mimari karar, izin modeli), AGENTS.md **aynı commit'te**
+CLAUDE.md'de yazan bir yaklaşımdan **daha iyisi için** vazgeçildiyse
+(kütüphane, algoritma, mimari karar, izin modeli), CLAUDE.md **aynı commit'te**
 güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu bırakma.
 
 ## Ne YAPILMAMALI
@@ -499,21 +571,60 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       **Faz 7 — Paketleme** tamam: uygulama ikonu, `MenuBarExtra` (taşıyıcı yüzey),
       kayıt sırasında kırmızı nokta, ilk açılış onboarding'i,
       `scripts/build-release.sh` ile 3,7 MB .dmg (RESEARCH.md §18).
+      **Faz 8 — Elimizdekini Kullan** tamam (kaynağı COMPETITION.md):
+      ses oynatıcı (kanal seçici · hız · satır senkronu), toplantılar arası
+      aksiyon panosu, özet maddesinden transkripte alıntı bağı (IDF ağırlıklı
+      eşleştirme), arama parçacığı ve ⌘F, depolama yönetimi (AAC 11,5×,
+      saklama süresi), gerçek global kısayol, satır silme ve konuşmacı
+      etiketi düzeltme, kayıt bildirimi hatırlatıcısı. Yeni bağımlılık, yeni
+      izin ve **şema değişikliği yok**. Ölçümler RESEARCH.md §25.
+      **Toplantı geçişi düzeltildi (RESEARCH.md §27):** işlem durumu artık
+      toplantı başına tutuluyor; A özetlenirken B'ye geçince animasyon B'ye
+      taşınmıyor, A'ya dönünce hemen görünüyor ve A'nın özeti B'nin ekranına
+      düşmüyor. `probes/meeting_switch.swift` bunu gerçek denetleyiciyle ölçer.
       **Gerçek kayıtla uçtan uca doğrulandı (RESEARCH.md §22):** kayıt sonrası
       tam geçiş `AVAudioFile.read`'in dosya sonundaki `nilError`'ı yüzünden her
       kayıtta düşüyordu; düzeltildi. Başarısız veya yarım kalmış bir toplantı
       artık **"Yeniden dene"** düğmesiyle ham sesten yeniden işlenir.
+      **Refactor Adım 0-1-2 tamam (REFACTOR.md):** `oraTests` hedefi açıldı
+      (swift-testing, 13 test, `xcodebuild test -scheme ora`); işlem hattı
+      `ora/Pipeline/MeetingPipeline` olarak çıkarıldı ve `PipelineEvent`
+      yayıyor; hattın arayüze yazması **tek kapıya** indi
+      (`RecordingController.apply(_:)` — eskiden 15 `onScreen` çağrısı).
+      **Adım 3 tamam:** `ora/Pipeline/RecordingSession` kayıt sürerkenini
+      yürütüyor (ses yazımı + canlı transkripsiyon); `LiveTranscribing`
+      protokolü eklendi ve **kural #2** artık testle korunuyor.
+      `RecordingController` 1114 → 861 satır, 18 test.
+      **Kanal seviye göstergesi kaldırıldı.** Menü bar native `NSMenu`'ye
+      geçince (`.menuBarExtraStyle(.menu)`) gösterge düşmüş ama besleyen
+      100 ms'lik zamanlayıcı kalmıştı — kayıt boyunca boşa yazıyordu. Zincirin
+      tamamı silindi: `channelLevels`, `levelTask`, `AudioCapturing.levels`,
+      `AudioCapture.peaks`. Geri istenirse native menü çizemez; popover
+      gerekir ve bu DESIGN.md §2'nin native menü tercihiyle çakışır. Yol boyunca kapanan iki hata:
+      takvim başlığı "Şimdi özetle"/"Yeniden dene" yollarında üretilmiş
+      başlıkla eziliyordu (karar artık `calendar_event_id`'den okunuyor) ve
+      `isTranscribing` hat koşarken toplantı silinince false dönüp yetki
+      kapılarını açıyordu (artık `pipeline.isRunning`). Adım 3-6 bekliyor.
     - Bekleyen:
       1. **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
       2. **İmzalama ve notarizasyon** — makinede kod imzalama kimliği yok;
          Apple Developer üyeliği gerekiyor. Betik hazır, ek kod gerekmiyor.
-      3. Gerçek bir Teams/Zoom toplantısıyla algılama→kayıt akışı denenmedi.
+      3. ~~Gerçek bir Teams/Zoom toplantısıyla algılama→kayıt akışı denenmedi.~~
+         **Tamamlandı (RESEARCH.md §28.3-28.5):** mikrofonu ve sesi Teams'in
+         yardımcı süreçleri tutuyor; algılama ve tap hedefleme buna göre
+         düzeltildi. Teams test aramasıyla uçtan uca doğrulandı — kapsamlı
+         tap'ten ch1 tepe 0,69, kanal ayrımı ve iki kanallı transkripsiyon
+         doğru, gözcü devreye girmedi. Zoom'la denenmedi.
     - **Sparkle (otomatik güncelleme) kullanıcı kararıyla eklenmedi.** Tek
       bağımlılık GRDB olarak kalıyor.
     - **Bilinen geliştirme engeli:** uygulama ad-hoc imzalı. İmza her derlemede
-      değiştiği için TCC mikrofon iznini **her derlemede** yeniden soruyor ve
-      Dock/Cmd+Tab ikonu yer tutucu gösteriyor (RESEARCH.md §20).
+      değiştiği için TCC mikrofon iznini **her derlemede** yeniden soruyor,
+      Dock/Cmd+Tab ikonu yer tutucu gösteriyor (RESEARCH.md §20) ve
+      **bildirim izni hiç alınamıyor** — `Notifications are not allowed for
+      this application`; sıfırdan yazılmış ad-hoc bir uygulamayla doğrulandı
+      (RESEARCH.md §28.1). Bu yüzden geliştirme derlemelerinde öneri yalnızca
+      penceredeki şeritte görünür.
       **Kendinden imzalı sertifika çözüm değil** — Gatekeeper reddediyor ve
       uygulama hiç açılmıyor (§21). Çözüm Apple Developer Program üyeliğidir.
 
@@ -522,30 +633,56 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
 ora.xcodeproj          — senkronize klasör grubu: ora/ altına eklenen dosya
                          otomatik derlemeye girer, pbxproj elle düzenlenmez
 Config/Info.plist      — izin metinleri (INFOPLIST_FILE ile bağlı)
-Config/ora.entitlements— sandbox + audio-input; ağ girişi YOK (kural #3'ün garantisi)
+Config/ora.entitlements— sandbox KAPALI (§29.4); ağ girişi YOK (kural #3'ün garantisi)
 ora/oraApp.swift       — @main + AppDelegate (dizin hazırlığı, açık mod sabiti)
-ora/Core/              — AppPaths, Log, OraError, MeetingMetrics, OraSettings,
-                         PowerState
+ora/Core/              — AppPaths, Log, OraError, OraSettings (tüm kullanıcı
+                         ayarları — dil dahil),
+                         PowerState, AudioArchive (boyut/sıkıştırma/silme),
+                         GlobalHotKey (⌘⇧R, Carbon),
+                         LoginItem (SMAppService — girişte başlat)
 ora/Detect/            — MeetingDetector (CoreAudio olay dinleyicileri)
 ora/Calendar/          — CalendarReader (EventKit, opt-in)
 ora/Capture/           — AudioCapture (orkestra), MicrophoneCapture,
                          SystemAudioTap, StereoRecordingWriter, AudioClock,
                          RecordingRecovery, MeetingApps, Channel
-ora/Transcribe/        — SpeechTranscription (tam geçiş), LiveTranscription,
-                         TranscriptionLocale (dil + otomatik seçim), Segment
+ora/Transcribe/        — SpeechTranscription (tam geçiş),
+                         LiveTranscription (+ LiveTranscribing protokolü),
+                         TranscriptionLocale (dil + otomatik seçim), Segment,
+                         TranscriptIndex (özet maddesi → transkript eşleştirme)
 ora/Intelligence/      — FoundationIntelligence (noktalama + map-reduce özet),
                          Ozet (@Generable şemalar), TranscriptChunker, Intelligent
 ora/Store/             — OraDatabase (şema + migration), MeetingStore (tek kapı),
                          Records (GRDB kayıtları), VocabularyStore
+ora/Pipeline/          — RecordingSession (kayıt sürerken: ses yazımı + canlı
+                         transkripsiyon), MeetingPipeline (kayıt sonrası: tam
+                         geçiş, noktalama, özet, depolama), PipelineEvent +
+                         PipelineStage. **Görünüm durumu tanımaz**; ürettiğini
+                         `meetingID` taşıyan olay olarak yayar. Capture ile
+                         Transcribe'ı birlikte kullandığı için `ora/Capture/`
+                         altında değil — alt modüller birbirini çağırmaz
 ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          MenuBarView (taşıyıcı yüzey), OnboardingView,
-                         RecordingController, MeetingSidebar, MeetingDetail,
-                         TranscriptView, SummaryView, MeetingExport, SettingsView,
+                         RecordingController (hattın olaylarını arayüz
+                         durumuna çevirir — süzme tek yerde, `apply(_:)`),
+                         MeetingSidebar, MeetingDetail,
+                         TranscriptView, SummaryView, ActionBoardView,
+                         AudioPlayback (+ PlaybackBar), MeetingExport, SettingsView,
                          MeetingNotifications, ChatInspector,
                          EmptyState (+ ProcessingState), CurveLoader, FlowLayout
 ora/Resources/Assets.xcassets/Colors    — BRAND paletinin tek kaynağı
 ora/Resources/Assets.xcassets/AppIcon   — scripts/make-icon.swift üretir
 scripts/               — make-icon.swift (ikon), build-release.sh (arşiv → .dmg)
+oraTests/              — swift-testing hedefi. `Support/Fakes.swift` yalnızca
+                         **dış dünyaya dokunan** katmanları sahteler (ses
+                         donanımı, Speech, Foundation Models); veritabanı
+                         sahtelenmez, bellek içi SQLite gerçeğin kendisidir.
+                         `Support/Harness.swift` izole `UserDefaults` verir —
+                         `OraSettings.shared` geliştiricinin gerçek ayarlarını
+                         okuyor ve testi makineye bağımlı kılıyordu.
+                         `MeetingSwitchTests` RESEARCH §27'yi, `PipelineTests`
+                         hattın kırılma noktalarını denetler.
 ```
+Testler `xcodebuild test -scheme ora` ile koşar (paylaşılan şema depoda).
+`probes/meeting_switch.swift` bu hedefe taşındı ve kaldırıldı.
 Renkler asset kataloğundadır; `Color.oraPaper` gibi semboller derleme zamanında
 üretilir. Elle `Color("oraPaper")` yazma — yanlış isim derlenmez olsun.
