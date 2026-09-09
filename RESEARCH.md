@@ -2386,3 +2386,68 @@ Bunu **taahhüt etmeden ölçmek mümkün**: aynı iki transkript aday bir model
 geçirilip §35'in puanlama betiğiyle puanlanır. Kapsama %20 → %60 çıkıyorsa
 tartışma biter; %30'da kalıyorsa uğraşmaya değmez. Model geliştirme makinesine
 iner, uygulamaya değil.
+
+## 37. Kendi modelimizi paketlemek: üç aday ölçüldü
+
+**Soru:** §36 adaptör yolunu kapattı. Cihaz üstü kalarak kaliteyi değiştirmenin
+tek yolu kendi modelimizi paketlemek. Değer mi?
+
+**Yöntem:** Aday modeller **taahhüt edilmeden** ölçüldü — MLX ile geliştirme
+makinesinde koşturuldu, ora'nın koduna hiç dokunulmadı. Girdi aynı iki gerçek
+transkript, ölçüt §35'in aynı puanlama betiği, karşılaştırma aynı Circleback
+referansı. Örnekleme kapalı (`temp=0`).
+
+**İki mod vardı, biri kazandı.** ora bugün 6.000 karakterlik parçalarla
+map-reduce yapıyor çünkü Apple modelinin penceresi 4096 token. Adayların hepsi
+128K-256K veriyor, yani **bütün toplantı tek isteme sığıyor** (58 bin karakter
+≈ 20 bin token). Ölçüm tek geçişle yapıldı; §35'in "dağınık bilgiyi toplayamama"
+teşhisi zaten yapısal olarak buradan geliyordu.
+
+### 37.1 Sonuçlar
+
+| | ora (Apple ~3B) | Qwen3.5-4B | Qwen3.5-9B | Qwen3.5-9B **+yoğunluk** | Gemma 4 12B |
+|---|---|---|---|---|---|
+| kapsama 01 | %24 | **çıktı yok** | %24 | **%35** | %12 |
+| kapsama 02 | %13 | %34 | %46 | **%44** | %11 |
+| **toplam** | **%20** | — | %32 | **%38** | %12 |
+| anlatım 01/02 | %17 / %45 | — / %12 | %17 / %5 | %9 / %5 | %0 / %0 |
+| süre 01/02 | 158/178 sn | 341/203 sn | 267/353 sn | 404/321 sn | 240/283 sn |
+| üretim hızı | — | 14-18 tok/sn | 8-10 tok/sn | 8-10 tok/sn | 4-6 tok/sn |
+| tepe bellek | ek yok | 4,5 GB | 7,2 GB | 7,2 GB | **10,2 GB** |
+| indirme | 0 | 3,1 GB | 6,0 GB | 6,0 GB | 6,8 GB |
+| **uydurma sayı** | **0** | **0** | **0** | **0** | **0** |
+
+*"+yoğunluk": isteme "8-12 konu, her konu 4-6 madde; dökümde geçen sayı, tutar,
+oran ve tarihleri maddelere taşı" eklendi. Aynı istem bütün modellere verilir.*
+
+### 37.2 Okumalar
+
+**Kazanan Qwen3.5-9B, tek geçişle: kapsama %20 → %38.** İki kat. Kazancın
+büyük kısmı model değil **yapı**: ora'nın en kötü hâli olan tek sunuculu
+toplantı 02, %13'ten %44-46'ya çıkıyor — çünkü ilk kez bir model toplantının
+tamamını aynı anda görüyor.
+
+**Gemma 4 12B reddedildi.** İyi yazıyor (anlatım %0, akıcı Türkçe) ama fazla
+soyut: 30-32 madde, 2-3 aksiyon, neredeyse hiç sayı yok. Üstelik en yavaş
+(4-6 tok/sn) ve en ağır (10,2 GB). Kapsamada ora'nın da altında.
+
+**Qwen3.5-4B güvenilir değil.** İki toplantının birinde token bütçesini
+tüketip **hiç JSON üretmedi**. 8 GB'lık Mac'ler için ucuz bir yedek olabilirdi,
+olamıyor.
+
+**Uydurma dört modelde de sıfır.** ora'nın en değerli özelliği (rakam icat
+etmemek) büyük modele geçişte kaybolmuyor.
+
+**Yoğunluk isteminin bedeli var.** Kapsamayı %32 → %38 çıkarıyor ama konu
+yapısını bozuyor: 12 konu istenince model kuyrukta sahte başlıklar uyduruyor
+("Umut ile Haftalık Görüşme" bir konu değil, bir olgu). Ayrıca 01'de bütçesini
+satış yarısına harcayıp teknik yarıyı (Levenshtein, validasyon) zayıflatıyor.
+
+### 37.3 Bedel
+
+Qwen3.5-9B seçilirse: **6 GB indirme**, işlem sırasında **7,2 GB tepe bellek**,
+süre **~2 kat** (158 sn → 404 sn). 8 GB'lık Mac'ler kapsam dışı kalır, 16 GB'da
+sıkışık çalışır.
+
+Ve dürüst olmak gerekirse: %38 hâlâ Circleback'in üçte biri. İki kat iyileşme
+gerçek ama "referans ayarında not" değil.
