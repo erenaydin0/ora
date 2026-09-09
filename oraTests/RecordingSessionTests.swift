@@ -30,7 +30,6 @@ struct RecordingSessionTests {
         let stopped = try await session.stop()
         #expect(stopped == url)
         #expect(session.meetingID == nil, "oturum kapandı")
-        #expect(session.channelLevels.isEmpty, "seviye göstergesi sıfırlandı")
         #expect(await live.didFinish, "canlı transkripsiyon kapatıldı")
     }
 

@@ -17,8 +17,6 @@ final class FakeCapture: AudioCapturing, @unchecked Sendable {
     private let stateContinuation: AsyncStream<CaptureState>.Continuation
     private let liveContinuation: AsyncStream<LiveBuffer>.Continuation
 
-    var levels: [Int: Float] { [:] }
-
     /// `stop()` bunu döndürür.
     var stopURL: URL
     /// Doluysa `start()` bunu fırlatır — izin reddi senaryosu.

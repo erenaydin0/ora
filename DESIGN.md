@@ -213,8 +213,10 @@ Sürekli görünmesi gereken ama sayfanın parçası olmayan iki araç **yüzer*
 
 ### Canlı mod (yeni)
 Kayıt sürerken pencere açıksa:
-- Özet sekmesi yerine **"Kayıt sürüyor"** durumu: geçen süre, iki kanal seviyesi,
-  Durdur
+- Özet sekmesi yerine **"Kayıt sürüyor"** durumu: geçen süre, Durdur.
+  **Kanal seviye göstergesi yok:** menü bar native `NSMenu` olduğu için
+  (§2) seviye çizebileceği bir yüzey kalmadı ve besleyen zincir kaldırıldı.
+  Geri getirmek popover gerektirir — yani §2'nin kendisinden vazgeçmek
 - Transkript sekmesi **canlı akar**; kesinleşmemiş metin `.oraInkMuted`,
   kesinleşince `.oraInk`'e döner. Bu ton farkı, canlı sonucun bir **ön izleme**
   olduğunu ve kayıt sonrası tam geçişte değişebileceğini kullanıcıya söyler

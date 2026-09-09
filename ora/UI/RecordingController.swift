@@ -40,7 +40,6 @@ final class RecordingController {
     var liveSegments: [Segment] { session.liveSegments }
     var volatileText: [Int: String] { session.volatileText }
     var liveNotice: String? { session.liveNotice }
-    var channelLevels: [Int: Float] { session.channelLevels }
 
     /// Tüm toplantıların aksiyonları — pano bunu gösterir. Toplantı seçiminden
     /// bağımsızdır; liste her tazelemede yenilenir.

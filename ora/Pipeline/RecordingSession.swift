@@ -27,14 +27,6 @@ final class RecordingSession {
 
     /// Yakalama durumu — `AudioCapturing.state` akışından gelir.
     private(set) var state: CaptureState = .idle
-    /// Kanal başına anlık ses seviyesi (0…1).
-    ///
-    /// **Şu anda hiçbir arayüz bunu okumuyor.** Menü bar native `NSMenu`'ye
-    /// geçtiğinde (`.menuBarExtraStyle(.menu)`) seviye göstergesi düştü, besleyen
-    /// zamanlayıcı kaldı: kayıt boyunca 100 ms'de bir boşa yazılıyor. Göstergeyi
-    /// geri getirmek ya da bu alanı `AudioCapturing.levels` ile birlikte silmek
-    /// ayrı bir karardır (REFACTOR.md §10).
-    private(set) var channelLevels: [Int: Float] = [:]
     /// Şu anda kaydedilen toplantının `meetings.id` değeri.
     private(set) var meetingID: Int64?
 
@@ -66,11 +58,6 @@ final class RecordingSession {
     private var liveUpdatesTask: Task<Void, Never>?
     private var observation: Task<Void, Never>?
     private var feedTask: Task<Void, Never>?
-    private var levelTask: Task<Void, Never>?
-
-    /// Seviye göstergesinin tazelenme aralığı. Ses yoluna dokunmaz, yalnızca
-    /// son tepe değerini okur.
-    private static let levelInterval: Duration = .milliseconds(100)
 
     init(capture: any AudioCapturing,
          makeLive: @escaping @MainActor () -> any LiveTranscribing = { LiveTranscription() }) {
@@ -100,28 +87,13 @@ final class RecordingSession {
     func start(meetingID: Int64, preferredApp: String?) async throws {
         try await capture.start(meetingID: meetingID, preferredApp: preferredApp)
         self.meetingID = meetingID
-        startLevelUpdates()
     }
 
     /// Ses yazımını kapatır ve stereo WAV yolunu döndürür.
     func stop() async throws -> URL {
-        levelTask?.cancel()
-        levelTask = nil
-        channelLevels = [:]
         await stopLive()
         defer { meetingID = nil }
         return try await capture.stop()
-    }
-
-    private func startLevelUpdates() {
-        levelTask?.cancel()
-        levelTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self, self.isRecording else { return }
-                self.channelLevels = self.capture.levels
-                try? await Task.sleep(for: Self.levelInterval)
-            }
-        }
     }
 
     // MARK: - Canlı transkripsiyon (en iyi çaba)

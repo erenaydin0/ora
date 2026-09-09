@@ -49,8 +49,6 @@ protocol AudioCapturing: Sendable {
     /// Stereo WAV yolunu döndürür.
     func stop() async throws -> URL
     var state: AsyncStream<CaptureState> { get }
-    /// Kanal başına anlık seviye (0…1) — menü bar göstergesi için.
-    var levels: [Int: Float] { get }
     /// Canlı transkripsiyon için ikincil tüketici akışı.
     /// Tüketici geri kalırsa buffer'lar DÜŞÜRÜLÜR — diske yazım asla beklemez.
     var liveBuffers: AsyncStream<LiveBuffer> { get }

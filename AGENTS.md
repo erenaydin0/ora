@@ -497,7 +497,7 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       gerekçe satırı ve onay kutusu; parça sınırı 10.000 → 6.000 karakter
       (gerçek oran 2,45 krk/token, eski sınır pencereyi taşırıyordu).
       **Faz 7 — Paketleme** tamam: uygulama ikonu, `MenuBarExtra` (taşıyıcı yüzey),
-      kayıt sırasında kırmızı nokta ve kanal seviyeleri, ilk açılış onboarding'i,
+      kayıt sırasında kırmızı nokta, ilk açılış onboarding'i,
       `scripts/build-release.sh` ile 3,7 MB .dmg (RESEARCH.md §18).
       **Gerçek kayıtla uçtan uca doğrulandı (RESEARCH.md §22):** kayıt sonrası
       tam geçiş `AVAudioFile.read`'in dosya sonundaki `nilError`'ı yüzünden her

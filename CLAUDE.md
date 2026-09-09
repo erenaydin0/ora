@@ -569,7 +569,7 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       gerekçe satırı ve onay kutusu; parça sınırı 10.000 → 6.000 karakter
       (gerçek oran 2,45 krk/token, eski sınır pencereyi taşırıyordu).
       **Faz 7 — Paketleme** tamam: uygulama ikonu, `MenuBarExtra` (taşıyıcı yüzey),
-      kayıt sırasında kırmızı nokta ve kanal seviyeleri, ilk açılış onboarding'i,
+      kayıt sırasında kırmızı nokta, ilk açılış onboarding'i,
       `scripts/build-release.sh` ile 3,7 MB .dmg (RESEARCH.md §18).
       **Faz 8 — Elimizdekini Kullan** tamam (kaynağı COMPETITION.md):
       ses oynatıcı (kanal seçici · hız · satır senkronu), toplantılar arası
@@ -595,10 +595,12 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       yürütüyor (ses yazımı + canlı transkripsiyon); `LiveTranscribing`
       protokolü eklendi ve **kural #2** artık testle korunuyor.
       `RecordingController` 1114 → 861 satır, 18 test.
-      **Bulgu:** `channelLevels` ölü — menü bar native `NSMenu`'ye geçince
-      seviye göstergesi düşmüş, besleyen 100 ms zamanlayıcı kalmış. Silinmedi,
-      REFACTOR.md §10'da işaretlendi; aşağıdaki Faz 7 satırındaki
-      "kanal seviyeleri" **artık doğru değil**. Yol boyunca kapanan iki hata:
+      **Kanal seviye göstergesi kaldırıldı.** Menü bar native `NSMenu`'ye
+      geçince (`.menuBarExtraStyle(.menu)`) gösterge düşmüş ama besleyen
+      100 ms'lik zamanlayıcı kalmıştı — kayıt boyunca boşa yazıyordu. Zincirin
+      tamamı silindi: `channelLevels`, `levelTask`, `AudioCapturing.levels`,
+      `AudioCapture.peaks`. Geri istenirse native menü çizemez; popover
+      gerekir ve bu DESIGN.md §2'nin native menü tercihiyle çakışır. Yol boyunca kapanan iki hata:
       takvim başlığı "Şimdi özetle"/"Yeniden dene" yollarında üretilmiş
       başlıkla eziliyordu (karar artık `calendar_event_id`'den okunuyor) ve
       `isTranscribing` hat koşarken toplantı silinince false dönüp yetki

@@ -77,7 +77,9 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
 *Çıktı:* Kayıt başlat/durdur, diskte geçerli stereo WAV. **Ölçümler: RESEARCH.md §13.**
 
 **Faz 2'de bilinçli bırakılanlar:**
-- Kanal seviye göstergesi (VU) yok — menü bar yüzeyiyle birlikte Faz 6'da
+- Kanal seviye göstergesi (VU) yok — Faz 6/7'ye bırakılmıştı, **hiç
+  gelmedi ve kapsamdan çıktı**: menü bar native `NSMenu` seçildi ve native
+  menü gösterge çizemez (DESIGN.md §2). Besleyen zincir de silindi
 - Menü bar öğesi ve çentik HUD yok — Faz 6/7
 - Toplantı id'si geçici olarak zaman damgası; `meetings` satırı Faz 5'te gelince
   gerçek id kullanılacak
@@ -218,9 +220,11 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
 ## Faz 7 — Paketleme ✅
 - [x] Uygulama ikonu — BRAND paletiyle çizilir (`scripts/make-icon.swift`):
       konuşan ağız (Carmine zemin, Deep dudak, krem açıklık ve söz). Gradyan yok
-- [x] Menü bar öğesi (`MenuBarExtra`) — **taşıyıcı yüzey**. Popover'da geçen süre,
-      iki kanalın seviye göstergesi, canlı transkriptin son satırı, Durdur,
-      sıradaki toplantı, "Pencereyi aç"
+- [x] Menü bar öğesi (`MenuBarExtra`) — **taşıyıcı yüzey**. Native `NSMenu`
+      (`.menuBarExtraStyle(.menu)`): durum satırı, canlı transkriptin son
+      satırı, Durdur, sıradaki toplantı, "Pencereyi aç", Ayarlar, Çık.
+      **Seviye göstergesi yok** — native menü çizemez; özel popover yerine
+      sistemin menüsü seçildi (klavye gezinme ve kapanma davranışı bedava)
 - [x] Kayıt sırasında `.oraRed` nokta (nabız `.accessibilityReduceMotion`'a saygılı)
 - [x] Son pencere kapanınca uygulama kapanmaz — menü bar taşıyıcı olduğu için
       kayıt ve algılama sürer

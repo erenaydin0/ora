@@ -346,19 +346,30 @@ duraklatıldığında not düşüyor, kayıt sürüyor ve ses dosyası üretiliy
 kurulmalı. Eski sıra (önce kur, hatada geri al) geri konulduğunda
 `basarisizBaslangicOturumAcmaz` kırılıyor.
 
-### Adım 3'te çıkan bulgu: `channelLevels` ölü
+### Adım 3'te çıkan bulgu: `channelLevels` ölüydü — zincir silindi
 
-Hiçbir arayüz `channelLevels`'ı okumuyor. Menü bar native `NSMenu`'ye
+Hiçbir arayüz `channelLevels`'ı okumuyordu. Menü bar native `NSMenu`'ye
 geçtiğinde (`.menuBarExtraStyle(.menu)`) seviye göstergesi düşmüş, besleyen
-zamanlayıcı kalmış: kayıt boyunca 100 ms'de bir MainActor'da boşa yazılıyor —
-60 dakikalık bir toplantıda 36.000 gereksiz uyanma. CLAUDE.md hâlâ "kayıt
-sırasında kırmızı nokta ve kanal seviyeleri" diyor; nokta var, seviyeler yok.
+zamanlayıcı kalmıştı: kayıt boyunca 100 ms'de bir MainActor'da boşa yazıyordu —
+60 dakikalık bir toplantıda 36.000 gereksiz uyanma.
 
-**Silinmedi, işaretlendi.** İki yol var ve ikisi de kullanıcının kararı:
-göstergeyi geri getirmek (native menü çizemez — popover gerekir, DESIGN.md §2
-ile çakışır) ya da `channelLevels` + `levelTask` + `AudioCapturing.levels`
-zincirini birlikte silmek. İkincisi Capture katmanına dokunur, Adım 3'ün
-kapsamı değil.
+Kullanıcı kararıyla zincirin tamamı kaldırıldı:
+
+| Silinen | Yer |
+|---|---|
+| `channelLevels`, `levelTask`, `levelInterval`, `startLevelUpdates()` | `RecordingSession` |
+| `channelLevels` geçirgeni | `RecordingController` |
+| `var levels: [Int: Float]` | `AudioCapturing` protokolü |
+| `levels` + `peaks` + tepe hesabı (ses yolunda, her buffer'da) | `AudioCapture` |
+| `levels` | `FakeCapture` |
+
+Kazanç yalnızca ölü kod değil: tepe genlik **ses yolunun içinde**, gelen her
+buffer için hesaplanıyordu (`for sample in frames`). O döngü de kalktı.
+
+Göstergeyi geri istemek native menüden vazgeçmek demektir (popover gerekir,
+DESIGN.md §2 ile çakışır). Bu karar dört dokümanda kayda geçirildi:
+CLAUDE.md, DESIGN.md §"Canlı mod", ROADMAP.md Faz 2 ve Faz 7 — dördü de
+göstergenin var olduğunu söylüyordu.
 
 ### Kapsam dışı bırakılanlar
 
