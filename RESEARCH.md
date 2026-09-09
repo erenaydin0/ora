@@ -2099,7 +2099,7 @@ gürültünün **çok dışında**.
 
 | | önce | sonra | Circleback |
 |---|---|---|---|
-| anlatım maddesi | %50 | **%16** | 0 |
+| anlatım maddesi | %50 | **%19** (§34.3) | 0 |
 | sayılı madde | %2 | **%16** | %37 |
 | bağlamlı aksiyon | 1/8 | **8/8** | 6/6 |
 | genel bakış kopyası | 5/6 | 0-4/6 | 0 |
@@ -2135,3 +2135,83 @@ Aynı dosya ayrıştırıcıyı da denedi (§32'nin devamı):
    için doğru ama Markdown dökümünde bir kez konuşan kişiyi kaybettiriyordu.
 
 Belgenin ilk `#` başlığı artık toplantı adı oluyor (dosya adından iyidir).
+
+## 34. Anlatımı olguya çevirmek: denendi, olmuyor
+
+**Soru:** §33'ten sonra maddelerin beşte biri hâlâ "X, Y olduğunu belirtti"
+kalıbında. Bu cümleler bir olgu **taşıyor**, yalnızca aktarma sarmalının içinde.
+Son kontrol adımı (`polished`) zaten her cümleyi görüyor ve olgu koruma
+güvencesi kurulu — sarmalı orada açabilir miyiz? Sürümden bağımsız, bedava bir
+kaldıraç olurdu.
+
+**Yöntem:** Adım yalıtıldı. Girdi **sabit**: gerçek bir toplantının gerçek
+çıktısı (57 madde, 11 konu). Böylece ölçüm map aşamasının varyansını değil
+yalnızca bu adımı görür. Tüm hattı koşturmak 2,5 dakika, bu 20 saniye.
+
+### 34.1 Üç deneme, üç başarısızlık
+
+| Deneme | Değişen satır | Anlatım | Ne yaptı |
+|---|---|---|---|
+| Temel (yalnızca dilbilgisi) | 3/57 | 6 → 7 | beklenen: dokunmuyor |
+| Kural dilbilgisi istemine eklendi | 6/57 | 6 → 6 | **cümlenin başını kesti** |
+| Yalnızca anlatım satırları, odaklı istem | 0/10 | — | satırları **aynen** geri verdi |
+| Tek satır, tek iş | 2/4 | — | adı attı, **fiili bıraktı** |
+
+Kural eklendiğinde model dönüşümü yapmadı, özneyi sildi:
+
+```
+− SDP'nin ürünü birkaç yıl içinde datasız hissettirecek kapasiteye ulaşacak.
++ Datasız hissettirecek kapasiteye ulaşacak.
+− Puantör yetkisi ve çalışan bazlı rollerin daha esnek kullanılması öneriliyor.
++ Daha esnek bir şekilde kullanılması öneriliyor.
+```
+
+Toplu istemde tek yaptığı fiili eşanlamlısıyla değiştirmekti
+("belirtiyor" → "söylüyor"). Tek satır verildiğinde yarısında adı attı ama
+fiili bıraktı — geriye **öznesiz bir anlatım cümlesi** kaldı:
+"Çalışanların oluşturulması konusunda Temmuz ayındaki izin eksikliklerini
+belirtiyor." Bu, orijinalinden kötüdür.
+
+**Karar: kaldıraç ölü, geri alındı.** Son kontrol adımı dilbilgisiyle sınırlı
+kalır. Kural tabanlı bir çözüm de yok: "X'in Y olduğunu belirtti" → "Y"
+dönüşümü `-DIĞInI` ekini çözüp yüklemi yeniden çekmeyi gerektiriyor.
+
+### 34.2 Deneme iki gerçek hata buldu
+
+**1. Olgu güvencesinde delik.** `facts(in:)` cümle başındaki büyük harfli
+kelimeyi özel isim saymaz (her cümle büyük harfle başlar) — yani **özneyi
+silen** bir "düzeltme" denetimden geçiyordu. Yukarıdaki iki kırpma da öyle
+geçti. `keepsContent` eklendi: düzeltilmiş cümle, orijinalin anlamlı
+kelimelerinin en az **%65**'ini taşımalı. Gözlenen kırpmalar %50-58
+bandındaydı, gerçek dilbilgisi düzeltmeleri %78'in üstünde.
+
+**2. Anlatım ölçütü iki yerden kaçırıyordu.**
+
+- Türkçe'de `-Iyor` eki gövdenin son ünlüsünü düşürür: "söyle" → "söylüyor",
+  "açıkla" → "açıklıyor". Yalnızca sözlük biçimine bakan ölçüt bunları
+  görmüyordu.
+- `folding(.diacriticInsensitive)` Türkçe için **yetmiyor**: `ı` bir diakritik
+  bileşim değil, bağımsız bir harf ve olduğu gibi kalıyor. "açıklıyor" →
+  "acıklıyor" oluyor, `acikl` gövdesine uymuyor.
+
+Gerçek külliyatta (57 madde) ölçüt **6 → 11** anlatım sayıyor. Çıktı
+değişmiyor: on birinin hepsi olgu taşıyor ve `isEmptyNarration` doğru biçimde
+hiçbirini atmıyor. Kazanç ölçümün dürüstlüğü ve "…hakkında bilgi veriyor"
+türü içi boş biçimlerin bundan sonra yakalanması.
+
+`words(of:)` **dokunulmadan bırakıldı** — alıntı bağının eşiği (§25.2) onunla
+ölçüldü; düzeltme yalnızca konuşma fiili yoluna (`plainWords`) uygulandı.
+
+### 34.3 §33.4'te düzeltme
+
+§33.4'teki "sonra" sütunundaki anlatım oranı **%16 değil %19**: o sayı bozuk
+ölçütle alınmıştı. "Önce" sütunu (%50) betikle ve doğru fiil listesiyle
+ölçüldüğü için geçerli.
+
+### 34.4 Geriye ne kaldı
+
+Kalan anlatım, **olgu taşıyan** sarmallı cümleler. Ne model açıyor ne kural.
+Sürümden bağımsız denenmemiş tek fikir: kısıtı isteme değil **şemaya** koymak
+(madde tek bir cümle yerine iki alan olarak istenirse — "ne oldu" ve "sonucu" —
+aktarma cümlesi kurulacak yer kalmaz). Küçük modelde yapı, yönergeden güçlüdür;
+ölçülmedi.

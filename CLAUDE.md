@@ -269,10 +269,22 @@ Bu sıra asla değişmez:
   bloğu (`summaryInstructions` — örnek **istemin gövdesine konmaz**, oradan
   çıktıya madde olarak sızıyor, §24.4'ün aynısı) ve kod (`isEmptyNarration`,
   `isPromptEcho`, konuşmacı öneki ve tırnak temizliği).
+- **Son kontrol adımına (`polished`) anlatım düzeltmesi eklenmez.** Denendi
+  ve ölçüldü (RESEARCH.md §34): model "X, Y olduğunu belirtti" cümlesini
+  olguya çevirmiyor — toplu istemde fiili eşanlamlısıyla değiştiriyor, tek
+  satırda adı atıp fiili bırakıyor (öznesiz anlatım, orijinalinden kötü),
+  dilbilgisi istemine kural eklenince de cümlenin **başını kesiyor**. Adım
+  dilbilgisiyle sınırlı kalır ve `keepsContent` özneyi silen "düzeltme"yi
+  reddeder.
+- **Türkçe karşılaştırmada `folding(.diacriticInsensitive)` yetmez:** `ı`
+  diakritik bileşim değil, bağımsız harftir ve olduğu gibi kalır. Konuşma
+  fiili yolu bu yüzden `plainWords` kullanır (`ı` → `i` sonra folding).
+  `words(of:)` **dokunulmadı** — alıntı bağının eşiği onunla ölçüldü (§25.2).
 - **Anlatım ölçütü gövde değil, gövde + çekim.** "paylaştı" anlatımdır,
   "paylaş" gerçek bir iştir. `words(of:)` kelimeyi 5 harfe kırptığı için
   `isStatusNotTask` yıllarca hiç çalışmamıştı — o filtre **ham kelimeye**
-  bakar, gövdelenmişe değil (§33.2).
+  bakar, gövdelenmişe değil (§33.2). Çekim listesine `-Iyor`'un ünlü düşürmüş
+  biçimi de girer ("söylüyor", "açıklıyor" — §34.2).
 - **Birleştirmeye konu başlıkları gönderilmez, yalnızca maddeler.** 11 konulu
   gerçek bir toplantıda kararların altısı da başlığın kopyasıydı (§33.2).
 - **Aksiyonlar kanıtına göre sıralanıp 8'de kesilir.** Parça başına 3 aksiyon ×

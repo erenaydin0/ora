@@ -128,6 +128,55 @@ struct SummaryShapeTests {
         #expect(cleaned == ["Gerçek bir madde."])
     }
 
+    // MARK: - Son kontrol güvencesi
+
+    /// **Güvencedeki delik:** `facts(in:)` cümle başındaki büyük harfli
+    /// kelimeyi özel isim saymaz, bu yüzden özneyi silen bir "düzeltme"
+    /// denetimden geçiyordu. Ölçümde görüldü (RESEARCH.md §34).
+    @Test
+    func cumleninBasiniKesenDuzeltmeReddedilir() {
+        let original = "SDP'nin ürünü birkaç yıl içinde datasız hissettirecek kapasiteye ulaşacak."
+        let truncated = "Datasız hissettirecek kapasiteye ulaşacak."
+        #expect(!FoundationIntelligence.keepsContent(original, truncated))
+        #expect(!FoundationIntelligence.keepsFacts(original, truncated))
+    }
+
+    @Test
+    func gercekDilbilgisiDuzeltmesiGecer() {
+        let original = "Veri entegrasyonu sırasına göre kullanılacak, her iki sistemden de "
+            + "veri geliyorsa hangisini kullanılacağına karar verilecek."
+        let fixed = "Veri entegrasyonu sırasına göre kullanılacak; her iki sistemden de "
+            + "veri geliyorsa hangisinin kullanılacağına karar verilecek."
+        #expect(FoundationIntelligence.keepsFacts(original, fixed))
+    }
+
+    /// Kısa cümlede kelime örtüşmesi ölçütü çalışmaz; olgu denetimi yeter.
+    @Test
+    func kisaCumleOlcumDisi() {
+        #expect(FoundationIntelligence.keepsContent("Panel açıldı.", "Panel açıldı"))
+    }
+
+    // MARK: - Konuşma fiili biçimleri
+
+    /// Türkçe'de `-Iyor` eki gövdenin son ünlüsünü düşürür: "söyle" →
+    /// "söylüyor". Yalnızca sözlük biçimine bakan ölçüt bu üçünü hiç
+    /// görmüyordu ve anlatım sayımı olduğundan düşük çıkıyordu (§34).
+    @Test
+    func unluDusmeliCekimlerDeAnlatimdir() {
+        #expect(FoundationIntelligence.isNarration("Mert Pamuk, orta 90 olarak normalize ettiklerini söylüyor"))
+        #expect(FoundationIntelligence.isNarration("Levenshtein algoritmasını açıklıyor"))
+        #expect(FoundationIntelligence.isNarration("Ürün hakkında bilgi istiyor"))
+    }
+
+    /// Gövdenin kendisi (emir kipi) anlatım değildir — kısaltılmış biçim
+    /// eklendikten sonra da böyle kalmalı.
+    @Test
+    func emirKipiAnlatimDegil() {
+        #expect(!FoundationIntelligence.isNarration("Webinar lead listesini paylaş"))
+        #expect(!FoundationIntelligence.isNarration("Toplantı davetini gönder"))
+        #expect(!FoundationIntelligence.isNarration("Raporu hazırla"))
+    }
+
     // MARK: - Konuşmacı satırı
 
     /// İçe aktarılan dökümde satırlar gerçek adlarla başlıyor; orada

@@ -384,16 +384,30 @@ nonisolated struct FoundationIntelligence: Intelligent {
     /// Şimdiki zaman ("kontrol ediliyor", "çalışıyor") bir görev değil, durum
     /// bildirir. Ölçüldü (RESEARCH.md §23.9): anlatım ağırlıklı bir toplantıda
     /// üretilen 12 "aksiyon"un çoğu bu kalıptaydı.
+    /// Konuşma fiili denetiminin kelime listesi.
+    ///
+    /// `folding(.diacriticInsensitive)` Türkçe'de **yetmiyor**: `ı` bir
+    /// diakritik bileşim değil, bağımsız bir harftir ve olduğu gibi kalır.
+    /// "açıklıyor" → "acıklıyor" oluyor ve `acikl` gövdesine uymuyordu — üç
+    /// ölçüt de bu yüzden sessizce kaçırıyordu (RESEARCH.md §34).
+    ///
+    /// Yalnızca bu yol düzeltildi; `words(of:)` dokunulmadan bırakıldı çünkü
+    /// alıntı bağının eşiği onunla ölçüldü (§25.2).
+    static func plainWords(of text: String) -> [String] {
+        text.lowercased(with: Locale(identifier: "tr_TR"))
+            .replacingOccurrences(of: "ı", with: "i")
+            .split { !$0.isLetter && !$0.isNumber }
+            .map { String($0.folding(options: .diacriticInsensitive,
+                                     locale: Locale(identifier: "tr_TR"))) }
+    }
+
     static func isStatusNotTask(_ gorev: String) -> Bool {
         // **Ham kelimeye bakılır.** `words(of:)` her kelimeyi 5 harfe kırpıyor
         // (Türkçe ek kuyruğunu atmak için) ve tam da aradığımız eki siliyordu:
         // "açıklıyor" → "acikl". Ölçüldü (RESEARCH.md §33): bu yüzden filtre
         // pratikte hiç çalışmıyordu ve gerçek bir toplantıda üretilen 8
         // aksiyonun 8'i anlatım cümlesiydi.
-        let plain = gorev.lowercased(with: Locale(identifier: "tr_TR"))
-            .split { !$0.isLetter && !$0.isNumber }
-            .map { String($0.folding(options: .diacriticInsensitive,
-                                     locale: Locale(identifier: "tr_TR"))) }
+        let plain = Self.plainWords(of: gorev)
         guard let last = plain.last else { return true }
         // Şimdiki zaman: "kontrol ediliyor"
         if last.hasSuffix("yor") || last.hasSuffix("yorlar") { return true }
@@ -422,13 +436,23 @@ nonisolated struct FoundationIntelligence: Intelligent {
     /// "bilgi verdi" / "bilgi istedi" iki kelimedir; "ver" gövdesi tek başına
     /// aranırsa "veri" ve "verildi" de yanar, bu yüzden yalnızca "bilgi"nin
     /// ardından sayılır.
+    /// Gövdelerin çekimde görünen biçimleri. Türkçe'de `-Iyor` eki gövdenin
+    /// son ünlüsünü düşürür: "söyle" → "söylüyor", "açıkla" → "açıklıyor",
+    /// "iste" → "istiyor". Yalnızca sözlük biçimine bakan ilk sürüm bu üçünü
+    /// **hiç görmüyordu** ve §33'ün anlatım sayımı olduğundan düşük çıkmıştı
+    /// (RESEARCH.md §34).
+    static let speechPrefixes: [String] = speechStems.flatMap { stem -> [String] in
+        guard let last = stem.last, "aeıioöuü".contains(last), stem.count > 3 else { return [stem] }
+        return [stem, String(stem.dropLast())]
+    }
+
     static func reportsSpeech(_ words: [String]) -> Bool {
         guard var last = words.last else { return false }
         for plural in ["lar", "ler"] where last.hasSuffix(plural) && last.count > plural.count + 2 {
             last = String(last.dropLast(plural.count))
         }
         let inflections = Self.pastEndings + ["yor"]
-        for stem in Self.speechStems where last.hasPrefix(stem) && last.count > stem.count {
+        for stem in Self.speechPrefixes where last.hasPrefix(stem) && last.count > stem.count {
             guard inflections.contains(where: { last.hasSuffix($0) }) else { continue }
             // "ver" ve "iste" ancak "bilgi"nin ardından konuşma fiilidir.
             if stem == "ver" || stem == "iste" {
@@ -442,10 +466,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
     /// Madde bilgi mi taşıyor, konuşmayı mı anlatıyor? Konu maddelerinde tek
     /// başına **atma gerekçesi değildir** (bkz. `isEmptyNarration`).
     static func isNarration(_ text: String) -> Bool {
-        reportsSpeech(text.lowercased(with: Locale(identifier: "tr_TR"))
-            .split { !$0.isLetter && !$0.isNumber }
-            .map { String($0.folding(options: .diacriticInsensitive,
-                                     locale: Locale(identifier: "tr_TR"))) })
+        reportsSpeech(plainWords(of: text))
     }
 
     /// Yeniden üretimde örnekleme ayarı. Varsayılan geçişte hiçbir seçenek
@@ -852,6 +873,11 @@ nonisolated struct FoundationIntelligence: Intelligent {
             .map { "\($0.offset + 1). \($0.element)" }
             .joined(separator: "\n")
 
+        // **Bu adıma anlatım düzeltmesi eklenmez.** Denendi ve ölçüldü
+        // (RESEARCH.md §34): model "X, Y olduğunu belirtti" cümlesini olguya
+        // çevirmiyor — ya hiç dokunmuyor, ya fiili eşanlamlısıyla değiştiriyor,
+        // ya da yalnızca adı atıp öznesiz bir anlatım cümlesi bırakıyor.
+        // Adım dilbilgisiyle sınırlı kalır.
         let prompt = """
             Fix the grammar of the following numbered Turkish sentences.
             Rules:
@@ -897,7 +923,28 @@ nonisolated struct FoundationIntelligence: Intelligent {
         guard ratio > 0.5, ratio < 2 else { return false }
 
         let haystack = normalized(candidate)
-        return facts(in: original).allSatisfy { haystack.contains($0) }
+        guard facts(in: original).allSatisfy({ haystack.contains($0) }) else { return false }
+        return keepsContent(original, candidate)
+    }
+
+    /// Düzeltme cümlenin **başını kesmiş** mi?
+    ///
+    /// `facts(in:)` cümle başındaki büyük harfli kelimeyi özel isim saymaz
+    /// (her cümle büyük harfle başlar) — bu, özneyi silen bir "düzeltme"nin
+    /// güvenceden geçmesi demek. Ölçümde görüldü (RESEARCH.md §34): model
+    /// nazikçe zorlandığında "SDP'nin ürünü … ulaşacak" cümlesini "Datasız …
+    /// ulaşacak"a indirdi ve olgu denetimi bunu yakalamadı.
+    ///
+    /// Ölçüt kelime örtüşmesi: düzeltilmiş cümle, orijinalin anlamlı
+    /// kelimelerinin en az bu kadarını taşımalı. Gözlenen kırpmalar %50-58
+    /// bandındaydı; gerçek dilbilgisi düzeltmeleri %78'in üstünde kaldı.
+    static let contentRetention = 0.65
+
+    static func keepsContent(_ original: String, _ candidate: String) -> Bool {
+        let source = Set(words(of: original))
+        guard source.count >= 4 else { return true }
+        let kept = source.intersection(Set(words(of: candidate)))
+        return Double(kept.count) / Double(source.count) >= contentRetention
     }
 
     /// Sayılar ve cümle başında olmayan büyük harfli kelimeler.
