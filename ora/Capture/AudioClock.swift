@@ -66,17 +66,9 @@ nonisolated final class MonoResampler {
                                                   frameCapacity: capacity)
         else { return [] }
 
-        var supplied = false
+        let input = SingleShotInput(inputBuffer)
         var error: NSError?
-        converter.convert(to: outputBuffer, error: &error) { _, status in
-            if supplied {
-                status.pointee = .noDataNow
-                return nil
-            }
-            supplied = true
-            status.pointee = .haveData
-            return inputBuffer
-        }
+        converter.convert(to: outputBuffer, error: &error) { _, status in input.next(status) }
         if let error {
             Log.warning(.capture, "Yeniden örnekleme hatası: \(error.localizedDescription)")
             return []

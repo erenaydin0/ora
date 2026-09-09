@@ -1898,3 +1898,72 @@ noktası yok; fırlatan Task uyarısı (SE-0520) — 54 `Task {`'in tamamı zate
 anlamsız. Bedel tarafı ise gerçek: Xcode 27 = macOS 27 SDK, yani bu dosyadaki
 ölçümlerin yeniden koşturulması. Geçiş, Xcode 27 kararlıya çıktığında ve
 gerekçesi **macOS 27 uyumluluğu** olduğunda yapılır.
+
+## 31. `AVAudioConverter` girdi bloğu: uyarı yanlış pozitifti
+
+**Tarih:** 2026-09-09 · Swift 6.3.3
+
+Örnekleme oranı dönüşümü `AVAudioConverter`ın **blok formunu** zorunlu kılıyor
+(`convert(to:error:withInputFrom:)`). Swift bu bloğu `@Sendable` olarak içe
+aktarıyor, dolayısıyla iki çağrı yerinde (`MonoResampler.resample`,
+`SpeechTranscription.convert`) altı uyarı veriyordu: yakalanan `supplied`
+bayrağına başvuru ve onun değiştirilmesi "eşzamanlı koşan kodda", artı
+`AVAudioPCMBuffer`ın Sendable olmaması. Üstüne iki "add `@preconcurrency`"
+notu — toplam 8 uyarı, ikisi de projenin en eski uyarılarıydı.
+
+### 31.1 Ölçüm: eşzamanlılık yok
+
+Bloğun içinden `pthread_self()` kaydedildi ve `convert` döndükten sonra ayrı
+bir sayaç açıldı (48 kHz → 16 kHz mono, ora'daki desenin aynısı):
+
+| Girdi | Blok çağrısı | Aynı şerit | `convert` döndükten sonra çağrı |
+|---|---|---|---|
+| 1024 frame | 2 | evet | 0 |
+| 16.000 frame | 2 | evet | 0 |
+| 3 frame | 2 | evet | 0 |
+| arka plan kuyruğundan, 4800 frame | 2 | evet | 0 |
+
+Blok **çağıranın şeridinde** ve `convert` dönmeden **önce** koşuyor; arka plan
+kuyruğundan çağrıldığında da öyle. Yani uyarının varsayımı yanlış.
+
+**Bayrak yine de gerekli:** blok iki kez çağrılıyor — bir kez tamponu vermek,
+bir kez `.noDataNow` demek için. Bayrağı silerek uyarıdan kurtulmak mümkün
+değil, çünkü ikinci çağrıda tampon tekrar verilirse dönüştürücü aynı sesi iki
+kez işler.
+
+Çözüm bu yüzden bastırma değil, güvenceyi yazıya dökmek oldu:
+`ora/Capture/SingleShotInput.swift` — tamponu ve bayrağı taşıyan,
+gerekçesi belgelenmiş `@unchecked Sendable` küçük bir tip. İki çağrı yeri de
+tek satıra indi (`{ _, status in input.next(status) }`) ve **8 uyarının hepsi**
+kalktı; `@preconcurrency` notları da, altındaki gerçek tanılar bitince
+kendiliğinden gitti. Geriye `TranscriptionLocale`'deki 4 alakasız
+"`try?` sonucu kullanılmıyor" uyarısı kaldı.
+
+Güvence `oraTests/AudioConversionTests` ile denetleniyor: blok başka bir şeride
+geçerse veya `convert` döndükten sonra çağrılırsa `@unchecked Sendable` yalan
+olur ve test düşer.
+
+### 31.2 Yol boyunca çıkan ölçüm: dönüştürücü ilk çağrıda eksik veriyor
+
+Aynı `MonoResampler` örneğiyle 4800 frame'lik ardışık çağrılar (48 → 16 kHz,
+ideal 1600):
+
+```
+çağrı  1: 1360      çağrı  5: 1632      çağrı  9: 1365
+çağrı  2: 1632      çağrı  6: 1632      çağrı 10: 1632
+çağrı  3: 1632      çağrı  7: 1632      çağrı 11: 1632
+çağrı  4: 1632      çağrı  8: 1632      çağrı 12: 1632
+toplam 19.045 / ideal 19.200  (%0,8 eksik)
+```
+
+İlk çağrı filtre gecikmesi yüzünden 240 frame eksik veriyor; sonraki çağrılar
+`resample`'ın ayırdığı `+32` frame'lik başlıkla borcu kapatıyor. Açık **%1'in
+altında kalıyor ve büyümüyor** — 16 kHz'de ~15 ms. Örnekler kaybolmuyor,
+geciktiriliyor; `StereoRecordingWriter` mutlak frame konumuna yazdığı ve kısa
+kalan kanalı sessizlikle doldurduğu için bu, kayma değil ihmal edilebilir bir
+boşluk olarak görünür.
+
+Bu **davranış değiştirilmedi** — §31'in konusu uyarılardı ve düzeltme
+davranışı koruyor (ağaç dönüşüm mantığı bakımından birebir aynı iş yapıyor).
+Kapasite başlığını büyütmek gerekip gerekmediği, ancak gerçek kayıtta
+hizalama ölçüldükten sonra karara bağlanacak bir sorudur (Faz 0).

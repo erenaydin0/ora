@@ -230,14 +230,9 @@ nonisolated final class SpeechTranscription: Transcribing {
         let capacity = AVAudioFrameCount((Double(buffer.frameLength) * ratio).rounded(.up)) + 1024
         guard let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity)
         else { return nil }
-        var supplied = false
+        let input = SingleShotInput(buffer)
         var error: NSError?
-        converter.convert(to: out, error: &error) { _, status in
-            if supplied { status.pointee = .noDataNow; return nil }
-            supplied = true
-            status.pointee = .haveData
-            return buffer
-        }
+        converter.convert(to: out, error: &error) { _, status in input.next(status) }
         if let error {
             Log.warning(.transcribe, "Format dönüşümü hatası: \(error.localizedDescription)")
             return nil

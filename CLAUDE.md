@@ -655,6 +655,11 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       `IsolationTests` ağır işin ana aktörün dışında koştuğunu ölçüyor
       (mutasyonla doğrulandı: işaret silinince test kırılıyor).
       48 test geçiyor, Release derlemesi temiz, yeni uyarı yok.
+      **`AVAudioConverter` uyarıları kapandı (RESEARCH.md §31):** girdi bloğu
+      ölçüldü — çağıranın şeridinde ve senkron koşuyor, yani 8 uyarının
+      varsayımı yanlıştı. `SingleShotInput` güvenceyi yazıya döküyor,
+      `AudioConversionTests` denetliyor. 51 test. Geriye `TranscriptionLocale`'
+      deki 4 alakasız "`try?` sonucu kullanılmıyor" uyarısı kaldı.
       **Swift 6.4'e geçilmedi:** yalnızca Xcode 27 beta'sında var, getirdiği
       ergonomi bu kod tabanında karşılık bulmuyor ve bedeli macOS 27 SDK'sına
       geçmek — yani §1-30 ölçümlerinin yeniden koşturulması (§30.6).
@@ -710,7 +715,9 @@ ora/Calendar/          — CalendarReader (EventKit, opt-in). Eşleştirme
                          Calendar `ora/Detect/`'e bağlanmaz
 ora/Capture/           — AudioCapture (orkestra), MicrophoneCapture,
                          SystemAudioTap, StereoRecordingWriter, AudioClock,
-                         RecordingRecovery, MeetingApps, Channel
+                         RecordingRecovery, MeetingApps, Channel,
+                         SingleShotInput (AVAudioConverter girdi bloğu —
+                         gerekçesi belgelenmiş `@unchecked Sendable`, §31)
 ora/Transcribe/        — SpeechTranscription (tam geçiş),
                          LiveTranscription (+ LiveTranscribing protokolü),
                          TranscriptionLocale (dil + otomatik seçim), Segment,
@@ -749,7 +756,9 @@ oraTests/              — swift-testing hedefi. `Support/Fakes.swift` yalnızca
                          okuyor ve testi makineye bağımlı kılıyordu.
                          `MeetingSwitchTests` RESEARCH §27'yi, `PipelineTests`
                          hattın kırılma noktalarını, `IsolationTests` ağır işin
-                         ana aktörün dışında koştuğunu (§30) denetler.
+                         ana aktörün dışında koştuğunu (§30),
+                         `AudioConversionTests` `AVAudioConverter` girdi
+                         bloğunun senkron kaldığını (§31) denetler.
 ```
 Testler `xcodebuild test -scheme ora` ile koşar (paylaşılan şema depoda).
 `probes/meeting_switch.swift` bu hedefe taşındı ve kaldırıldı.
