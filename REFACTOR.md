@@ -107,7 +107,7 @@ Her adım tek başına commit edilebilir ve uygulamayı çalışır durumda bır
 Sıra "en çok acıyan yer önce" değil, **"sonrakileri mümkün kılan önce"** ilkesine
 göredir.
 
-### Adım 0 — Emniyet ağı (önkoşul, atlanamaz)
+### Adım 0 — Emniyet ağı (önkoşul, atlanamaz) — ✅ tamam (`a6f377d`)
 
 - `oraTests` hedefi aç (swift-testing).
 - `detector`, `calendar`, `notifications` için init parametresi ekle. Protokol
@@ -118,7 +118,7 @@ göredir.
 
 Refactor'ın doğruluk ölçütü bu testlerdir.
 
-### Adım 1 — Pipeline'ı çıkar (asıl kazanç)
+### Adım 1 — Pipeline'ı çıkar (asıl kazanç) — ✅ tamam
 
 `ora/Pipeline/MeetingPipeline.swift`: `runFullPass`, `runIntelligence`,
 `compressAudioIfNeeded` buraya taşınır (~270 satır).
@@ -149,7 +149,7 @@ arayüze yalnızca o toplantı ekrandayken" kuralı korunur (CLAUDE.md, UI Kural
 
 İşlem hattı sırası (CLAUDE.md) değişmez; yalnızca yeri değişir.
 
-### Adım 2 — 15 kapıyı 1'e indir
+### Adım 2 — 15 kapıyı 1'e indir — ✅ tamam
 
 Controller hattın akışını dinler ve süzmeyi **tek yerde** yapar:
 
@@ -277,3 +277,54 @@ bağlanacağı yüzeyi açar. Faz 9'a bu başlıklarla giriliyorsa **bu üç ad�
 
 Adım 3-6 acil değildir. Kod bugünkü haliyle çalışıyor, yorumları gerekçeleriyle
 yazılmış ve §27 düzeltmesi doğru. Fırsat buldukça, tek tek, kendi commit'leriyle.
+
+---
+
+## 9. Adım 0-1-2 sonucu (2026-09-09)
+
+| Ölçüt | Önce | Sonra |
+|---|---|---|
+| `RecordingController` satır | 1114 | 958 |
+| `onScreen` çağrısı | **15** | **1** (+1 controller'ın kendi kontrolü) |
+| Test | yok | 13 test, `xcodebuild test -scheme ora` |
+| `Pipeline` ayrı katman | yok | `ora/Pipeline/` (363 satır) |
+
+Emniyet ağının gerçekten yakaladığı **ölçülerek** doğrulandı: `apply(_:)`
+içindeki tek kapı kaldırıldığında §27 testi kırılıyor
+(`"A genel bakış: …" == "B'nin kendi özeti"` başarısız).
+
+### Yol boyunca kapanan üç hata
+
+Hiçbiri planın hedefi değildi; hattı ayırmak ortaya çıkardı.
+
+1. **Takvim başlığı üretilmiş başlıkla eziliyordu.** Karar
+   `activeEvent == nil`'den okunuyordu; `activeEvent` yalnızca kayıt oturumu
+   boyunca doluydu, "Şimdi özetle" ve "Yeniden dene" yollarında her zaman nil.
+   Bu yollarda takvimden gelen ad Foundation Models'ın ürettiği adla
+   değiştiriliyordu — CLAUDE.md'nin başlık önceliği kuralının ihlali. Artık
+   toplantı kaydındaki `calendar_event_id`'den okunuyor.
+2. **`isTranscribing` hat koşarken false dönebiliyordu.** `stages` sözlüğünden
+   türetiliyordu ve `delete(_:)` satırı sözlükten silince hat hâlâ koşarken
+   yetki kapıları (düzeltme, elle özetleme, yeniden dene) açılıyordu. Artık
+   hattın kendi kaydından: `pipeline.isRunning`.
+3. **`runIntelligence(duration:)` parametresi hiç kullanılmıyordu** —
+   `MeetingMetrics` kaldırıldığında kalmış ölü bağ. Silindi.
+
+### Ölçüm sırasında düzeltilen doküman sapmaları
+
+- ARCHITECTURE.md'nin `PipelineStage` sözleşmesi hiç var olmamış bir tipi
+  tarif ediyordu; gerçek `PipelineStage` + `PipelineEvent` ile değiştirildi.
+- ARCHITECTURE.md ve CLAUDE.md hâlâ `MeetingMetrics`'e atıf yapıyordu; tip
+  kodda yok.
+
+### Kapsam dışı bırakılanlar
+
+- **Kullanıcının elle değiştirdiği başlık.** "Şimdi özetle" hâlâ üretilmiş
+  başlığı yazabilir; "yeniden adlandırıldı" diye bir işaret yok. Ayrı iş.
+- **`Pipeline`'ı `actor` yapmak.** Ağır iş zaten `Transcribing` ve
+  `Intelligent` içindeki asenkron API'lerde geçiyor; `@MainActor` kalması
+  davranışı birebir koruyor. Ayrı adım.
+- **Kalan 5 `selection == meetingID`.** Hepsi liste/CRUD tarafında
+  (`load`, `delete`, `relinkEvent`) — Adım 5'in konusu.
+- `startLive()`'daki iki gereksiz `await` uyarısı: refactor'dan önce de
+  vardı, dokunulmadı.

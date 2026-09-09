@@ -74,6 +74,8 @@ final class SlowIntelligence: Intelligent, @unchecked Sendable {
     /// Kaçıncı çağrıda hangi metinle çağrıldığı — "A'nın özeti A'nın
     /// metninden mi üretildi" kontrolü için.
     private(set) var summarizedTexts: [String] = []
+    /// Doluysa otomatik başlık üretimi bunu döndürür.
+    var generatedTitle: String?
 
     init(tag: String, step: Duration = .milliseconds(900)) {
         self.tag = tag
@@ -112,8 +114,10 @@ final class SlowIntelligence: Intelligent, @unchecked Sendable {
     }
 
     func answer(question: String, over segments: [Segment]) async throws -> String { "" }
-    func generateTitle(from segments: [Segment]) async -> String? { nil }
-    func generateTitle(from segments: [Segment], topics: [TopicSegment]) async -> String? { nil }
+    func generateTitle(from segments: [Segment]) async -> String? { generatedTitle }
+    func generateTitle(from segments: [Segment], topics: [TopicSegment]) async -> String? {
+        generatedTitle
+    }
 }
 
 /// Özetleme başarısız olur, noktalama da. Transkriptin korunduğunu ölçer.

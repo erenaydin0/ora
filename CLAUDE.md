@@ -447,6 +447,12 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
   arayüze yalnızca o toplantı ekrandayken yazılır, veritabanına her hâlükârda.
   Aşama **veritabanından türetilmez** — tek kaynağı hattın kendisidir
   (RESEARCH.md §27)
+- **Hat arayüze doğrudan yazmaz.** `MeetingPipeline` ürettiği her şeyi
+  `meetingID` taşıyan `PipelineEvent` olarak yayar; "kullanıcı hâlâ bu
+  toplantıya mı bakıyor" sorusu **tek yerde**, `RecordingController.apply(_:)`
+  içinde sorulur. Hattın ürettiği yeni bir alan eklerken controller'a property
+  değil, `PipelineEvent.Kind`'a bir vaka eklenir — o kapıyı çoğaltmak eski
+  hata sınıfını geri getirir (REFACTOR.md §2)
 - **Konuşma payı / ölü hava kartı yoktur.** Kanal başına iki kova kişi bilgisi
   taşımıyordu ve okuma akışını kesiyordu; `MeetingMetrics` kaldırıldı
 - Gradyan yok
@@ -580,6 +586,16 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       tam geçiş `AVAudioFile.read`'in dosya sonundaki `nilError`'ı yüzünden her
       kayıtta düşüyordu; düzeltildi. Başarısız veya yarım kalmış bir toplantı
       artık **"Yeniden dene"** düğmesiyle ham sesten yeniden işlenir.
+      **Refactor Adım 0-1-2 tamam (REFACTOR.md):** `oraTests` hedefi açıldı
+      (swift-testing, 13 test, `xcodebuild test -scheme ora`); işlem hattı
+      `ora/Pipeline/MeetingPipeline` olarak çıkarıldı ve `PipelineEvent`
+      yayıyor; hattın arayüze yazması **tek kapıya** indi
+      (`RecordingController.apply(_:)` — eskiden 15 `onScreen` çağrısı).
+      `RecordingController` 1114 → 958 satır. Yol boyunca kapanan iki hata:
+      takvim başlığı "Şimdi özetle"/"Yeniden dene" yollarında üretilmiş
+      başlıkla eziliyordu (karar artık `calendar_event_id`'den okunuyor) ve
+      `isTranscribing` hat koşarken toplantı silinince false dönüp yetki
+      kapılarını açıyordu (artık `pipeline.isRunning`). Adım 3-6 bekliyor.
     - Bekleyen:
       1. **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
@@ -610,7 +626,8 @@ ora.xcodeproj          — senkronize klasör grubu: ora/ altına eklenen dosya
 Config/Info.plist      — izin metinleri (INFOPLIST_FILE ile bağlı)
 Config/ora.entitlements— sandbox KAPALI (§29.4); ağ girişi YOK (kural #3'ün garantisi)
 ora/oraApp.swift       — @main + AppDelegate (dizin hazırlığı, açık mod sabiti)
-ora/Core/              — AppPaths, Log, OraError, MeetingMetrics, OraSettings,
+ora/Core/              — AppPaths, Log, OraError, OraSettings (tüm kullanıcı
+                         ayarları — dil dahil),
                          PowerState, AudioArchive (boyut/sıkıştırma/silme),
                          GlobalHotKey (⌘⇧R, Carbon),
                          LoginItem (SMAppService — girişte başlat)
@@ -626,9 +643,15 @@ ora/Intelligence/      — FoundationIntelligence (noktalama + map-reduce özet)
                          Ozet (@Generable şemalar), TranscriptChunker, Intelligent
 ora/Store/             — OraDatabase (şema + migration), MeetingStore (tek kapı),
                          Records (GRDB kayıtları), VocabularyStore
+ora/Pipeline/          — MeetingPipeline (işlem sırası: tam geçiş, noktalama,
+                         özet, depolama), PipelineEvent + PipelineStage.
+                         **Görünüm durumu tanımaz**; ürettiği her şeyi
+                         `meetingID` taşıyan olay olarak yayar
 ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          MenuBarView (taşıyıcı yüzey), OnboardingView,
-                         RecordingController, MeetingSidebar, MeetingDetail,
+                         RecordingController (hattın olaylarını arayüz
+                         durumuna çevirir — süzme tek yerde, `apply(_:)`),
+                         MeetingSidebar, MeetingDetail,
                          TranscriptView, SummaryView, ActionBoardView,
                          AudioPlayback (+ PlaybackBar), MeetingExport, SettingsView,
                          MeetingNotifications, ChatInspector,

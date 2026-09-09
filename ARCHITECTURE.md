@@ -22,6 +22,11 @@ Intelligence, Calendar, Store}`. Alt modüller birbirini **çağırmaz**; veriyi
 taşır. Bu kural, Transcribe'ın Intelligence'a veya Capture'ın Store'a
 sızmasını engeller.
 
+Faz 1-8 boyunca `Pipeline` ayrı bir tip değildi; rolünü `RecordingController`
+üstleniyordu. REFACTOR.md Adım 1-2 ile `ora/Pipeline/` altına çıkarıldı ve
+bağımlılık yönü kodda da gerçek oldu. Kayıt oturumu, liste/CRUD ve takvim
+eşleştirmesi hâlâ controller'da (REFACTOR.md Adım 3-6).
+
 ---
 
 ## Modül sözleşmeleri
@@ -113,8 +118,9 @@ protocol Intelligent {
   tekrarlayan bir durumdur (RESEARCH.md §15.1). Noktalama başarısız olursa
   orijinal metin korunur; bir parçanın özeti başarısız olursa ham metnin başı
   birleştirmeye girer — hiçbir bölüm sessizce kaybolmaz
-- Sağlık metrikleri (konuşma payı, ölü hava) burada değil, Pipeline'da
-  zaman damgalarından **hesaplanır** — LLM'e sayı sordurma
+- Sağlık metrikleri (konuşma payı, ölü hava) **üretilmez**: kanal başına iki
+  kova kişi bilgisi taşımıyordu ve okuma akışını kesiyordu; `MeetingMetrics`
+  kaldırıldı (CLAUDE.md, UI Kuralları)
 
 ### Calendar
 ```swift
@@ -157,19 +163,53 @@ protocol Storing {
   `action_items` + `topic_segments`, ardından ses dosyası
 
 ### Pipeline
+`ora/Pipeline/` — `MeetingPipeline` + `PipelineEvent`.
 ```swift
-enum PipelineStage { case recording(liveTranscript: Bool), transcribing(Double),
-                          punctuating, summarizing(Double), done,
-                          deferred(reason: DeferReason), failed(OraError) }
-enum DeferReason { case lowPowerMode, thermalPressure }
+enum PipelineStage { case idle, preparingLanguage, downloadingLanguage(Double),
+                          transcribing(Double), punctuating(Double),
+                          summarizing(Double), done }
+
+struct PipelineEvent { let meetingID: Int64; let kind: Kind }
+extension PipelineEvent {
+    enum Kind {
+        // seçimden bağımsız
+        case stage(PipelineStage), failed(OraError), storeChanged, finished(title: String)
+        // yalnızca o toplantı ekrandayken arayüze yazılır
+        case transcript([Segment]), summary(Ozet?, [TopicSegment]), actions([MeetingAction])
+        case audio(URL), notice(String), deferred(PowerState.DeferReason)
+        case deferCleared, retryable(URL)
+    }
+}
+@MainActor final class MeetingPipeline {
+    var isRunning: Bool { get }                        // herhangi bir toplantı işleniyor mu
+    func observe(_ handler: @escaping (PipelineEvent) -> Void)
+    func fullPass(meetingID: Int64, url: URL) async
+    func summarize(meetingID: Int64, segments: [Segment], variation: Bool) async
+}
 ```
-- Kayıt bitince işlem **hemen** başlar. Tek istisna `deferred`:
+- **Pipeline görünüm durumu tanımaz.** `selection` diye bir kavramı yoktur ve
+  hangi toplantının ekranda olduğunu bilmez. Her olay `meetingID` taşır; süzmeyi
+  arayüz **tek yerde** yapar (`RecordingController.apply(_:)`). Eskiden hat
+  doğrudan yayınlanan duruma yazıyordu ve her yazımın önünde elle konmuş bir
+  `onScreen` kapısı gerekiyordu — 15 tane olmuştu ve unutulan her biri sessiz
+  bir toplantılar-arası sızıntıydı (RESEARCH.md §27, REFACTOR.md §2)
+- Aşama **toplantı başına** tutulur, uygulama genelinde tek bir aşama yoktur.
+  Aşama veritabanından **türetilmez**: tek kaynağı hattın kendisidir
+- Olay dağıtımı **senkron ve `@MainActor`**: sıra korunur ve `await` döndüğünde
+  arayüz durumu zaten güncellenmiştir. `AsyncStream` bir tur gecikme koyup
+  "işlem bitti ama ekran hâlâ eski" penceresi açardı
+- Dinleyici birden çok olabilir: arayüzün yanı sıra hafıza, otomasyon ve MCP
+  buraya bağlanır — controller'a yeni property eklemeden
+- Kayıt bitince işlem **hemen** başlar. Tek istisna `.deferred`:
   `ProcessInfo.isLowPowerModeEnabled` veya `.thermalState >= .serious` ise
   kullanıcıya sorulur. Şarj durumu izlenmez, ayrı bir tetikleyici alt sistemi yoktur
 - İşlem hattı sırası CLAUDE.md'de sabittir ve değiştirilmez
-- Her aşama UI'a `AsyncStream<PipelineStage>` ile yayınlanır — sessiz bekleme yok
 - Bir aşama başarısız olursa sonraki aşamalar çalışmaz, ham ses **korunur**,
-  kullanıcıya Türkçe hata + "Tekrar dene" gösterilir
+  kullanıcıya Türkçe hata + "Yeniden dene" gösterilir
+- `Pipeline` hâlâ `@MainActor`: ağır işin tamamı `Transcribing` ve `Intelligent`
+  içindeki zaten asenkron API'lerde geçer, bu tip yalnızca sırayı yürütür.
+  Dış dünyaya dokunan iki nokta (`prepareLocale`, `detectLocale`) ve
+  `deferReason` init'ten geçirilir — testte kapatılır
 
 ---
 
@@ -199,6 +239,9 @@ Sessiz `catch { }` yasaktır.
 ## Test edilebilirlik
 - `AudioCapturing`, `Transcribing`, `Intelligent`, `Storing` protokoldür;
   testlerde sahte (fake) uygulamalar kullanılır
+- `oraTests` hedefi (swift-testing) regresyon ağıdır:
+  `xcodebuild test -scheme ora`. Yalnızca dış dünyaya dokunan katmanlar
+  sahtelenir; veritabanı bellek içi SQLite ile **gerçektir**
 - `probes/` altındaki Swift dosyaları canlı API doğrulaması içindir;
   bir API'nin davranışından şüphelenirsen önce probe'u koştur
 - Altın küme: 3-5 gerçek Türkçe kayıt + elle yazılmış doğru metin (Faz 0 çıktısı)
