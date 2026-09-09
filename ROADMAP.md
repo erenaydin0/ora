@@ -206,7 +206,11 @@ gerçek kullanımda değerlendirilecek. Bu fazın işi kıyaslama değil, gerçe
       "her zaman kaydet" bugünkü ihtiyacı karşılıyor
 - [ ] **Konuşmacı ayrıştırma (diarization)** — ROADMAP'te zaten *isteğe bağlı*
       işaretliydi. Apple API'si yok; kanal düzeyi ayrım senaryoların çoğunu
-      karşılıyor. Yapılmadı, FALLBACK.md §3 açık duruyor
+      karşılıyor. Model yolu ölçüm bekliyor (COMPETITION.md §4.13),
+      FALLBACK.md §3 açık duruyor
+- [x] **Elle konuşmacı adlandırma** — diarization'ın yerine değil, önüne:
+      transkript satırından iki kapsamla atama, katılımcı eşitlemesi, sözlük
+      beslemesi. Diarization gelirse aynı arayüz onun düzeltme katmanı olur
 
 **Faz 6'da bilinçli bırakılanlar / doğrulanmayanlar:**
 - **Gerçek bir toplantıyla uçtan uca algılama denenmedi.** CoreAudio dinleyici

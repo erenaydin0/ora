@@ -219,7 +219,7 @@ notu üret. Kural #1'i ihlal etmez (kayıt yok). Ama pil/termal kontrolü
 **Neden:** Rakiplerin bulut otomasyonlarının ora'da mümkün olan tek biçimi bu
 ve kural #3'ü hiç zorlamıyor.
 
-### 4.13 Diarization — **karar gerektirir**
+### 4.13 Diarization — **seçenek 3 yapıldı, 1 ölçüm bekliyor**
 **Durum:** ora'nın en büyük kalite açığı. Kanal ayrımı yalnızca
 "Ben / Katılımcı" veriyor; uzak taraftaki 4 kişi tek isim altında.
 Bu yüzden aksiyonlardaki `kisi` çoğunlukla "belirtilmedi" ve ürünün en
@@ -237,6 +237,41 @@ değerli çıktısı (kime ne düştü) yarım kalıyor.
    "Bu Ayşe" demek. Ucuz, dürüst, hiç yanlış tahmin yok. Vocabulary'yi de besler.
 **Öneri:** Önce 3'ü yap (bir gün), sonra gerçek bir Teams kaydında 1'i
 `probes/` altında ölç (DER). Ölçüm olmadan bağımlılık eklenmesin.
+
+**Durum:** **3 yapıldı** — transkript satırından iki kapsamla (satır / o
+etiketin tümü) konuşmacı adlandırma, `meeting_participants(source =
+'transcript')` eşitlemesi, sözlük beslemesi ve Özet'te "davetli · konuşan"
+ayrımı. Şema değişmedi; `transcripts.speaker` zaten serbest metindi.
+Adlandırılan kişiler özet **isteminde** kullanılmaz, yalnızca
+`resolvedPerson` doğrulamasına girer (§23.5'in ölçümü korunur).
+
+**1 ve 2 için hazırlık — model karşılaştırması (Eylül 2026, dış kaynak):**
+
+| Seçenek | DER (AMI SDM, 16 toplantı) | Hız | Boyut | Bedeli |
+|---|---|---|---|---|
+| FluidAudio · pyannote community-1 (CoreML, offline) | **%10,6** / JER %17,4; 12/16 toplantıda konuşmacı sayısı doğru, deterministik | ~65× RTFx (M5 Pro), 0,38 GB tepe RAM | model deposu 129 MB | Apache 2.0; 2. SPM paketi; ASR+TTS+VAD dahil geniş yüzey; modeller HF'den iniyor (`offlineMode` ile gömülebilir) |
+| FluidAudio · LS-EEND (streaming) | %20,7 | 74× | — | canlı diarization; ora'da gereksiz |
+| FluidAudio · Sortformer | %31,7 (offline uzun kayıtta %56,7) | 126× | — | **uygun değil** |
+| Argmax SpeakerKit | 13 veri kümesinde pyannote paritesi (DER yayınlanmamış) | ~240× (4 dk ≈ 1 sn) | **~10 MB** | dar yüzey, macOS 13+; **lisans netleşmeli** — `argmax-oss-swift` MIT ve "anahtar gerekmez" diyor, tanıtım yazısı "abonelik" diyor |
+| Kendi CoreML dönüşümü (FALLBACK §3.3) | pyannote'un kendisi | benzer | ~10–30 MB gömülü | SPM bağımlılığı **yok**, ağ **yok**; powerset çözümleme + gömüleme + kümeleme bize kalır |
+
+**Ölçümün neyi yanıtlaması gerekiyor:** yukarıdaki DER'ler İngilizce ve oda
+mikrofonu. ora'nın ch1'i Teams'in **codec'ten geçmiş, mixdown edilmiş,
+gürültü bastırması ve AGC uygulanmış** 16 kHz mono akışıdır — gömüleme
+kalitesini bozan tam olarak bu işlemler. Dil sorun değil (diarization
+akustiktir), ses zinciri sorundur.
+
+**Hizalama kelime düzeyinde yapılmalı.** `DictationTranscriber` segmentleri
+`.frequentFinalization` ile 5–10 saniyeliktir ve **iki turu birden**
+kapsayabilir; segmente tek konuşmacı atayan örtüşme hesabı orada yanlış
+etiketler. `Segment.words` (`.audioTimeRange`) zaten elimizde: konuşmacı
+değişiminde segment bölünür, kısa araya girmeler için minimum tur eşiği konur.
+
+**Hangi kanalın diarize edileceği kanıtla seçilir**, kanal indeksiyle değil:
+sistem kanalı sessizse (yüz yüze toplantı) bütün konuşmacılar mikrofon
+kanalındadır. Ayrıca `MicrophoneCapture` yankı bastırma **kullanmıyor** —
+kullanıcı kulaklık takmıyorsa karşı taraf ch0'a sızar; diarization gelince bu
+görünür hale gelir ve ölçülmesi gerekir.
 
 ### 4.14 Ses dosyası içe aktarma — **karar gerektirir**
 **Rakip:** MacWhisper'ın çekirdeği (sürükle-bırak, toplu işleme, izlenen klasör).
@@ -360,4 +395,6 @@ Granola'nın kazandığı yer burası, ve ora bunu bulutsuz yapabilir.*
 - [MacWhisper — changelog, pricing, Pro features (2026)](https://whipscribe.com/tools/macwhisper)
 - [Fireflies vs Otter karşılaştırması](https://www.sybill.ai/blogs/fireflies-vs-otter-ai)
 - [FluidAudio — Swift/CoreML diarization](https://github.com/FluidInference/FluidAudio)
+- [FluidAudio ölçümleri](https://github.com/FluidInference/FluidAudio/blob/main/Documentation/Benchmarks.md)
+- [Argmax SpeakerKit (argmax-oss-swift)](https://github.com/argmaxinc/argmax-oss-swift)
 - [Zapier — What is Granola](https://zapier.com/blog/granola-ai/)

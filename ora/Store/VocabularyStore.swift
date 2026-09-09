@@ -23,6 +23,7 @@ nonisolated struct VocabularyStore: Sendable {
             switch source {
             case "correction": "düzeltmeden"
             case "calendar":   "takvimden"
+            case "speaker":    "konuşmacıdan"
             default:           "elle eklendi"
             }
         }

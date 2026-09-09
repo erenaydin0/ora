@@ -101,6 +101,7 @@ struct MeetingDetail: View {
                                 ?? (recorder.canSummarize
                                     ? "Bu toplantının özeti yok." : nil),
                             participants: recorder.calendarParticipants,
+                            speakers: recorder.speakingParticipants,
                             onSummarizeNow: recorder.deferReason != nil
                                 || recorder.canSummarize
                                 ? { Task { await recorder.summarizeNow() } } : nil,
@@ -145,6 +146,18 @@ struct MeetingDetail: View {
                                 Task { await recorder.setSpeaker(segment, to: speaker) }
                               }
                             : nil,
+                        onRelabelAll: recorder.canCorrect
+                            ? { label, channel, speaker in
+                                Task {
+                                    await recorder.setSpeaker(allLabeled: label,
+                                                              in: channel, to: speaker)
+                                }
+                              }
+                            : nil,
+                        speakerCandidates: recorder.speakerCandidates,
+                        speakerLineCount: { label, channel in
+                            recorder.speakerLineCount(label: label, in: channel)
+                        },
                         find: $findText,
                         isFinding: $isFinding)
                 }

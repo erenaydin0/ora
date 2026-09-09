@@ -51,6 +51,11 @@ final class RecordingController {
     var audioURL: URL? { library.audioURL }
     var retryableAudio: URL? { library.retryableAudio }
     var calendarParticipants: [String] { library.calendarParticipants }
+    /// Transkriptte adı verilmiş konuşmacılar — Özet'teki Kişiler bölümü
+    /// davetlilerden ayrı gösterir.
+    var speakingParticipants: [String] { library.speakingParticipants }
+    /// Adlandırma menüsünün adayları.
+    var speakerCandidates: [String] { library.speakerCandidates }
     var chatTurns: [MeetingStore.ChatTurn] { library.chatTurns }
 
     /// Kullanıcının kendi adı — "Bana düşenler" grubu buna bakar.
@@ -206,6 +211,15 @@ final class RecordingController {
             Task { @MainActor in
                 try? await self?.vocabularyStore.proposeFromCorrection(mistake: mistake,
                                                                        correct: correct)
+                await self?.refreshVocabulary()
+            }
+        }
+        // Konuşmacıya verilen ad **doğrudan** sözlüğe girer, aday olarak
+        // değil: adı kullanıcı yazdı, onaylatacak bir tahmin yok. Takvim
+        // katılımcılarıyla aynı yol.
+        library.onSpeakerNamed = { [weak self] name in
+            Task { @MainActor in
+                try? await self?.vocabularyStore.add(name, source: "speaker")
                 await self?.refreshVocabulary()
             }
         }
@@ -411,6 +425,13 @@ final class RecordingController {
     func deleteSegment(_ segment: Segment) async { await library.deleteSegment(segment) }
     func setSpeaker(_ segment: Segment, to speaker: String) async {
         await library.setSpeaker(segment, to: speaker)
+    }
+    func setSpeaker(allLabeled label: String, in channel: Channel,
+                    to speaker: String) async {
+        await library.setSpeaker(allLabeled: label, in: channel, to: speaker)
+    }
+    func speakerLineCount(label: String, in channel: Channel) -> Int {
+        library.lineCount(label: label, in: channel)
     }
     func setActionDone(_ actionID: Int64, _ done: Bool) {
         library.setActionDone(actionID, done)

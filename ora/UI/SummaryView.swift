@@ -17,6 +17,9 @@ struct SummaryView: View {
     let notice: String?
     /// Takvimden gelen katılımcılar. Takvim kapalıysa boş ve **yer tutmaz**.
     var participants: [String] = []
+    /// Transkriptte adı verilmiş konuşmacılar. Davetlilerden ayrı gösterilir:
+    /// bu ayrım toplantının kimin için yapıldığını söyler (DESIGN.md §4).
+    var speakers: [String] = []
     /// Güç/termal nedeniyle ertelendiyse kullanıcı elle başlatabilir.
     var onSummarizeNow: (() -> Void)?
     var onToggleAction: ((MeetingAction) -> Void)?
@@ -64,8 +67,8 @@ struct SummaryView: View {
                     if let notice {
                         Notice(text: notice, action: onSummarizeNow)
                     }
-                    if !participants.isEmpty {
-                        PeopleStrip(names: participants)
+                    if !participants.isEmpty || !speakers.isEmpty {
+                        PeopleStrip(invited: participants, speaking: speakers)
                     }
                     if !actions.isEmpty {
                         Section("Aksiyonlar", expanded: $actionsExpanded) {
@@ -289,22 +292,39 @@ private struct TopicBlock: View {
 /// Katılımcılar. Renkli avatar yok — BRAND.md ikinci bir vurgu rengi açmıyor;
 /// baş harfler krem daire üzerinde mürekkeple durur.
 private struct PeopleStrip: View {
-    let names: [String]
+    /// Takvimden gelen davetliler.
+    let invited: [String]
+    /// Transkriptte adı verilmiş, yani gerçekten **konuşan** kişiler.
+    let speaking: [String]
+
+    /// Konuşanlar önce gelir; yalnızca davetli kalanlar `.oraInkMuted`
+    /// okunur. Renk yerine **ton** farkı: yeni bir renk girmez ve "konuştu"
+    /// bilgisini sessizce taşır.
+    private var rows: [(name: String, spoke: Bool)] {
+        let spoke = Set(speaking)
+        return speaking.map { ($0, true) }
+            + invited.filter { !spoke.contains($0) }.map { ($0, false) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel("Kişiler")
+            if !invited.isEmpty, !speaking.isEmpty {
+                Text("davetli \(invited.count) · konuşan \(speaking.count)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.oraInkMuted)
+            }
             FlowLayout(spacing: 8) {
-                ForEach(names, id: \.self) { name in
+                ForEach(rows, id: \.name) { row in
                     HStack(spacing: 6) {
-                        Text(Self.initials(name))
+                        Text(Self.initials(row.name))
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color.oraInk)
+                            .foregroundStyle(row.spoke ? Color.oraInk : Color.oraInkMuted)
                             .frame(width: 20, height: 20)
                             .background(Circle().fill(Color.oraChrome))
-                        Text(name)
+                        Text(row.name)
                             .font(.system(size: 13))
-                            .foregroundStyle(Color.oraInk)
+                            .foregroundStyle(row.spoke ? Color.oraInk : Color.oraInkMuted)
                     }
                     .padding(.leading, 2)
                     .padding(.trailing, 8)

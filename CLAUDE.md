@@ -269,6 +269,17 @@ Bu sıra asla değişmez:
   ayrımı yalnızca "Ben" ve "Katılımcı" verir; `kisi` çoğu zaman
   "belirtilmedi" olur. Bu bilinçlidir — kendinden emin yanlış bir ad, boş bir
   alandan kötüdür.
+- **Konuşmacı adı elle verilir, tahmin edilmez.** Transkript satırının
+  bağlam menüsü iki kapsam sunar: yalnızca o satır, ya da aynı kanaldaki aynı
+  etiketli tüm satırlar (sayısı menüde yazar). Adaylar kanal etiketleri,
+  takvim katılımcıları, o toplantıda kullanılmış adlar ve bilinen kişilerdir;
+  atama her zaman kullanıcının işidir. Verilen ad `meeting_participants
+  (source='transcript')` ile **eşitlenir** (ekleme değil: geri alınınca satır
+  da düşer) ve sözlüğe `source='speaker'` olarak girer. Şema değişmedi.
+- **Adlandırılan kişiler özet istemine yazılmaz.** Yalnızca
+  `SummaryContext.participants` üzerinden `resolvedPerson` doğrulamasına
+  girerler — kapalı liste isteme verildiğinde model onu menü gibi kullanıyor
+  (RESEARCH.md §23.5).
 - Konu başlıkları `@Generable` şema ile alınır; düz metin istenirse model
   numaralı liste ve açıklama döküyor.
 - Model karar/aksiyonları tekrarlayabiliyor — çıktı normalize edilmiş
@@ -448,6 +459,9 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
   açıldığında orta sütun ~655 pt'nin altına inmediği için SwiftUI kenar
   çubuğunu pencerenin dışına itiyordu (RESEARCH.md §26.2).
   "Konuşmacılar" sekmesi yoktur (DESIGN.md §4)
+- **Kişiler kartı davetliyi konuşandan ayırır** ("davetli 6 · konuşan 3"):
+  konuşanlar mürekkep, yalnızca davetli kalanlar `.oraInkMuted`. Konuşan
+  listesi **segmentlerden türetilir**, ayrıca sorgulanmaz
 - **Özet sırası: Kişiler → Aksiyonlar → Genel bakış → Kararlar → Konular.**
   Aksiyon önce gelir; kullanıcının toplantı notuna ilk sorusu "bana ne düştü"
 - **Pencere minimumu sohbet paneline göre değişir** (900 → 940, ölçüldü) ve `Window`
@@ -663,15 +677,26 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       **Swift 6.4'e geçilmedi:** yalnızca Xcode 27 beta'sında var, getirdiği
       ergonomi bu kod tabanında karşılık bulmuyor ve bedeli macOS 27 SDK'sına
       geçmek — yani §1-30 ölçümlerinin yeniden koşturulması (§30.6).
+      **Konuşmacı adlandırma eklendi (COMPETITION.md §4.13 seçenek 3):**
+      transkript satırından iki kapsamla atama (satır / o etiketin tümü),
+      `MeetingStore.syncTranscriptParticipants` ile katılımcı eşitlemesi,
+      sözlük beslemesi (`source='speaker'`), Özet'te "davetli · konuşan"
+      ayrımı. Diarization'ın **düzeltme katmanı** olarak da bu arayüz
+      kullanılacak. 7 yeni test (58 test). Bağımlılık, izin ve şema değişikliği
+      yok. Model karşılaştırması (FluidAudio · SpeakerKit · kendi dönüşümü,
+      ölçülmüş DER/hız/boyut) COMPETITION.md §4.13'te.
     - Bekleyen:
       1. **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
          İzolasyon değişikliğinin arayüz akıcılığına etkisi de burada
          doğrulanacak: `IsolationTests` iş parçacığı kimliğini ölçüyor,
          **gerçek bir kayıtla göz denetimi yapılmadı** (§30.5).
-      2. **İmzalama ve notarizasyon** — makinede kod imzalama kimliği yok;
+      2. **Diarization kararı ölçüm bekliyor** — gerçek bir Teams kaydının
+         sistem kanalında DER/konuşmacı sayısı ölçülmeden ikinci bir SPM
+         bağımlılığı ve model dosyası eklenmez (COMPETITION.md §4.13).
+      3. **İmzalama ve notarizasyon** — makinede kod imzalama kimliği yok;
          Apple Developer üyeliği gerekiyor. Betik hazır, ek kod gerekmiyor.
-      3. ~~Gerçek bir Teams/Zoom toplantısıyla algılama→kayıt akışı denenmedi.~~
+      4. ~~Gerçek bir Teams/Zoom toplantısıyla algılama→kayıt akışı denenmedi.~~
          **Tamamlandı (RESEARCH.md §28.3-28.5):** mikrofonu ve sesi Teams'in
          yardımcı süreçleri tutuyor; algılama ve tap hedefleme buna göre
          düzeltildi. Teams test aramasıyla uçtan uca doğrulandı — kapsamlı

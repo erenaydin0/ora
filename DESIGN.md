@@ -182,7 +182,8 @@ olabilir — ve kart aksiyonlarla konuların arasında okuma akışını kesiyor
   takvim simgesi + etkinlik saati. Kullanıcı başlığın nereden geldiğini bilmeli
 - **Katılımcılar** Özet içindeki kompakt kartta: takvimden gelenler ve
   transkriptte gerçekten konuşanlar **ayrı ayrı** gösterilir
-  ("davetli 6 · konuşan 3"). Bu ayrım toplantının kimin için yapıldığını söyler
+  ("davetli 6 · konuşan 3"). Bu ayrım toplantının kimin için yapıldığını söyler. Ayrım **renkle değil tonla** kurulur: konuşanlar mürekkep, yalnızca
+  davetli kalanlar `.oraInkMuted`
 - **Toplantı listesinde** (kenar çubuğu) takvimden gelen toplantılar adıyla
   görünür; gelmeyenler LLM'in ürettiği başlıkla. Görsel ayrım yapılmaz —
   ikisi de meşru başlıktır. Satır bir **karttır**: başlık üstte sola yaslı,
@@ -201,6 +202,27 @@ teker teker düşer — ama asla ezilmez. Ölçüler RESEARCH.md §26.3.
 Özetin **altında** "Özeti yeniden oluştur" durur: kullanıcı önce okur, sonra
 beğenmediğine karar verir. Tepede şerit ya da araç çubuğu düğmesi bu sırayı
 bozardı. İşaretlenmiş aksiyon varsa önce sorulur — yeniden üretim onları siler.
+
+### Konuşmacı adlandırma — iki kapsam, tahmin yok
+
+Diarization olmadığı için karşı taraftaki herkes tek etiket altındadır
+(`Katılımcı`). Transkript satırının bağlam menüsü iki ayrı kapsam sunar:
+
+- **Konuşmacıyı ata** — yalnızca o satır. Çok kişili toplantıda doğrusu bu.
+- **"Katılımcı" satırlarının tümü (37)** — aynı kanaldaki aynı etiketli her
+  satır. Birebir görüşmede karşı taraf tek kişidir; 37 satırı tek tek
+  adlandırmak kullanılabilir bir iş değil. Sayı menüde yazar: kullanıcı neyi
+  değiştirdiğini görmeden onaylamaz.
+
+Hangisinin doğru olduğunu uygulama **bilemez** ve tahmin etmez; ikisini de
+gösterir. Adaylar sırayla kanal etiketleri, takvim katılımcıları, bu
+toplantıda kullanılmış adlar ve başka toplantılardan bilinen kişilerdir —
+**öneri**, otomatik atama değil. "Yeni kişi…" satır içinde açılan bir kutudur,
+düzeltme kutusunun aynısı.
+
+Kapsam **kanalla sınırlıdır**: kanal fiziksel gerçektir (kural #11), yeniden
+adlandırılan yalnızca etikettir. Atama geri alınabilir — kanal etiketine
+dönülünce Kişiler kartındaki satır da düşer.
 
 ### Yüzen yüzeyler
 Sürekli görünmesi gereken ama sayfanın parçası olmayan iki araç **yüzer**:

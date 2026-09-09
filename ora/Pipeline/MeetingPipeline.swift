@@ -198,12 +198,17 @@ final class MeetingPipeline {
         // toplantıdan alınırsa son tarihler yanlış güne bağlanır.
         let record = try? await store.load(meetingID)
         let people = (try? await store.calendarParticipants(meetingID)) ?? []
+        // Kullanıcının transkriptte adlandırdığı konuşmacılar da kapalı
+        // listeye girer. Bu liste **yalnızca doğrulamada** kullanılır
+        // (`resolvedPerson`); isteme roster yazılmaz — ölçüldü, model onu
+        // kısıt değil menü gibi kullanıyor (RESEARCH.md §23.5).
+        let named = (try? await store.transcriptParticipants(meetingID)) ?? []
         var produced: Ozet?
         var producedTopics: [TopicSegment] = []
         do {
             let context = SummaryContext(
                 meetingDate: record?.meeting.date ?? Date(),
-                participants: people + [settings.userDisplayName]
+                participants: people + named + [settings.userDisplayName]
                     .compactMap { $0.isEmpty ? nil : $0 },
                 userName: settings.userDisplayName.isEmpty ? nil : settings.userDisplayName)
             let result = try await intelligence.summarize(

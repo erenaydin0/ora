@@ -22,6 +22,13 @@ struct TranscriptView: View {
     /// bağlıdır (kayıt ve işlem sürerken kapalı).
     var onDelete: ((Segment) -> Void)?
     var onRelabel: ((Segment, String) -> Void)?
+    /// Aynı kanalda aynı etiketli **tüm** satırlar — birebir görüşmede karşı
+    /// tarafı tek hamlede adlandırmak için. Nil ise yalnızca satır atanır.
+    var onRelabelAll: ((_ label: String, _ channel: Channel, _ speaker: String) -> Void)?
+    /// Adlandırma menüsünün adayları (kanal etiketleri + takvim + bilinen kişiler).
+    var speakerCandidates: [String] = []
+    /// "Tümü" seçeneğinin yanında gösterilen satır sayısı.
+    var speakerLineCount: ((_ label: String, _ channel: Channel) -> Int)?
     /// Toplantı içi arama (⌘F). Kenar çubuğundaki arama toplantı **bulur**;
     /// bu arama bulunan toplantının içinde gezdirir.
     var find: Binding<String> = .constant("")
@@ -29,6 +36,10 @@ struct TranscriptView: View {
 
     @State private var editing: Segment.ID?
     @State private var draft = ""
+    /// Satır içi ad kutusunun hedefi: hangi satır ve atama tek satıra mı,
+    /// o etiketin tümüne mi.
+    @State private var naming: NameTarget?
+    @State private var nameDraft = ""
     @State private var matchIndex = 0
     @FocusState private var findFocused: Bool
 
@@ -125,6 +136,14 @@ struct TranscriptView: View {
                                 } cancel: {
                                     editing = nil
                                 }
+                            } else if let target = naming, target.id == segment.id {
+                                CorrectionEditor(text: $nameDraft,
+                                                 prompt: "Konuşmacı adı",
+                                                 monospaced: false) {
+                                    commitName(target)
+                                } cancel: {
+                                    naming = nil
+                                }
                             } else {
                                 SegmentRow(segment: segment,
                                            isActive: segment.id == activeID
@@ -149,12 +168,8 @@ struct TranscriptView: View {
                                                 editing = segment.id
                                             }
                                         }
-                                        if let onRelabel {
-                                            let other = segment.speaker == Channel.mic.speaker
-                                                ? Channel.system.speaker : Channel.mic.speaker
-                                            Button("Konuşmacıyı “\(other)” yap") {
-                                                onRelabel(segment, other)
-                                            }
+                                        if onRelabel != nil {
+                                            speakerMenu(for: segment)
                                         }
                                         if let onDelete {
                                             Divider()
@@ -209,6 +224,68 @@ struct TranscriptView: View {
                     withAnimation(OraStyle.transition) { proxy.scrollTo(id, anchor: .center) }
                 }
             }
+    }
+
+    // MARK: - Konuşmacı adlandırma
+
+    /// Konuşmacı atama menüsü.
+    ///
+    /// **İki kapsam ayrı sunulur.** Diarization olmadığı için karşı taraftaki
+    /// herkes tek etiket altındadır: birebir görüşmede doğru hareket "tümü",
+    /// çok kişili toplantıda ise satır satır atamaktır. Hangisi olduğunu
+    /// uygulama bilemez, bu yüzden **tahmin etmez** — ikisini de gösterir ve
+    /// "tümü" seçeneğinin yanında kaç satırı değiştireceğini yazar.
+    @ViewBuilder
+    private func speakerMenu(for segment: Segment) -> some View {
+        let others = speakerCandidates.filter { $0 != segment.speaker }
+        Menu("Konuşmacıyı ata") {
+            ForEach(others, id: \.self) { name in
+                Button(name) { onRelabel?(segment, name) }
+            }
+            if !others.isEmpty { Divider() }
+            Button("Yeni kişi…") { startNaming(segment, all: false) }
+        }
+        if let onRelabelAll {
+            let count = speakerLineCount?(segment.speaker, segment.channel) ?? 0
+            if count > 1 {
+                Menu("“\(segment.speaker)” satırlarının tümü (\(count))") {
+                    ForEach(others, id: \.self) { name in
+                        Button(name) {
+                            onRelabelAll(segment.speaker, segment.channel, name)
+                        }
+                    }
+                    if !others.isEmpty { Divider() }
+                    Button("Yeni kişi…") { startNaming(segment, all: true) }
+                }
+            }
+        }
+    }
+
+    private func startNaming(_ segment: Segment, all: Bool) {
+        editing = nil
+        nameDraft = ""
+        naming = NameTarget(segment: segment, all: all)
+    }
+
+    private func commitName(_ target: NameTarget) {
+        let name = nameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        naming = nil
+        nameDraft = ""
+        guard !name.isEmpty else { return }
+        if target.all {
+            onRelabelAll?(target.segment.speaker, target.segment.channel, name)
+        } else {
+            onRelabel?(target.segment, name)
+        }
+    }
+
+    /// Satır içi ad kutusunun hedefi.
+    private struct NameTarget: Identifiable {
+        let segment: Segment
+        /// Atama bu etiketi taşıyan bütün satırlara mı uygulanacak?
+        let all: Bool
+
+        var id: Segment.ID { segment.id }
     }
 
     // MARK: - Toplantı içi arama
@@ -358,14 +435,19 @@ private struct VolatileRow: View {
 /// tablosuna da yazılır ve Faz 6'da özel sözlüğü besleyecektir.
 private struct CorrectionEditor: View {
     @Binding var text: String
+    /// Alan ipucu. Aynı kutu hem metin düzeltmesi hem konuşmacı adı için
+    /// kullanılır — iki ayrı editör yazmak aynı davranışı çoğaltmak olurdu.
+    var prompt: String = "Düzeltilmiş metin"
+    /// Transkript metni monospace okunur; kişi adı okunmaz.
+    var monospaced: Bool = true
     let save: () -> Void
     let cancel: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TextField("Düzeltilmiş metin", text: $text, axis: .vertical)
+            TextField(prompt, text: $text, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.system(.body, design: .monospaced))
+                .font(.system(.body, design: monospaced ? .monospaced : .default))
                 .foregroundStyle(Color.oraInk)
                 .padding(8)
                 .oraCard()

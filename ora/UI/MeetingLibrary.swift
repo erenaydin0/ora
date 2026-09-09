@@ -62,6 +62,9 @@ final class MeetingLibrary {
     private(set) var retryableAudio: URL?
     /// Takvimden gelen katılımcılar (Özet'te Kişiler bölümü).
     private(set) var calendarParticipants: [String] = []
+    /// Adlandırma menüsüne aday olan, başka toplantılardan bilinen kişiler.
+    /// Toplantıdan bağımsızdır; liste tazelemesiyle okunur.
+    private(set) var knownParticipants: [String] = []
     private(set) var chatTurns: [MeetingStore.ChatTurn] = []
 
     // MARK: - Bağımlılıklar
@@ -79,6 +82,10 @@ final class MeetingLibrary {
     /// Düzeltmeden çıkan kelime çifti — sözlüğe **aday** olarak eklenir.
     /// Kütüphane sözlüğe dokunmaz.
     var onCorrection: ((_ mistake: String, _ correct: String) -> Void)?
+    /// Kullanıcının bir konuşmacıya verdiği ad. Özel isimler tanımanın en
+    /// zayıf noktasıdır; ad sözlüğe verilir (takvim adlarıyla aynı gerekçe).
+    /// Kütüphane sözlüğe dokunmaz.
+    var onSpeakerNamed: ((String) -> Void)?
 
     private var refreshTask: Task<Void, Never>?
 
@@ -100,6 +107,7 @@ final class MeetingLibrary {
         }
         boardActions = (try? await store.allActions()) ?? boardActions
         searchSnippets = (try? await store.snippets(search: searchText)) ?? [:]
+        knownParticipants = (try? await store.knownParticipants()) ?? knownParticipants
     }
 
     /// Arama yazarken her tuşta sorgu atılmaz.
@@ -287,15 +295,71 @@ final class MeetingLibrary {
         }
     }
 
-    /// Konuşmacı etiketini değiştirir (kanal değişmez).
+    // MARK: - Konuşmacı adlandırma
+
+    /// Transkriptte adı verilmiş konuşmacılar — **segmentlerden** türetilir,
+    /// ayrıca sorgulanmaz: ekranda ne yazıyorsa gerçek odur.
+    var speakingParticipants: [String] {
+        var seen: Set<String> = []
+        return transcript.compactMap { segment in
+            let name = segment.speaker.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !MeetingStore.isChannelLabel(name),
+                  seen.insert(name).inserted else { return nil }
+            return name
+        }
+    }
+
+    /// Adlandırma menüsünün adayları: kanal etiketleri → takvim katılımcıları
+    /// → bu toplantıda kullanılmış adlar → başka toplantılardan bilinenler.
+    /// Sıra öneri sırasıdır; **atama her zaman kullanıcının** işidir.
+    var speakerCandidates: [String] {
+        var seen: Set<String> = []
+        return (Channel.allCases.map(\.speaker) + calendarParticipants
+                + speakingParticipants + knownParticipants)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+
+    /// Aynı kanalda aynı etiketi taşıyan satır sayısı. Menü "tümü"
+    /// seçeneğini sayıyla sunar — kullanıcı neyi değiştirdiğini görsün.
+    func lineCount(label: String, in channel: Channel) -> Int {
+        transcript.count { $0.channel == channel && $0.speaker == label }
+    }
+
+    /// Tek satırın konuşmacı etiketini değiştirir (kanal değişmez).
     func setSpeaker(_ segment: Segment, to speaker: String) async {
         guard let meetingID = selection else { return }
         do {
             try await store.setSpeaker(meetingID: meetingID, segment: segment, speaker: speaker)
-            await load(meetingID)
+            await finishRelabel(meetingID, name: speaker)
         } catch {
             Log.error(.store, "Konuşmacı değiştirilemedi", error)
         }
+    }
+
+    /// Aynı kanalda aynı etiketli **tüm** satırları adlandırır.
+    func setSpeaker(allLabeled label: String, in channel: Channel,
+                    to speaker: String) async {
+        guard let meetingID = selection else { return }
+        do {
+            try await store.setSpeaker(meetingID: meetingID, channel: channel,
+                                       from: label, to: speaker)
+            await finishRelabel(meetingID, name: speaker)
+        } catch {
+            Log.error(.store, "Konuşmacılar değiştirilemedi", error)
+        }
+    }
+
+    /// Adlandırmadan sonrası: katılımcı satırları eşitlenir, ad sözlüğe
+    /// verilir, ekran veritabanından yeniden okunur.
+    private func finishRelabel(_ meetingID: Int64, name: String) async {
+        do {
+            try await store.syncTranscriptParticipants(meetingID)
+        } catch {
+            Log.error(.store, "Konuşmacı katılımcı olarak yazılamadı", error)
+        }
+        if !MeetingStore.isChannelLabel(name) { onSpeakerNamed?(name) }
+        await load(meetingID)
     }
 
     /// Aksiyonu tamamlandı olarak işaretler. Ekran hemen güncellenir, yazma

@@ -166,6 +166,40 @@ nonisolated struct MeetingStore: Sendable {
         }
     }
 
+    /// Aynı kanalda **aynı etiketi taşıyan tüm** satırları yeniden adlandırır.
+    ///
+    /// Birebir görüşmede karşı taraf tek kişidir; 40 satırı tek tek
+    /// adlandırmak kullanılabilir bir iş değil. Kapsam kanalla sınırlıdır:
+    /// kanal fiziksel gerçektir (kural #11), yeniden adlandırılan yalnızca
+    /// **etikettir**.
+    @discardableResult
+    func setSpeaker(meetingID: Int64, channel: Channel,
+                    from label: String, to speaker: String) async throws -> Int {
+        try await database.write { db in
+            try db.execute(sql: """
+                UPDATE transcripts SET speaker = ?
+                WHERE meeting_id = ? AND channel = ? AND speaker = ?
+                """,
+                arguments: [speaker, meetingID, channel.databaseValue, label])
+            return db.changesCount
+        }
+    }
+
+    /// Kanal etiketi mi, gerçek bir kişi adı mı?
+    ///
+    /// `Ben` ve `Katılımcı` kanalın adıdır, kişi değil: katılımcı olarak
+    /// yazılmaz ve sözlüğe beslenmezler. `Bilinmeyen` şemanın varsayılanıdır.
+    /// Karşılaştırma Türkçe locale ile yapılır — `I`/`İ` ayrımı.
+    nonisolated static func isChannelLabel(_ name: String) -> Bool {
+        let key = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(with: Locale(identifier: "tr_TR"))
+        guard !key.isEmpty else { return true }
+        let labels = Channel.allCases.map {
+            $0.speaker.lowercased(with: Locale(identifier: "tr_TR"))
+        } + ["bilinmeyen"]
+        return labels.contains(key)
+    }
+
     // MARK: - Okuma
 
     /// Toplantı listesi. `search` boşsa tümü; doluysa başlık **ve** FTS5 transkript
@@ -436,26 +470,11 @@ nonisolated extension MeetingStore {
 
             for name in event.attendees {
                 let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { continue }
-                try db.execute(sql: """
-                    INSERT INTO participants (name, meeting_count, last_seen)
-                    VALUES (?, 0, datetime('now'))
-                    ON CONFLICT(name) DO UPDATE SET last_seen = datetime('now')
-                    """, arguments: [trimmed])
-                guard let participantID = try Int64.fetchOne(
-                    db, sql: "SELECT id FROM participants WHERE name = ?", arguments: [trimmed])
-                else { continue }
                 let role = (event.organizer == trimmed) ? "organizer" : "attendee"
-                try db.execute(sql: """
-                    INSERT OR IGNORE INTO meeting_participants
-                        (meeting_id, participant_id, source, role)
-                    VALUES (?, ?, 'calendar', ?)
-                    """, arguments: [meetingID, participantID, role])
-                try db.execute(sql: """
-                    UPDATE participants SET meeting_count =
-                        (SELECT COUNT(*) FROM meeting_participants WHERE participant_id = ?)
-                    WHERE id = ?
-                    """, arguments: [participantID, participantID])
+                guard let participantID = try Self.upsertParticipant(
+                    db, name: trimmed, meetingID: meetingID,
+                    source: "calendar", role: role) else { continue }
+                try Self.recountMeetings(db, participantID: participantID)
             }
         }
     }
@@ -487,11 +506,7 @@ nonisolated extension MeetingStore {
             // Sayaç yeniden hesaplanır; kişinin kendisi silinmez, başka
             // toplantılarda görünmeye devam edebilir.
             for participantID in ids {
-                try db.execute(sql: """
-                    UPDATE participants SET meeting_count =
-                        (SELECT COUNT(*) FROM meeting_participants WHERE participant_id = ?)
-                    WHERE id = ?
-                    """, arguments: [participantID, participantID])
+                try Self.recountMeetings(db, participantID: participantID)
             }
         }
     }
@@ -506,6 +521,122 @@ nonisolated extension MeetingStore {
                 ORDER BY p.name
                 """, arguments: [meetingID])
         }
+    }
+
+    /// Transkriptte **adlandırılmış** konuşmacılar (`source = 'transcript'`).
+    ///
+    /// Takvim katılımcılarından ayrı tutulur: biri toplantıya davet
+    /// edilenler, öteki gerçekten konuşup adı verilenler. Ad hem takvimde hem
+    /// transkriptte varsa satır takvimin kalır (`meeting_participants`
+    /// anahtarı toplantı + kişi) — kişi zaten listede olduğu için kayıp yok.
+    func transcriptParticipants(_ meetingID: Int64) async throws -> [String] {
+        try await database.read { db in
+            try String.fetchAll(db, sql: """
+                SELECT p.name FROM participants p
+                JOIN meeting_participants mp ON mp.participant_id = p.id
+                WHERE mp.meeting_id = ? AND mp.source = 'transcript'
+                ORDER BY p.name
+                """, arguments: [meetingID])
+        }
+    }
+
+    /// Adlandırma menüsünün adayları: en çok görülen kişiler.
+    ///
+    /// Başka toplantılardan gelir — haftalık aynı ekiple yapılan toplantıda
+    /// adlandırmayı tek tıka indirir. Tahmin değil **öneri**: atamayı yine
+    /// kullanıcı yapar.
+    func knownParticipants(limit: Int = 8) async throws -> [String] {
+        try await database.read { db in
+            try String.fetchAll(db, sql: """
+                SELECT name FROM participants
+                ORDER BY meeting_count DESC, last_seen DESC, name COLLATE NOCASE
+                LIMIT ?
+                """, arguments: [limit])
+        }
+    }
+
+    /// Transkriptteki kişi adlarını `meeting_participants(source = 'transcript')`
+    /// ile **eşitler**.
+    ///
+    /// Ekleme değil eşitleme: kullanıcı bir atamayı geri aldığında satır da
+    /// düşer. Yoksa yanlış atama kayıtta kalıcı olurdu — oysa bu özelliğin
+    /// tamamı "sonradan düzeltilebilsin" diye var. Takvimden gelen
+    /// (`source = 'calendar'`) satırlara **dokunulmaz**.
+    @discardableResult
+    func syncTranscriptParticipants(_ meetingID: Int64) async throws -> [String] {
+        try await database.write { db in
+            let wanted = Set(try String.fetchAll(db, sql: """
+                SELECT DISTINCT speaker FROM transcripts WHERE meeting_id = ?
+                """, arguments: [meetingID])
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !Self.isChannelLabel($0) })
+
+            var touched: Set<Int64> = []
+            let existing = try Row.fetchAll(db, sql: """
+                SELECT mp.participant_id AS id, p.name AS name
+                FROM meeting_participants mp
+                JOIN participants p ON p.id = mp.participant_id
+                WHERE mp.meeting_id = ? AND mp.source = 'transcript'
+                """, arguments: [meetingID])
+
+            for row in existing {
+                let participantID: Int64 = row["id"]
+                let name: String = row["name"]
+                guard !wanted.contains(name) else { continue }
+                try db.execute(sql: """
+                    DELETE FROM meeting_participants
+                    WHERE meeting_id = ? AND participant_id = ? AND source = 'transcript'
+                    """, arguments: [meetingID, participantID])
+                touched.insert(participantID)
+            }
+
+            for name in wanted {
+                guard let participantID = try Self.upsertParticipant(
+                    db, name: name, meetingID: meetingID,
+                    source: "transcript", role: nil) else { continue }
+                touched.insert(participantID)
+            }
+
+            for participantID in touched {
+                try Self.recountMeetings(db, participantID: participantID)
+            }
+            return wanted.sorted()
+        }
+    }
+
+    /// `participants` satırını açar ya da tazeler ve toplantıya bağlar.
+    /// Takvim bağı ile transkript eşitlemesi **aynı yolu** kullanır.
+    fileprivate static func upsertParticipant(_ db: Database, name: String,
+                                              meetingID: Int64,
+                                              source: String,
+                                              role: String?) throws -> Int64? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        try db.execute(sql: """
+            INSERT INTO participants (name, meeting_count, last_seen)
+            VALUES (?, 0, datetime('now'))
+            ON CONFLICT(name) DO UPDATE SET last_seen = datetime('now')
+            """, arguments: [trimmed])
+        guard let participantID = try Int64.fetchOne(
+            db, sql: "SELECT id FROM participants WHERE name = ?", arguments: [trimmed])
+        else { return nil }
+        try db.execute(sql: """
+            INSERT OR IGNORE INTO meeting_participants
+                (meeting_id, participant_id, source, role)
+            VALUES (?, ?, ?, ?)
+            """, arguments: [meetingID, participantID, source, role])
+        return participantID
+    }
+
+    /// Kişinin toplantı sayacını yeniden hesaplar. Kişinin kendisi silinmez —
+    /// başka toplantılarda görünmeye devam edebilir.
+    fileprivate static func recountMeetings(_ db: Database,
+                                            participantID: Int64) throws {
+        try db.execute(sql: """
+            UPDATE participants SET meeting_count =
+                (SELECT COUNT(*) FROM meeting_participants WHERE participant_id = ?)
+            WHERE id = ?
+            """, arguments: [participantID, participantID])
     }
 
     // MARK: - Toplantı sohbeti
