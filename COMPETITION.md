@@ -207,17 +207,28 @@ notu üret. Kural #1'i ihlal etmez (kayıt yok). Ama pil/termal kontrolü
 `PowerState` üzerinden aynen uygulanmalı.
 **Şema:** Yeni tablo gerekmez; `meeting_participants` + `action_items` yeterli.
 
-### 4.12 Hatırlatıcılar ve Kısayollar (App Intents)
-**Rakip:** Circleback'in "automations" + 1000 uygulama entegrasyonu.
-**ora'nın yerel karşılığı:** ağ olmadan, cihazda:
+### 4.12 Otomasyonlar — yerel çıkışlar + bağlanabilir hedefler
+**Rakip:** Circleback'in "automations" + 1000 uygulama entegrasyonu;
+Anarlog v1.4.13'te tetikleyici + Slack/Notion/Linear/Markdown eylemi.
+**Karar (Faz 11):** ikisi de yapılır. **Yerel çıkışlar varsayılandır ve
+bağlantı gerektirmez**; Slack/Notion gibi hedefler kullanıcı bağlarsa
+çalışır (Bağlantı Kuralları: varsayılan kapalı, yalnızca özet + aksiyon
+gider, ses asla).
+
+**Bağlantısız kısım — ağ olmadan, cihazda:**
 - **Hatırlatıcılar'a gönder:** aksiyon maddesi → Reminders (EventKit,
   ayrı bir izin ve ayrı bir liste; **takvime yazma yasağı bundan ayrıdır**,
   ama aynı özenle opt-in olmalı ve Info.plist metni yazılmalı).
 - **Apple Notes'a gönder:** özet → Notes (Shortcuts/AppleScript).
 - **App Intents:** "Son toplantının özetini ver", "Kaydı başlat/durdur".
   Kısayollar ve Spotlight'tan çağrılabilir; sıfır bağımlılık, tamamen Apple yerel.
-**Neden:** Rakiplerin bulut otomasyonlarının ora'da mümkün olan tek biçimi bu
-ve kural #3'ü hiç zorlamıyor.
+- **Markdown klasörü:** her özeti kullanıcının seçtiği klasöre yaz
+  (Obsidian/iCloud). Anarlog'un otomasyonlarının ağ istemeyen karşılığı;
+  `MeetingExport.saveMarkdown` zaten var, eksik olan yalnızca otomatik bağ.
+
+**Bağlantılı kısım (opt-in):** Slack kanalına özet, Notion sayfasına not.
+Tetikleyici "toplantı bitti" ya da "özet hazır"; ön izleme + onay zorunlu,
+giden istek loglanır, toplantı kilidi bunu da keser.
 
 ### 4.13 Diarization — **seçenek 3 yapıldı, 1 ölçüm bekliyor**
 **Durum:** ora'nın en büyük kalite açığı. Kanal ayrımı yalnızca
@@ -350,10 +361,14 @@ Bunlar CLAUDE.md'nin kurallarıyla çakışır; listeye "yapılmadı" diye deği
 
 - **Toplantıya bot gönderme** (Circleback, Fireflies, Otter) — cihaz sesi
   yakalama zaten daha iyi ve izinsiz.
-- **Bulut senkronizasyonu, hesap, ekip çalışma alanı, paylaşılan klasör**
-  (Granola, hepsi) — kural #3. Paylaşım yalnızca dışa aktarımla.
-- **CRM / Slack / Notion entegrasyonları** — ağ yok. Yerel karşılığı §4.12.
-- **Telemetri, kullanım analitiği** — kapsam dışı.
+- **Bulut senkronizasyonu, hesap, kaydolma, ekip çalışma alanı, paylaşılan
+  klasör** (Granola, Anarlog) — ora'nın kendi sunucusu yok ve bu bir iş modeli
+  kararıdır, ayrıca alınmadan yazılmaz. Paylaşım dışa aktarım ve §4.12'nin
+  entegrasyonlarıyla.
+- **Bulut STT (sesin sağlayıcıya gönderilmesi)** — Bağlantı Kuralları §3:
+  ses cihazdan çıkmaz. `DictationTranscriber(tr-TR)` ölçülmüş farkımız;
+  ayrı bir karar olarak durur, **alınmadı**.
+- **Telemetri, kullanım analitiği, çökme raporu** — kapsam dışı.
 - **Video kaydı ve klip paylaşımı** (Fathom) — ROADMAP kapsam dışı.
 - **Windows/Linux** (Hyprnote Q1 2026'da yapıyor) — kapsam dışı.
 - **Canlı altyazı yayını** (Otter'ın Zoom'a altyazı basması) — başka
@@ -376,8 +391,17 @@ kayıt uyarısı. *Hepsi var olan veriyi ve var olan SQL'i arayüze bağladı;
 Granola'nın kazandığı yer burası, ve ora bunu bulutsuz yapabilir.*
 
 **Faz 10 — "Toplantılar arası"**
-4.10 çapraz sohbet (FTS-RAG) · 4.11 kişi sayfası + hazırlık · 4.12 App Intents
-+ Hatırlatıcılar · 4.16 etiketler.
+4.10 çapraz sohbet (FTS-RAG) · 4.11 kişi sayfası + hazırlık · 4.12'nin yerel
+kısmı (App Intents + Hatırlatıcılar + Markdown klasörü) · 4.16 etiketler.
+
+**Faz 11 — "Bağlantılar" (kural #3'ün yerine Bağlantı Kuralları)**
+Kullanıcının kendi AI sağlayıcısı (Anthropic · OpenAI · OpenRouter · yerel
+sunucu) özetleme ve sohbet motoru olarak seçilebilir; 4.12'nin bağlantılı
+kısmı (Slack · Notion) açılır. *Bu faz ora'yı bulut ürünü yapmaz:* varsayılan
+yol cihaz üstü kalır, ses hiç çıkmaz, hesap ve senkronizasyon yoktur ve
+bağlantı silinince ürün tam işlevlidir. Sırası Faz 10'dan sonradır —
+sağlayıcı bağlamak, üründe hâlâ eksik olan **kalite** açıklarını
+(diarization, Faz 0 doğruluk kapısı) kapatmaz.
 
 **Paralel ve önce başlaması gereken:** §5.4 Faz 0 doğruluk kapısı ve
 4.13'ün ölçümü. Bunlar özellik değil, karar verisi.

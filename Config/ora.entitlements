@@ -11,9 +11,15 @@
 	     Bulut alternatifi yok: Microsoft Graph "bir toplantıdasın" der, hangisi
 	     olduğunu söylemez (§29.1).
 
-	     **Ağ girişi hâlâ yok ve olmayacak:** kural #3'ün (hiçbir veri cihazı
-	     terk etmez) garantisi buydu, aynen duruyor. Dağıtım .dmg + Developer ID;
-	     Mac App Store hedeflenmiyor, sandbox oradan da gerekmiyor.
+	     **Ağ yetkisi yok — ve gerekmiyor.** `com.apple.security.network.client`
+	     bir *sandbox* yetkisidir; sandbox kapalı olduğu için giden bağlantı
+	     onsuz da çalışır. Yani bu liste ağ çıkışını hiçbir zaman teknik olarak
+	     engellemiyordu; "ağ yok" yazılı bir sözdü ve Faz 11'de yerini
+	     CLAUDE.md'nin **Bağlantı Kuralları** bölümüne bıraktı (varsayılan
+	     kapalı, ses asla çıkmaz, ağa çıkan tek modül `ora/Net/`).
+	     Buraya ağ yetkisi **eklemeyin** — anlamsız olduğu gibi, sandbox'ın
+	     geri geldiği yanılgısını da yaratır.
+	     Dağıtım .dmg + Developer ID; Mac App Store hedeflenmiyor.
 
 	     **Aşağıdaki iki yetki sandbox için DEĞİL, Hardened Runtime içindir**
 	     (`ENABLE_HARDENED_RUNTIME = YES`; notarizasyon zorunlu kılıyor).

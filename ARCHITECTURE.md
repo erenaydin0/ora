@@ -309,5 +309,8 @@ Sessiz `catch { }` yasaktır.
 ## Bilinçli olarak yapılmayanlar
 - Platform soyutlama katmanı yok — hedef yalnızca macOS
 - Bağımlılık enjeksiyonu çatısı yok — init üzerinden geçir
-- Ağ katmanı yok — uygulamada hiçbir HTTP istemcisi bulunmaz (kural #3'ün
-  yapısal garantisi: `URLSession` kullanan kod yoksa veri sızamaz)
+- Ağ katmanı **tek modüle hapsedilmiştir** (`ora/Net/`, Faz 11). Başka hiçbir
+  dosyada `URLSession` geçmez; bu, "veri nereye gidiyor" sorusunu tek bir
+  grep'e indirir ve testte sahtelenebilir tek yüzey bırakır. Bağlantılar
+  varsayılan kapalıdır ve ses hiçbir zaman gönderilmez — sözleşmenin tamamı
+  CLAUDE.md → Bağlantı Kuralları

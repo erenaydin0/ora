@@ -2,7 +2,10 @@
 
 ## Project Overview
 ora, toplantıları kaydeden, transkribe eden ve özetleyen bir macOS uygulamasıdır.
-Tüm işlem cihaz üstünde yapılır; hiçbir veri cihazı terk etmez.
+Varsayılan yolda tüm işlem cihaz üstünde yapılır ve hiçbir veri cihazı terk
+etmez. Kullanıcı isterse kendi AI aboneliğini ya da Slack/Notion gibi bir
+hedefi **açıkça bağlayabilir**; bağlamadığı sürece ora hesapsız, ağsız ve
+tam işlevli çalışır (bkz. Bağlantı Kuralları).
 
 - Uygulama adı: her zaman küçük harf **"ora"** — asla "Ora" veya "ORA"
 - Birincil kullanıcı: Teams/Slack kullanan Türkçe konuşan profesyoneller
@@ -15,7 +18,7 @@ Bu proje, Electron + Python + WhisperX ile yazılmış önceki ora'nın
 **RESEARCH.md** anlatır — o dosya tartışmayı kapatan ölçümleri içerir,
 oturum başında oku ve varsayımları yeniden tartışma.
 
-## Tech Stack — hepsi Apple yerel, sıfır çalışma zamanı bağımlılığı
+## Tech Stack — varsayılan yol Apple yerel, sıfır çalışma zamanı bağımlılığı
 | Katman | Teknoloji | Not |
 |---|---|---|
 | UI | SwiftUI + AppKit köprüsü | Web view yok, React yok |
@@ -24,6 +27,8 @@ oturum başında oku ve varsayımları yeniden tartışma.
 | Transkripsiyon | `Speech.DictationTranscriber` + `SpeechAnalyzer` | tr_TR destekli, cihaz üstü |
 | Özetleme / sohbet (varsayılan) | `FoundationModels` (Apple yerel ~3B LLM) | tr-Latn-TR destekli, indirme yok |
 | Özetleme (isteğe bağlı, Faz 9) | Yerel model — Qwen3.5-9B, MLX | Kullanıcı seçerse ilk kullanımda indirilir; ölçüm §37 |
+| Özetleme / sohbet (isteğe bağlı, Faz 11) | Kullanıcının kendi sağlayıcısı (Anthropic · OpenAI · OpenRouter · yerel sunucu) | **Varsayılan kapalı.** Anahtar Keychain'de; `ora/Net/` tek kapı |
+| Çıkış entegrasyonları (isteğe bağlı, Faz 11) | Slack · Notion · Markdown klasörü | **Varsayılan kapalı.** Yalnızca özet/aksiyon gider, ses asla |
 | Veritabanı | SQLite + FTS5, **GRDB.swift** üzerinden | SwiftData'da tam metin arama yok; tek SPM bağımlılığı |
 | PDF dışa aktarım | `ImageRenderer` / PDFKit | WeasyPrint yok |
 | İkonlar | SF Symbols | Lucide yok |
@@ -38,8 +43,8 @@ Python yok, Node yok, Electron yok.
 **"Model dosyası indirme yok" kuralı kalktı** (Faz 9 kararı, ölçüm §37). Sınır
 şu: uygulama **modelsiz tam çalışır** ve indirme yalnızca kullanıcı isteğe bağlı
 ikinci motoru **açıkça seçerse** yapılır. Varsayılan yol hâlâ sıfır indirme.
-Kural #3 (hiçbir veri cihazı terk etmez) değişmedi — inen model dosyasıdır,
-çıkan veri değil.
+İndirilen model dosyasıdır, çıkan veri değil — bu ayrım Faz 11'in bağlantı
+kurallarında da aynen geçerlidir.
 
 ## Kritik Mimari Kurallar — ASLA İHLAL ETME
 1. Kayıt sırasında **LLM çağrısı yok** (Foundation Models yalnızca kayıt bittikten sonra).
@@ -51,7 +56,13 @@ Kural #3 (hiçbir veri cihazı terk etmez) değişmedi — inen model dosyasıd�
    transkripsiyon en iyi çaba (best-effort) ikincil tüketicidir. Transkripsiyon
    hata verirse veya geri kalırsa kayıt kesintisiz sürer ve kayıt sonrası
    tam bir geçiş (full pass) yapılır.
-3. Hiçbir veri harici API'ye veya sunucuya gönderilmez — asla
+3. **Varsayılan yol tamamen cihaz üstüdür. Dışarı veri çıkışı yalnızca
+   kullanıcının açıkça bağladığı bir sağlayıcı ya da entegrasyon üzerinden
+   olur.** ora'nın **kendi sunucusu yoktur**: istek doğrudan kullanıcının
+   seçtiği hizmete gider, arada ora durmaz. Hesap, kaydolma, bulut
+   senkronizasyonu ve telemetri **yoktur ve eklenmeyecektir**. Sözleşmenin
+   tamamı "Bağlantı Kuralları" bölümündedir; bir modül oraya bakmadan
+   `URLSession` kullanamaz.
 4. İşlem yalnızca kayıt bittikten sonra, kullanıcının tetikleyici ayarına göre başlar
 5. Sistem sesi **CoreAudio süreç tap'i** ile yakalanır
    (`AudioHardwareCreateProcessTap` + `CATapDescription`, macOS 14.2+).
@@ -418,7 +429,9 @@ Bu sıra asla değişmez:
 - Okumak `requestFullAccessToEvents` gerektirir (macOS 14+). **ora takvime asla
   yazmaz** — `NSCalendarsFullAccessUsageDescription` metni bunu açıkça söyler:
   "ora toplantı adını ve katılımcıları okumak için takviminize erişir.
-  Takviminize hiçbir şey yazmaz ve hiçbir veri cihazınızdan çıkmaz."
+  Takviminize hiçbir şey yazmaz. Bu bilgi cihazınızda kalır; yalnızca kendiniz
+  bir AI sağlayıcısı ya da paylaşım hedefi bağlarsanız ve yalnızca o işin
+  gerektirdiği kadarı dışarı gider."
 - **Kullanıcı hangi takvimlerin dahil olacağını seçer.** Varsayılan: hiçbiri
   seçili değil, kullanıcı iş takvimini seçer. Kişisel takvimi taramaya zorlama.
 - **Dar pencere:** yalnızca `now − 12 saat … now + 24 saat` sorgulanır.
@@ -494,6 +507,58 @@ Kurallar:
 11. Yüzeyler: araç çubuğunda "İçe aktar" menüsü (ses · transkript dosyası ·
     transkript yapıştır) ve pencerenin tamamına sürükle-bırak. Tanınmayan
     dosya sessizce yutulmaz, Türkçe hata verir.
+
+## Bağlantı Kuralları — sağlayıcılar ve entegrasyonlar (Faz 11)
+Kural #3'ün "hiçbir veri çıkmaz" biçimi kaldırıldı: kullanıcının işini çözen ve
+yerel alternatifi duran bir bağlantı yapılabilir. Yerine geçen sözleşme budur ve
+**her maddesi bağlayıcıdır** — bir bağlantı bunlardan birini karşılamıyorsa
+eklenmez.
+
+**1. Varsayılan kapalı, yerel yol hiç kaybolmaz.** Hiçbir bağlantı kurulu
+gelmez. Bağlantı silinince ürün **tam işlevli** kalır: özetleme Foundation
+Models'a (ya da seçilmişse yerel Qwen'e) döner, paylaşım dışa aktarıma döner.
+Bir özellik *yalnızca* bulutta çalışıyorsa o özellik ora'ya girmez.
+
+**2. ora'nın sunucusu yoktur.** İstek doğrudan kullanıcının seçtiği hizmete
+gider. Hesap, kaydolma, bulut senkronizasyonu, ekip çalışma alanı ve
+telemetri **kapsam dışıdır** — bunlar iş modeli kararıdır, bağlantı kararı
+değil, ve ayrıca alınmadan yazılmaz.
+
+**3. Ses hiçbir zaman gönderilmez.** Transkripsiyon cihaz üstünde kalır:
+`DictationTranscriber(tr-TR)` ora'nın ölçülmüş farkıdır (RESEARCH.md §14) ve
+`.wav` dosyası cihazdan çıkmaz. Bulut STT ayrı bir karardır, **alınmadı**.
+Mikrofon, konuşma tanıma ve sistem sesi izin metinlerindeki "cihazınızdan
+çıkmaz" güvencesi bu madde sayesinde **doğru kalır**; bozulacak bir değişiklik
+yapılmadan önce Info.plist metinleri güncellenir.
+
+**4. Veri minimizasyonu.** Yalnızca o işin gerektirdiği kadarı gider:
+özetleme sağlayıcısına transkript parçası, Slack'e özet ve aksiyonlar.
+Ham transkriptin tamamını bir entegrasyona göndermek varsayılan değildir.
+
+**5. Giden her istek kullanıcıya görünür.** İlk gönderimden önce **ne
+gideceğinin ön izlemesi** ve açık onay; sonrasında her istek
+`{base}/logs/ora.log`'a satır olarak düşer (sağlayıcı, amaç, `meeting_id`,
+karakter sayısı — içerik değil). Ayarlar → Bağlantılar bu dökümü gösterir.
+Bu, ora'nın buluta açılırken denetlenebilir kalmasının tek yoludur.
+
+**6. Toplantı bazlı kilit.** Toplantı bağlam menüsünde "Bu toplantı cihazdan
+çıkmasın" işareti; işaretliyse hiçbir sağlayıcı ve entegrasyon o toplantıya
+dokunamaz. Kapı tek yerdedir (`ora/Net/Outbound`), her çağıranda tekrarlanmaz.
+
+**7. Ağa çıkan tek modül `ora/Net/`.** Başka hiçbir dosyada `URLSession`
+geçmez; bu, denetlemeyi grep'e indirir ve testte sahtelenebilir tek yüzey
+bırakır. `oraTests` bunu **derleme kaynağı tarayarak** doğrular — kural
+belgeyle değil testle korunur.
+
+**8. Kimlik bilgileri Keychain'de.** `UserDefaults`'a, veritabanına ve loga
+anahtar yazılmaz. Log satırı sağlayıcıyı adıyla anar, anahtarı asla.
+
+**9. Çevrimdışı ve hata dayanıklılığı.** Ağ yoksa ya da sağlayıcı hata
+verirse iş **yerel yola düşer** ve kullanıcıya Türkçe söylenir; kuyrukta
+bekleyen bir gönderim kaydı bloke etmez (kural #2'nin aynı mantığı).
+
+**10. Kullanıcıya görünen her metin Türkçe** (kural #6 aynen geçerli);
+sağlayıcı adları özel isimdir, çevrilmez.
 
 ## Güç ve Termal
 Ayrı bir "Low Power Mode" alt sistemi **yoktur** — eski ora'da bu özellik
@@ -641,9 +706,13 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
   sandbox kaldırılan commit'ten (§38) beri bu yüzden hiç çalışmıyordu.
   **"Sandbox kapalı" ile "yetki gerekmez" aynı şey değildir.** Sistem sesi
   tap'i (`kTCCServiceAudioCapture`) ek yetki istemez.
-- **Ağ girişi yok ve eklenmeyecek.** Kural #3'ün (hiçbir veri cihazı terk
-  etmez) yapısal garantisi buydu; sandbox kalksa da entitlement listesinde ağ
-  yok. Dağıtım .dmg + Developer ID, Mac App Store hedeflenmiyor.
+- **Ağ için ek yetki gerekmez ve eklenmemelidir.**
+  `com.apple.security.network.client` bir **sandbox** yetkisidir; sandbox
+  kapalı olduğu için giden bağlantı zaten çalışır. Yani entitlement listesi
+  ağ çıkışını **hiçbir zaman teknik olarak engellemiyordu** — engel yazılı
+  bir sözdü ve Faz 11'de yerini Bağlantı Kuralları'na bıraktı. Garanti artık
+  koddadır: ağa çıkan tek modül `ora/Net/`.
+  Dağıtım .dmg + Developer ID, Mac App Store hedeflenmiyor.
 - **Erişilebilirlik izni opt-in.** `OraSettings.windowTitleEnabled` varsayılan
   **kapalı**; kapalıyken `WindowTitle`'a hiç dokunulmaz ve izin istenmez.
   Onboarding'de ve Ayarlar → Takvim'de açılabilir.
@@ -697,7 +766,10 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
 ## Ne YAPILMAMALI
 - Gereksiz SPM paketi ekleme (GRDB dışında bir şey eklemeden önce sor —
   Faz 9'un MLX bağımlılığı bu kuralın bilinçli ve tek istisnasıdır)
-- Herhangi bir bulut API'si kullanma
+- Kullanıcının açıkça bağlamadığı bir hizmete istek atma; `ora/Net/` dışında
+  `URLSession` kullanma; ses dosyasını cihazdan çıkarma
+- Telemetri, kullanım analitiği, çökme raporu ya da "anonim istatistik" ekleme
+- ora'ya ait bir sunucu, hesap sistemi ya da bulut senkronizasyonu yazma
 - Windows/Linux için soyutlama katmanı yazma — kapsam dışı
 - Kayıt sırasında Speech veya LLM çalıştırma
 - Transkripti karakter sınırıyla kırpma — parçala
@@ -873,7 +945,8 @@ ora.xcodeproj          — senkronize klasör grubu: ora/ altına eklenen dosya
                          Dil kipi `SWIFT_VERSION = 6.0`; izolasyon ayarları
                          (kural #13) **hedef** yapılandırmalarında
 Config/Info.plist      — izin metinleri (INFOPLIST_FILE ile bağlı)
-Config/ora.entitlements— sandbox KAPALI (§29.4); ağ girişi YOK (kural #3'ün garantisi)
+Config/ora.entitlements— sandbox KAPALI (§29.4). Ağ yetkisi **yoktur ve gerekmez** —
+                         sandbox kapalıyken ağ zaten açık; garanti `ora/Net/`'te
 ora/oraApp.swift       — @main + AppDelegate (dizin hazırlığı, açık mod sabiti)
 ora/Core/              — AppPaths, Log, OraError, OraSettings (tüm kullanıcı
                          ayarları — dil dahil),
@@ -914,6 +987,11 @@ ora/Pipeline/          — RecordingSession (kayıt sürerken: ses yazımı + ca
                          `meetingID` taşıyan olay olarak yayar. Capture ile
                          Transcribe'ı birlikte kullandığı için `ora/Capture/`
                          altında değil — alt modüller birbirini çağırmaz
+ora/Net/               — **ağa çıkan tek modül** (Faz 11). Outbound (izin kapısı:
+                         bağlantı açık mı, toplantı kilitli mi, ne gidiyor),
+                         sağlayıcı istemcileri ve çıkış entegrasyonları.
+                         Kimlik bilgisi Keychain'de; giden her istek loglanır.
+                         Başka hiçbir dosyada `URLSession` geçmez — test tarar
 ora/Import/            — TranscriptParser (VTT · SRT · düz metin · yapıştırma),
                          AudioImport (her biçimden 16 kHz mono WAV),
                          MeetingImporter (içe aktarma politikası: başlık, tarih,

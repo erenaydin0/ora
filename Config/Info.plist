@@ -37,6 +37,6 @@
 	<string>ora, toplantıdaki diğer katılımcıların sesini kaydedebilmek için toplantı uygulamasının sistem sesini yakalar. Ekranınız kaydedilmez, ses cihazınızdan çıkmaz.</string>
 
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>ora toplantı adını ve katılımcıları okumak için takviminize erişir. Takviminize hiçbir şey yazmaz ve hiçbir veri cihazınızdan çıkmaz.</string>
+	<string>ora toplantı adını ve katılımcıları okumak için takviminize erişir. Takviminize hiçbir şey yazmaz. Bu bilgi cihazınızda kalır; yalnızca kendiniz bir AI sağlayıcısı veya paylaşım hedefi bağlarsanız ve yalnızca o işin gerektirdiği kadarı dışarı gider.</string>
 </dict>
 </plist>
