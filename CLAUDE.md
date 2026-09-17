@@ -631,10 +631,16 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 - **App Sandbox KAPALI** (RESEARCH.md §29.4). Çakışan takvim toplantılarını
   ayırmanın tek yerel yolu pencere başlığını okumak ve Erişilebilirlik API'si
   sandbox'ta başka süreçler için çalışmıyor — izin istemi bile çıkmıyor.
-  Dolayısıyla `com.apple.security.*` yetkileri kaldırıldı; mikrofon ve takvim
-  TCC ile (yukarıdaki Info.plist metinleri) sorulmaya devam ediyor.
-  Eski kural — "takvim için `personal-information.calendars` yetkisi şart"
-  (§19) — yalnızca sandbox'lı derlemeler için geçerliydi.
+- **Hardened Runtime AÇIK ve iki kaynak yetkisi ZORUNLU** (ölçüldü, §38):
+  `com.apple.security.device.audio-input` (mikrofon) ve
+  `com.apple.security.personal-information.calendars` (takvim). Bunlar
+  sandbox'a değil **hardened runtime'a** aittir; notarizasyon hardened
+  runtime'ı zorunlu kıldığı için kalıcıdırlar. Yetki yokken TCC istem bile
+  çıkarmaz, Ayarlar'daki anahtar açık görünse de erişim reddedilir
+  (`Prompting policy for hardened runtime … requires entitlement …`) — mikrofon
+  sandbox kaldırılan commit'ten (§38) beri bu yüzden hiç çalışmıyordu.
+  **"Sandbox kapalı" ile "yetki gerekmez" aynı şey değildir.** Sistem sesi
+  tap'i (`kTCCServiceAudioCapture`) ek yetki istemez.
 - **Ağ girişi yok ve eklenmeyecek.** Kural #3'ün (hiçbir veri cihazı terk
   etmez) yapısal garantisi buydu; sandbox kalksa da entitlement listesinde ağ
   yok. Dağıtım .dmg + Developer ID, Mac App Store hedeflenmiyor.

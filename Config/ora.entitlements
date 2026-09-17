@@ -11,13 +11,24 @@
 	     Bulut alternatifi yok: Microsoft Graph "bir toplantıdasın" der, hangisi
 	     olduğunu söylemez (§29.1).
 
-	     Sandbox kalkınca `com.apple.security.*` yetkileri anlamsızlaşır ve
-	     silindi; mikrofon ve takvim erişimi TCC ile (Info.plist metinleri)
-	     sorulmaya devam eder.
-
 	     **Ağ girişi hâlâ yok ve olmayacak:** kural #3'ün (hiçbir veri cihazı
 	     terk etmez) garantisi buydu, aynen duruyor. Dağıtım .dmg + Developer ID;
-	     Mac App Store hedeflenmiyor, sandbox oradan da gerekmiyor. -->
+	     Mac App Store hedeflenmiyor, sandbox oradan da gerekmiyor.
+
+	     **Aşağıdaki iki yetki sandbox için DEĞİL, Hardened Runtime içindir**
+	     (`ENABLE_HARDENED_RUNTIME = YES`; notarizasyon zorunlu kılıyor).
+	     Sandbox kaldırılırken bunlar da "anlamsızlaştı" diye silinmişti ve
+	     mikrofon o günden beri hiç çalışmıyordu — ölçüldü (RESEARCH.md §38):
+	         Prompting policy for hardened runtime; service: kTCCServiceMicrophone
+	         requires entitlement com.apple.security.device.audio-input
+	         but it is missing for … com.orameetings.ora
+	     Yetki yokken TCC istem bile çıkarmıyor; Ayarlar'daki anahtar açık
+	     görünse de erişim reddediliyor. Silme. -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
+
 	<key>com.apple.security.automation.apple-events</key>
 	<false/>
 </dict>

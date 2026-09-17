@@ -2451,3 +2451,72 @@ sıkışık çalışır.
 
 Ve dürüst olmak gerekirse: %38 hâlâ Circleback'in üçte biri. İki kat iyileşme
 gerçek ama "referans ayarında not" değil.
+
+---
+
+## 38. Mikrofon sessizce reddediliyordu: Hardened Runtime yetkisi eksikti
+
+**Belirti.** Sürüm derlemesinde ("build" klasöründen ya da
+`/Applications/ora.app`) kayıt başlatınca "Mikrofon izni verilmedi" hatası.
+Kullanıcı Sistem Ayarları → Gizlilik ve Güvenlik → Mikrofon'da ora'ya izin
+vermiş, anahtar açık. Günlükte yarım kalmış toplantı satırlarının silinmesi
+görünüyor (`AudioCapture.start` → `permissionDenied` → satır siliniyor).
+
+**Ölçüm.** Sistem TCC günlüğü nedeni doğrudan yazıyor:
+
+```
+$ /usr/bin/log show --last 6h --predicate 'process == "tccd"' | grep orameetings
+Failed to match existing code requirement for subject com.orameetings.ora
+    and service kTCCServiceMicrophone
+E  Prompting policy for hardened runtime; service: kTCCServiceMicrophone
+   requires entitlement com.apple.security.device.audio-input but it is
+   missing for requesting={identifier=com.orameetings.ora, …}
+E  Prompting policy for hardened runtime; service: kTCCServiceCalendar
+   requires entitlement com.apple.security.personal-information.calendars
+   but it is missing for accessing={identifier=com.orameetings.ora, …}
+```
+
+**A/B (aynı ikili, tek fark yetki).** Aynı Swift ikilisinden iki .app paketi;
+ikisi de ad-hoc imzalı ve `--options runtime`. Tek fark: B'de
+`com.apple.security.device.audio-input` var. `open` ile başlatıldı (kabuktan
+çalıştırılırsa TCC sorumluyu terminale atfediyor ve ölçüm bozuluyor —
+kabuktan koşan A **izin alıyordu**, bu yanlış pozitiftir).
+
+| | yetki | tccd kaydı | sonuç |
+|---|---|---|---|
+| A | yok | `Prompting policy for hardened runtime … missing` | istem **çıkmıyor**, reddediliyor |
+| B | var | `AUTHREQ_PROMPTING: service=kTCCServiceMicrophone` | istem çıkıyor, izin alınıyor |
+
+**Kök neden.** Sandbox kaldırılırken (commit `5a7c41b`) `com.apple.security.*`
+yetkileri "sandbox kalkınca anlamsızlaşır" gerekçesiyle **hepsi** silindi.
+Yanlış olan kısım şu: `device.audio-input` ve `personal-information.calendars`
+yalnızca App Sandbox'ın değil, **Hardened Runtime'ın** da kaynak erişim
+yetkileridir (`ENABLE_HARDENED_RUNTIME = YES`, notarizasyon zorunlu kılıyor).
+Sandbox gitti, hardened runtime kaldı — yetkiler onunla birlikte kalmalıydı.
+
+Hata o commit'ten beri duruyordu ve fark edilmemişti: §28'in Teams ile uçtan
+uca doğrulaması **sandbox kaldırılmadan önce** yapılmıştı, sonrasında gerçek
+kayıt denenmedi (Faz 0 hâlâ bekliyor).
+
+**Düzeltme.** İki yetki `Config/ora.entitlements`'a geri kondu. Sistem sesi
+tap'i (`kTCCServiceAudioCapture`) ek yetki istemiyor — günlükte onun için
+yalnızca "failed to match existing code requirement" var, yani yalnızca
+yeniden istem gerekiyor.
+
+**Ders — genel kural.** "Sandbox kapalı" ile "yetki gerekmez" aynı şey değildir.
+`com.apple.security.device.*` ve `com.apple.security.personal-information.*`
+hardened runtime altında da zorunludur. Şüphede tek doğrulama yolu tccd
+günlüğüdür; `AVCaptureDevice.authorizationStatus` yalnızca "denied" der,
+**nedenini söylemez**.
+
+**Ek not — ad-hoc imza.** `Failed to match existing code requirement` satırı
+§20/§28.1'deki bilinen engelin izidir: ad-hoc imzada TCC kimliği cdhash'tir,
+her derlemede değişir ve eski kayıt eşleşmez. Ayarlar'daki liste eski kaydı
+gösterdiği için anahtar **açık görünür**. Yetki düzeltildikten sonra kaydı
+temizlemek gerekir:
+
+```
+tccutil reset Microphone com.orameetings.ora
+tccutil reset AudioCapture com.orameetings.ora
+tccutil reset Calendar com.orameetings.ora
+```
