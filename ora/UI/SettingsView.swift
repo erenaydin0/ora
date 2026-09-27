@@ -521,6 +521,11 @@ private struct StorageSettings: View {
 private struct VocabularySettings: View {
     let recorder: RecordingController
     @State private var newWord = ""
+    /// Yerinde düzenlenen satır, taslağı ve kaydedilemediyse nedeni.
+    @State private var editingID: Int64?
+    @State private var draft = ""
+    @State private var editError: String?
+    @FocusState private var editFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -532,6 +537,51 @@ private struct VocabularySettings: View {
 
             List {
                 ForEach(recorder.vocabulary) { word in
+                    if editingID == word.id {
+                        editor(for: word)
+                    } else {
+                        row(for: word)
+                    }
+                }
+            }
+            .listStyle(.inset)
+
+            HStack(spacing: 8) {
+                TextField("Kelime ekle", text: $newWord)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(add)
+                Button("Ekle", action: add).disabled(newWord.isEmpty)
+            }
+            .padding(16)
+        }
+        .task { await recorder.refreshVocabulary() }
+    }
+
+    /// Düzenleme satırı: Enter kaydeder, Escape vazgeçer.
+    private func editor(for word: VocabularyStore.Word) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                TextField("Kelime", text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($editFocused)
+                    .onSubmit { save(word) }
+                    .onExitCommand(perform: cancelEditing)
+                Button("Vazgeç", action: cancelEditing)
+                    .keyboardShortcut(.cancelAction)
+                Button("Kaydet") { save(word) }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            if let editError {
+                Text(editError)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.oraRed)
+            }
+        }
+        .onAppear { editFocused = true }
+    }
+
+    private func row(for word: VocabularyStore.Word) -> some View {
                     HStack(spacing: 8) {
                         Text(word.word).font(.system(size: 13))
                         if word.isPending {
@@ -549,20 +599,36 @@ private struct VocabularySettings: View {
                             Button("Yok say") { Task { await recorder.rejectWord(word.id) } }
                                 .buttonStyle(.link)
                         }
+                        Button("Düzenle") { startEditing(word) }
+                            .buttonStyle(.link)
                     }
-                }
-            }
-            .listStyle(.inset)
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) { startEditing(word) }
+                    .help("Düzeltmek için çift tıklayın")
+    }
 
-            HStack(spacing: 8) {
-                TextField("Kelime ekle", text: $newWord)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit(add)
-                Button("Ekle", action: add).disabled(newWord.isEmpty)
+    private func startEditing(_ word: VocabularyStore.Word) {
+        draft = word.word
+        editError = nil
+        editingID = word.id
+    }
+
+    private func cancelEditing() {
+        editingID = nil
+        editError = nil
+        draft = ""
+    }
+
+    /// Çakışma ya da boş kelimede kutu açık kalır ve nedeni altında yazar.
+    private func save(_ word: VocabularyStore.Word) {
+        let text = draft
+        Task {
+            if let failure = await recorder.renameWord(word.id, to: text) {
+                editError = failure
+            } else {
+                cancelEditing()
             }
-            .padding(16)
         }
-        .task { await recorder.refreshVocabulary() }
     }
 
     private func add() {

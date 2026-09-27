@@ -92,6 +92,52 @@ nonisolated struct VocabularyStore: Sendable {
         }
     }
 
+    /// Yeniden adlandırmanın sonucu. Hata değil, kullanıcıya söylenecek durum.
+    enum RenameResult: Sendable, Equatable {
+        case renamed
+        /// Aynı kelime sözlükte başka bir satırda zaten var.
+        case duplicate
+        case empty
+        /// Satır bu arada silinmiş.
+        case missing
+    }
+
+    /// Sözlük girdisini **yerinde** düzeltir — silip yeniden eklemeden.
+    ///
+    /// Yazımı düzeltilen kelime artık kullanıcının yazdığıdır: kaynağı
+    /// `manual` olur, durumu (`active` / `pending`) korunur — onay ayrı bir
+    /// karardır. Takvimden gelen bir adın yazımı düzeltilirse eski yazım
+    /// sonraki takvim eşleşmesinde yeniden eklenebilir; ikisi ayrı kelimedir.
+    ///
+    /// `word` sütunu tekildir. Çakışan satır **reddedilmişse** (listede
+    /// görünmeyen, 30 günlük soğumadaki bir aday) kullanıcı o kelimeyi şimdi
+    /// açıkça istiyor demektir: eski red satırı kaldırılır. Görünen bir
+    /// satırla çakışma ise yinelenmedir ve reddedilir.
+    func rename(_ id: Int64, to word: String) async throws -> RenameResult {
+        let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .empty }
+        return try await database.write { db in
+            guard let current = try String.fetchOne(db, sql: """
+                SELECT word FROM vocabulary WHERE id = ?
+                """, arguments: [id]) else { return .missing }
+            guard current != trimmed else { return .renamed }
+
+            if let clash = try Row.fetchOne(db, sql: """
+                SELECT id, status FROM vocabulary WHERE word = ? AND id != ?
+                """, arguments: [trimmed, id]) {
+                let status: String = clash["status"]
+                guard status == "rejected" else { return .duplicate }
+                let clashID: Int64 = clash["id"]
+                try db.execute(sql: "DELETE FROM vocabulary WHERE id = ?",
+                               arguments: [clashID])
+            }
+            try db.execute(sql: """
+                UPDATE vocabulary SET word = ?, source = 'manual' WHERE id = ?
+                """, arguments: [trimmed, id])
+            return .renamed
+        }
+    }
+
     func remove(_ id: Int64) async throws {
         try await database.write { db in
             try db.execute(sql: "DELETE FROM vocabulary WHERE id = ?", arguments: [id])

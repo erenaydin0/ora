@@ -405,6 +405,25 @@ final class RecordingController {
         await refreshVocabulary()
     }
 
+    /// Sözlük girdisini düzeltir. Başarısızsa kullanıcıya gösterilecek Türkçe
+    /// metni döner, başarılıysa nil.
+    func renameWord(_ id: Int64, to word: String) async -> String? {
+        let message: String?
+        do {
+            switch try await vocabularyStore.rename(id, to: word) {
+            case .renamed:   message = nil
+            case .duplicate: message = "“\(word.trimmingCharacters(in: .whitespaces))” sözlükte zaten var."
+            case .empty:     message = "Kelime boş olamaz."
+            case .missing:   message = "Bu kelime artık sözlükte yok."
+            }
+        } catch {
+            Log.error(.store, "Sözlük kelimesi düzeltilemedi", error)
+            message = "Kelime kaydedilemedi."
+        }
+        await refreshVocabulary()
+        return message
+    }
+
     func addWord(_ word: String) async {
         try? await vocabularyStore.add(word)
         await refreshVocabulary()
