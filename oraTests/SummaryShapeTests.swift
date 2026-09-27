@@ -8,6 +8,18 @@ import Testing
 @Suite("Özetin biçimi")
 struct SummaryShapeTests {
 
+    // MARK: - Parça sınırı
+
+    /// Sınırlar ölçüldükleri pencerede (4096) bayt bayt aynı kalır; büyüyen
+    /// pencere (macOS 27: 8192, RESEARCH.md §41) orantılı olarak kullanılır.
+    @Test
+    func parcaSiniriPencereyleOlceklenir() {
+        #expect(TranscriptChunker.summaryLimit(contextSize: 4096) == 6_000)
+        #expect(TranscriptChunker.punctuationLimit(contextSize: 4096) == 3_500)
+        #expect(TranscriptChunker.summaryLimit(contextSize: 8192) == 12_000)
+        #expect(TranscriptChunker.punctuationLimit(contextSize: 8192) == 7_000)
+    }
+
     // MARK: - Aksiyon süzgeci
 
     /// **Gövdeleme hatası:** `words(of:)` her kelimeyi 5 harfe kırpıyor ve

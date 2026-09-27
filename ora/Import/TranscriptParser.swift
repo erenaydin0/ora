@@ -15,7 +15,7 @@ import Foundation
 ///    satır aynı ana denk gelirse düzeltme yanlış satırı yazar.
 /// 2. **Parçalanabilir uzunluk.** `TranscriptChunker` segment sınırından
 ///    böler; tek parça hâlinde yapıştırılmış 20.000 karakterlik bir metin tek
-///    segment kalırsa 4096 token'lık pencereyi taşırır ve o parça sessizce
+///    segment kalırsa bağlam penceresini taşırır ve o parça sessizce
 ///    düşer. Uzun paragraf cümle sınırından bölünür.
 /// 3. **Konuşmacı ve kanal.** Kanal fiziksel gerçektir (kural #11) ama içe
 ///    aktarılan metinde fiziksel kanal yoktur: kullanıcının kendi adı

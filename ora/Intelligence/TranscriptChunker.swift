@@ -6,21 +6,44 @@ import Foundation
 /// 60 dakikalık toplantının %75'i sessizce çöpe gidiyordu. Burada her karakter
 /// bir parçaya girer; hiçbir şey atılmaz.
 ///
-/// Bağlam penceresi 4096 token. RESEARCH.md §3'teki "4 karakter ≈ 1 token"
-/// oranı **iyimserdi**: gerçek bir Türkçe toplantı transkriptinde (teknik terim,
-/// kesme işareti, yoğun ek) ölçülen oran **2,45 karakter/token** (RESEARCH.md
-/// §23). 10.000 karakterlik parça 4.089 token ediyor ve `ParcaOzeti` istemiyle
+/// Bağlam penceresi sabit değil: `SystemLanguageModel.contextSize` macOS 26'da
+/// 4096, macOS 27'de 8192 token (RESEARCH.md §41). Sınırlar bu yüzden
+/// pencereden hesaplanır.
+///
+/// RESEARCH.md §3'teki "4 karakter ≈ 1 token" oranı **iyimserdi**: gerçek bir
+/// Türkçe toplantı transkriptinde (teknik terim, kesme işareti, yoğun ek)
+/// ölçülen oran **2,45 karakter/token** (RESEARCH.md §23). 4096'lık pencerede
+/// 10.000 karakterlik parça 4.089 token ediyor ve `ParcaOzeti` istemiyle
 /// birlikte pencereyi taşırıyordu — 60 dakikalık bir toplantıda **her parça**
 /// düşüyordu.
 ///
 /// Sınırlar bu ölçülen orandan hesaplanır ve üretilecek çıktıya pay bırakır.
 nonisolated enum TranscriptChunker {
 
-    /// Özetleme parçası: 6.000 krk ≈ 2.450 token; istem ~300, çıktıya ~1.300 pay.
+    /// Sınırların ölçüldüğü pencere (RESEARCH.md §23).
+    static let measuredContextSize = 4096
+    /// Özetleme parçası, 4096'lık pencerede: 6.000 krk ≈ 2.450 token; istem
+    /// ~300, çıktıya ~1.300 pay.
     static let summaryLimit = 6_000
     /// Noktalama parçası — çıktı girdiyle **aynı boyutta** olacağı için daha dar:
     /// 3.500 krk ≈ 1.430 token girdi + aynı kadar çıktı + istem.
     static let punctuationLimit = 3_500
+
+    /// `contextSize` token'lık pencereye göre özetleme parçası. İstem, girdi
+    /// ve çıktı payı pencereyle **orantılı** büyür — büyüyen parça daha çok
+    /// konu ve daha uzun `ParcaOzeti` üretir, sabit bir çıktı payı yetmez.
+    static func summaryLimit(contextSize: Int) -> Int {
+        scaled(summaryLimit, to: contextSize)
+    }
+
+    /// `contextSize` token'lık pencereye göre noktalama parçası.
+    static func punctuationLimit(contextSize: Int) -> Int {
+        scaled(punctuationLimit, to: contextSize)
+    }
+
+    private static func scaled(_ limit: Int, to contextSize: Int) -> Int {
+        max(1, limit * contextSize / measuredContextSize)
+    }
 
     /// Segmentleri, birleşik metni `limit`i aşmayan gruplara böler.
     static func chunks(of segments: [Segment], limit: Int) -> [[Segment]] {

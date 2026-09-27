@@ -2623,3 +2623,27 @@ Ayarlar'dan tümü silinir.
 yalnızca çıkış hoparlörse (`OutputRoute`); diğer uygulamaları kısma `.min`,
 işleme açıkken yalnızca 0. kanal. Apple'ın ses işlemesinin başka bir
 uygulamanın (Teams) çaldığı sesi ne ölçüde sildiği bu makinede ölçülmedi.
+
+## 41. macOS 27: cihaz üstü modelin penceresi 8192 token
+
+**Tarih:** 2026-09-27 · **Ortam:** macOS 27.0 (26A428), Apple M5, 32 GB,
+Xcode 26.6 (SDK 26.5)
+
+`SystemLanguageModel.contextSize` (macOS 26.4'te geldi, 26.0'a geri
+taşınmış — `@backDeployed`) bu makinede **8192** döndü; §3 ve §23'teki
+ölçümler 4096'lık pencerede alınmıştı. `supportsLocale(tr_TR)` doğru, kısa
+bir Türkçe yanıt 3,8 sn. Apple WWDC26'da cihaz üstü modelin yeniden
+eğitildiğini söylüyor; yani macOS 27'ye geçen her kullanıcıda ora'nın
+özetleri **başka bir modelle** üretiliyor — §23–37'nin rakamları eski modele
+aittir.
+
+**Karar.** Parça sınırları sabit değil, pencereden türetilir
+(`TranscriptChunker.summaryLimit(contextSize:)` /
+`punctuationLimit(contextSize:)`): 4096'da ölçülen 6.000 / 3.500 karakter,
+pencereyle **orantılı** büyür (8192'de 12.000 / 7.000). Orantı istem, girdi
+ve çıktı payını birlikte büyütür; 12.000 krk ≈ 4.900 token girdi, istem ve
+`ParcaOzeti` çıktısı için ~3.300 token pay bırakır. 4096'lık pencerede
+davranış bayt bayt aynıdır.
+
+*probe:* `SystemLanguageModel.default.contextSize` ve kısa bir `respond`
+çağrısı; `swiftc -parse-as-library` ile derlenir.

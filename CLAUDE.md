@@ -254,11 +254,13 @@ Bu sıra asla değişmez:
   kontrol et. `.unavailable(.appleIntelligenceNotEnabled)` gerçek ve sık bir
   durumdur — kullanıcıyı Türkçe bir onboarding ekranıyla Ayarlar'a yönlendir,
   sessizce başarısız olma.
-- **Bağlam penceresi 4096 token.** Ölçüm: ~15.600 Türkçe karakter (≈3.800 token)
-  geçti, ~31.200 karakter `exceededContextWindowSize` verdi. Türkçe'de kabaca
-  **4 karakter ≈ 1 token**.
-- Bu yüzden **map-reduce zorunludur**: transkripti **6.000 karakterlik**
-  parçalara böl, her parçayı ayrı özetle, sonra kısmi özetleri birleştirip nihai
+- **Bağlam penceresi işletim sistemiyle değişir:** macOS 26'da 4096, macOS
+  27'de **8192** token (`SystemLanguageModel.contextSize`, RESEARCH.md §41).
+  Pencere **sabit yazılmaz**, çalışma zamanında okunur.
+- Bu yüzden **map-reduce zorunludur**: transkripti parçalara böl — sınır
+  4096'lık pencerede ölçülen **6.000 karakter** (noktalamada 3.500) ve
+  `TranscriptChunker.summaryLimit(contextSize:)` ile pencereyle orantılı
+  büyür (8192'de 12.000). Her parçayı ayrı özetle, her parçayı ayrı özetle, sonra kısmi özetleri birleştirip nihai
   özeti üret. "4 karakter ≈ 1 token" oranı **iyimserdi**: gerçek bir toplantı
   transkriptinde ölçülen oran **2,45 karakter/token** (RESEARCH.md §23) ve
   10.000 karakterlik parça 4.089 token ederek pencereyi taşırıyordu. Transkripti asla kırpma —
@@ -332,7 +334,7 @@ Bu sıra asla değişmez:
   tutmuyor. **Aksiyonlar her uzunlukta aynıdır** — not, "bana ne düştü"yü
   kısaltarak kısalmaz.
 - Her map-reduce parçası için **yeni `LanguageModelSession`** aç; oturumu
-  tekrar kullanırsan geçmiş bağlamı yiyip 4096'yı taşırır.
+  tekrar kullanırsan geçmiş bağlamı yiyip pencereyi taşırır.
 - **Noktalama istemine konuşmacı öneki ("Ben:", "Katılımcı:") EKLEME.**
   Ölçüldü (RESEARCH.md §15.1): önekli istem 8 denemenin 6'sında
   `guardrailViolation` veriyor, öneksiz 8/8 geçiyor. Özetleme isteminde önek
@@ -573,7 +575,7 @@ Kurallar:
    kaynakta süre konuşma hızından (15 krk/sn) uydurulur.
 7. **Uzun paragraf cümle sınırından bölünür** (600 karakter). Tek parça
    yapıştırılmış bir metin tek segment kalırsa `TranscriptChunker` onu
-   bölemez ve 4096 token'lık pencere taşar.
+   bölemez ve bağlam penceresi taşar.
 8. **Zaten noktalı metin yeniden noktalanmaz**
    (`FoundationIntelligence.isPunctuated`, satırların %80'i). Kural #4'ün
    istediği **sonuç** noktalı bir transkripttir; dışarıdan gelen döküm zaten

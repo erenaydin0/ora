@@ -4,8 +4,9 @@ import FoundationModels
 /// `FoundationModels` (Apple'ın cihaz üstü ~3B modeli) üzerine kurulu
 /// noktalama ve özetleme.
 ///
-/// Bağlam penceresi **4096 token**; Türkçe'de kabaca 4 karakter ≈ 1 token
-/// (RESEARCH.md §3). Bu yüzden her uzun girdi map-reduce edilir ve
+/// Bağlam penceresi dardır (macOS 26'da 4096, macOS 27'de 8192 token —
+/// RESEARCH.md §41) ve parça sınırları ondan hesaplanır. Her uzun girdi
+/// map-reduce edilir ve
 /// **her parça için yeni `LanguageModelSession`** açılır — oturum tekrar
 /// kullanılırsa geçmiş bağlamı yiyip pencereyi taşırır.
 nonisolated struct FoundationIntelligence: Intelligent {
@@ -46,6 +47,17 @@ nonisolated struct FoundationIntelligence: Intelligent {
         adımdan oluşuyor" is.
         """
 
+    /// Parça sınırları sistemin **şu anki** modelinin penceresinden gelir;
+    /// sabit yazılsaydı işletim sistemi güncellemesi pencereyi büyüttüğünde
+    /// (macOS 27: 4096 → 8192) yarısı boş kalırdı.
+    private var summaryLimit: Int {
+        TranscriptChunker.summaryLimit(contextSize: SystemLanguageModel.default.contextSize)
+    }
+
+    private var punctuationLimit: Int {
+        TranscriptChunker.punctuationLimit(contextSize: SystemLanguageModel.default.contextSize)
+    }
+
     var availability: ModelAvailability {
         switch SystemLanguageModel.default.availability {
         case .available:
@@ -74,7 +86,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
         }
 
         let chunks = TranscriptChunker.chunks(of: segments,
-                                              limit: TranscriptChunker.punctuationLimit)
+                                              limit: punctuationLimit)
         var restored: [Segment] = []
         restored.reserveCapacity(segments.count)
 
@@ -168,7 +180,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
     }
 
     /// Her parça için **yeni oturum** — oturum tekrar kullanılırsa geçmiş bağlam
-    /// birikir ve 4096 token penceresi taşar.
+    /// birikir ve bağlam penceresi taşar.
     private func respondWithRetry(strict: String, plain: String) async throws -> String {
         do {
             let session = LanguageModelSession(instructions: Self.instructions)
@@ -209,7 +221,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
         }
 
         let chunks = TranscriptChunker.chunks(of: segments,
-                                              limit: TranscriptChunker.summaryLimit)
+                                              limit: summaryLimit)
         let target = Self.topicTarget(chunkCount: chunks.count, detail: context.detail)
         // Maddeye sızan konuşmacı öneki ancak bu listeyle tanınır.
         let speakers = Set(segments.map(\.speaker))
@@ -265,7 +277,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
         // REDUCE — birleştirme artık paraphrase değil **konu notları** görüyor.
         // Uzunsa madde budanır; özetin özetini almak sayıları ve isimleri
         // eritiyordu.
-        let combined = Self.fit(topics, limit: TranscriptChunker.summaryLimit)
+        let combined = Self.fit(topics, limit: summaryLimit)
 
         let session = LanguageModelSession(instructions: Self.summaryInstructions)
         do {
@@ -863,7 +875,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
         guard !lines.isEmpty else { return (ozet, topics) }
 
         var fixed: [String] = []
-        let chunks = Self.batches(of: lines, limit: TranscriptChunker.punctuationLimit)
+        let chunks = Self.batches(of: lines, limit: punctuationLimit)
         for (index, chunk) in chunks.enumerated() {
             fixed.append(contentsOf: await polish(chunk))
             progress(Double(index + 1) / Double(chunks.count))
@@ -1016,7 +1028,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
         }
 
         let chunks = TranscriptChunker.chunks(of: segments,
-                                              limit: TranscriptChunker.summaryLimit)
+                                              limit: summaryLimit)
 
         // MAP — her parçaya soru ayrı sorulur; ilgisiz parçalar elenir.
         var findings: [String] = []
@@ -1081,7 +1093,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
         guard availability.isAvailable, !segments.isEmpty else { return nil }
 
         let opening = TranscriptChunker.chunks(of: segments,
-                                               limit: TranscriptChunker.summaryLimit).first ?? segments
+                                               limit: summaryLimit).first ?? segments
 
         // Önce konu başlıklarından: ilk parça uzun bir toplantıyı temsil etmiyor.
         // Ama model başlık listesini **birleştirip** geri veriyor (ölçüldü,
