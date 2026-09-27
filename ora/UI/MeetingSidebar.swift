@@ -39,6 +39,16 @@ struct MeetingSidebar: View {
                 .listRowInsets(EdgeInsets(top: 2, leading: -14, bottom: 2, trailing: -5))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
+                if !recorder.people.isEmpty {
+                    ActionBoardRow(title: "Kişiler", icon: "person.2",
+                                   count: recorder.people.count,
+                                   isSelected: recorder.showsPeople) {
+                        recorder.showsPeople = true
+                    }
+                    .listRowInsets(EdgeInsets(top: 2, leading: -14, bottom: 2, trailing: -5))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                }
             }
             ForEach(groups) { group in
                 Section {
@@ -387,6 +397,8 @@ private struct TagFilterChip: View {
 /// Aksiyon panosuna giriş. Toplantı satırlarıyla aynı ölçüde ve aynı seçim
 /// şeridiyle çizilir; ayrımı simge ve açık aksiyon sayısı kurar.
 private struct ActionBoardRow: View {
+    var title = "Aksiyonlar"
+    var icon = "checklist"
     let count: Int
     let isSelected: Bool
     let open: () -> Void
@@ -396,10 +408,10 @@ private struct ActionBoardRow: View {
     var body: some View {
         Button(action: open) {
             HStack(spacing: 8) {
-                Image(systemName: "checklist")
+                Image(systemName: icon)
                     .font(.system(size: 12))
                     .foregroundStyle(isSelected ? Color.oraPaper : Color.oraInkMuted)
-                Text("Aksiyonlar")
+                Text(title)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(isSelected ? Color.oraPaper : Color.oraInk)
                 Spacer(minLength: 0)
@@ -422,7 +434,7 @@ private struct ActionBoardRow: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
-        .accessibilityLabel(count > 0 ? "Aksiyonlar, \(count) açık" : "Aksiyonlar")
+        .accessibilityLabel(count > 0 ? "\(title), \(count)" : title)
     }
 }
 

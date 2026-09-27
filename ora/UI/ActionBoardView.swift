@@ -113,7 +113,7 @@ private struct ActionGroup: Identifiable {
 /// Pano satırı: onay kutusu, iş, gerekçe ve **hangi toplantıdan çıktığı**.
 /// Kaynak satırına tıklamak o toplantıyı açar — madde tek başına anlaşılmazsa
 /// çıkış yolu budur.
-private struct BoardRow: View {
+struct BoardRow: View {
 
     let action: BoardAction
     let toggle: () -> Void

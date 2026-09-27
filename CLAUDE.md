@@ -857,6 +857,15 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
   açıldığında orta sütun ~655 pt'nin altına inmediği için SwiftUI kenar
   çubuğunu pencerenin dışına itiyordu (RESEARCH.md §26.2).
   "Konuşmacılar" sekmesi yoktur (DESIGN.md §4)
+- **Kenar çubuğunun kökleri:** Aksiyonlar (pano) ve — kişi varsa — Kişiler
+  (`PeopleView`, §4.11). İkisi de toplantılar arası görünümdür; biri açılınca
+  diğeri ve toplantı seçimi kapanır. Kişi sayfası **LLM'siz**dir: kişiyle
+  yapılan toplantılar, ona düşen açık aksiyonlar (tam ad ya da tek kelimelik
+  ilk ad eşleşir — `MeetingStore.owns`) ve kararı olan son toplantının
+  kararları. Takvim açıkken menü barda sıradaki toplantının altında "Son
+  ortak toplantı 12 Ağu — 3 açık aksiyon, 2 karar" satırı durur: katılımcılarla
+  en çok ortak kişisi olan geçmiş toplantı, kullanıcının kendi adı sayılmaz.
+  Toplantıdan önce LLM ile hazırlık notu **yazılmaz** (yapılmadı)
 - **Kişiler kartı davetliyi konuşandan ayırır** ("davetli 6 · konuşan 3"):
   konuşanlar mürekkep, yalnızca davetli kalanlar `.oraInkMuted`. Konuşan
   listesi **segmentlerden türetilir**, ayrıca sorgulanmaz

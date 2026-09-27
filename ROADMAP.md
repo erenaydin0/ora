@@ -315,6 +315,8 @@ karar versin.
 ## Faz 12 — Toplantılar arası (COMPETITION.md §7)
 Faz 11 (Bağlantılar) bundan önce yapıldı; numara sırası iş sırasını izliyor.
 - [x] Etiketler + kenar çubuğunda etikete göre süzme (§4.16) — v8
+- [x] Kişi sayfası + menü barda "son ortak toplantı" brifingi (§4.11) — LLM'siz;
+      toplantı öncesi LLM hazırlık notu yapılmadı
 
 ## Kapsam Dışı — bilerek yapılmayacaklar
 - Windows / Linux desteği

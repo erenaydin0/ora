@@ -45,6 +45,11 @@ final class RecordingController {
         get { library.showsActionBoard }
         set { library.showsActionBoard = newValue }
     }
+    var showsPeople: Bool {
+        get { library.showsPeople }
+        set { library.showsPeople = newValue }
+    }
+    var people: [MeetingStore.Person] { library.people }
     var boardActions: [BoardAction] { library.boardActions }
     var openActionCount: Int { library.openActionCount }
     var transcript: [Segment] { library.transcript }
@@ -91,6 +96,8 @@ final class RecordingController {
     private(set) var vocabulary: [VocabularyStore.Word] = []
     /// Menü barda gösterilecek sıradaki toplantı.
     private(set) var upcomingEvent: MeetingEvent?
+    /// Sıradaki toplantının katılımcılarıyla yapılan son toplantı (§4.11).
+    private(set) var upcomingBrief: MeetingStore.Brief?
     /// Canlı transkriptin son satırı — menü bar popover'ında akar.
     var lastLiveLine: String? {
         volatileText.values.first(where: { !$0.isEmpty })
@@ -358,6 +365,23 @@ final class RecordingController {
 
     func refreshUpcoming() async {
         upcomingEvent = settings.calendarEnabled ? calendar.upcoming().first : nil
+        if let event = upcomingEvent {
+            upcomingBrief = try? await store.brief(attendees: event.attendees,
+                                                   excluding: settings.userDisplayName,
+                                                   before: event.start)
+        } else {
+            upcomingBrief = nil
+        }
+    }
+
+    /// Kişi sayfasının içeriği (§4.11).
+    func personDetail(_ name: String) async -> MeetingStore.PersonDetail? {
+        do {
+            return try await store.person(name)
+        } catch {
+            Log.error(.store, "Kişi okunamadı", error)
+            return nil
+        }
     }
 
     // MARK: - Özetleme motoru

@@ -45,6 +45,8 @@ struct RootView: View {
                         RecordingView(recorder: recorder)
                     } else if recorder.showsActionBoard {
                         ActionBoardView(recorder: recorder)
+                    } else if recorder.showsPeople {
+                        PeopleView(recorder: recorder)
                     } else {
                         MeetingDetail(recorder: recorder)
                     }

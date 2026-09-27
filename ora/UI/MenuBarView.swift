@@ -76,6 +76,13 @@ struct MenuBarContent: View {
         if !lock.isLocked, let event = recorder.upcomingEvent {
             Divider()
             Text("Sıradaki: \(event.timeLabel)  \(event.title)")
+            // Aynı katılımcılarla son toplantı — tıklayınca o toplantı açılır.
+            if let brief = recorder.upcomingBrief {
+                Button(brief.line) {
+                    recorder.openMeeting(brief.meetingID)
+                    openWindow(id: "main")
+                }
+            }
         }
 
         Divider()

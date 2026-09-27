@@ -36,12 +36,31 @@ final class MeetingLibrary {
     /// Kenar çubuğundaki sayı: açık aksiyon adedi.
     var openActionCount: Int { boardActions.count { !$0.isDone } }
     /// Aksiyon panosu açık mı — açıkken orta panel toplantı yerine panoyu gösterir.
-    var showsActionBoard = false { didSet { if showsActionBoard { selection = nil } } }
+    var showsActionBoard = false {
+        didSet {
+            guard showsActionBoard else { return }
+            showsPeople = false
+            selection = nil
+        }
+    }
+    /// Kişiler sayfası açık mı (§4.11). Pano gibi toplantılar arası bir görünüm.
+    var showsPeople = false {
+        didSet {
+            guard showsPeople else { return }
+            showsActionBoard = false
+            selection = nil
+        }
+    }
+    /// En az bir toplantıda görülen kişiler.
+    private(set) var people: [MeetingStore.Person] = []
 
     var selection: Int64? {
         didSet {
             guard selection != oldValue else { return }
-            if selection != nil { showsActionBoard = false }
+            if selection != nil {
+                showsActionBoard = false
+                showsPeople = false
+            }
             loadSelected()
         }
     }
@@ -120,6 +139,7 @@ final class MeetingLibrary {
         boardActions = (try? await store.allActions()) ?? boardActions
         searchSnippets = (try? await store.snippets(search: searchText)) ?? [:]
         knownParticipants = (try? await store.knownParticipants()) ?? knownParticipants
+        people = (try? await store.people()) ?? people
     }
 
     /// Arama yazarken her tuşta sorgu atılmaz.
@@ -135,6 +155,7 @@ final class MeetingLibrary {
     /// Panodan kaynak toplantıya git.
     func openMeeting(_ meetingID: Int64) {
         showsActionBoard = false
+        showsPeople = false
         selection = meetingID
     }
 
