@@ -188,9 +188,9 @@ nonisolated struct FoundationIntelligence: Intelligent {
     /// Ölçüldü (`circleback-notes/`): iyi bir toplantı notu 18 dakikalık
     /// toplantıda da 66 dakikalıkta da 5-7 bölüm veriyor — bölüm sayısı
     /// süreyle değil, konuşmanın konu sayısıyla ölçekleniyor.
-    static func topicTarget(chunkCount: Int) -> Int {
+    static func topicTarget(chunkCount: Int, detail: SummaryDetail = .balanced) -> Int {
         guard chunkCount > 0 else { return 1 }
-        return max(1, min(4, Int((6.0 / Double(chunkCount)).rounded(.up))))
+        return max(1, min(4, Int((detail.topicBudget / Double(chunkCount)).rounded(.up))))
     }
 
     @concurrent func summarize(_ segments: [Segment],
@@ -210,7 +210,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
 
         let chunks = TranscriptChunker.chunks(of: segments,
                                               limit: TranscriptChunker.summaryLimit)
-        let target = Self.topicTarget(chunkCount: chunks.count)
+        let target = Self.topicTarget(chunkCount: chunks.count, detail: context.detail)
         // Maddeye sızan konuşmacı öneki ancak bu listeyle tanınır.
         let speakers = Set(segments.map(\.speaker))
         Log.info(.intelligence, "Özetleme: \(chunks.count) parça, "
@@ -272,7 +272,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
             // Birleştirme **aksiyon üretmez** — sorumlu kişiyi bilemez.
             let response = try await session.respond(to: """
                 Below are topic-by-topic notes from a meeting. From them
-                produce a 4-6 bullet overview of the meeting and the decisions
+                produce a \(context.detail.overviewRange) bullet overview of the meeting and the decisions
                 that were made. Write everything in Turkish.
                 Rules:
                 - Each overview bullet is one sentence; first what happened,
@@ -304,9 +304,9 @@ nonisolated struct FoundationIntelligence: Intelligent {
                     progress(0.85 + value * 0.15)
                 }
             progress(1)
-            return SummaryResult(ozet: finalOzet,
-                                 topics: finalTopics,
-                                 skippedChunks: skipped)
+            return context.detail.shaped(SummaryResult(ozet: finalOzet,
+                                                       topics: finalTopics,
+                                                       skippedChunks: skipped))
         } catch let error as LanguageModelSession.GenerationError {
             if case .exceededContextWindowSize = error {
                 // Buraya düşmek parçalama mantığında hata olduğunu gösterir.
@@ -326,7 +326,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
             Turn this meeting excerpt into written notes. Produce at most
             \(target) topics. For each topic write a 2-6 word Turkish heading
             and bullets. If few topics are requested, write each one in more
-            detail; give every important point its own bullet.
+            detail; give every important point its own bullet.\(context.detail.chunkHint)
 
             Write for someone who was not in the room: every bullet must teach
             a fact — a number, a decision, how something works, a problem, a

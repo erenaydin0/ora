@@ -300,6 +300,15 @@ Bu sıra asla değişmez:
   ölçümleri onunla alındı, değiştirilirse ölçümler geçersizleşir.
   Yeniden üretim aksiyonları da yeniden yazar; işaretli aksiyon varsa
   kullanıcıya sorulur.
+- **Özet uzunluğu seçilebilir: Kısa · Dengeli · Ayrıntılı**
+  (`SummaryDetail`, Ayarlar → Özetleme). **Dengeli ölçülmüş olandır ve
+  varsayılandır:** o seviyede iki motorun istem metni ve sınırları eskisiyle
+  bayt bayt aynıdır, `SummaryShapeTests` bunu denetler — değişirse §23-37
+  ölçümleri geçersizleşir. Kısa ve Ayrıntılı **ölçülmedi**; §35'in kapsama
+  puanıyla değerlendirilmeden varsayılan yapılmaz. Kısa'nın sınırı (konu
+  başına 3 madde, genel bakış 3) kodda da uygulanır çünkü istem sınırı
+  tutmuyor. **Aksiyonlar her uzunlukta aynıdır** — not, "bana ne düştü"yü
+  kısaltarak kısalmaz.
 - Her map-reduce parçası için **yeni `LanguageModelSession`** aç; oturumu
   tekrar kullanırsan geçmiş bağlamı yiyip 4096'yı taşırır.
 - **Noktalama istemine konuşmacı öneki ("Ben:", "Katılımcı:") EKLEME.**

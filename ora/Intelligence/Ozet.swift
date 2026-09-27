@@ -147,6 +147,132 @@ nonisolated struct SummaryContext: Sendable, Equatable {
     /// döküm) yoksa kanal etiketleriyle mi ("Ben" / "Katılımcı", kendi
     /// kaydımız)? İstem buna göre değişir — bkz. `speakerLine`.
     var hasNamedSpeakers = false
+    /// Kullanıcının seçtiği özet uzunluğu (Ayarlar → Özetleme).
+    var detail: SummaryDetail = .balanced
 
     static let empty = SummaryContext(meetingDate: .now, participants: [], userName: nil)
+}
+
+/// Özet uzunluğu.
+///
+/// **Dengeli ölçülmüş olandır** (RESEARCH.md §23-37): o seviyede istem metni
+/// ve sınırlar eskisiyle **bayt bayt aynıdır** — `SummaryShapeTests` bunu
+/// denetler. Kısa ve Ayrıntılı ölçülmedi; kapsama puanıyla (§35)
+/// değerlendirilmeden varsayılan yapılmaz.
+///
+/// **Aksiyonlar her uzunlukta aynıdır.** Kullanıcının nota ilk sorusu "bana ne
+/// düştü" (özet sırası buna göre kuruldu); kısa not, aksiyonu kısaltarak
+/// kısalmaz.
+nonisolated enum SummaryDetail: String, CaseIterable, Sendable, Identifiable {
+    case brief
+    case balanced
+    case detailed
+
+    var id: String { rawValue }
+
+    var turkishName: String {
+        switch self {
+        case .brief:    "Kısa"
+        case .balanced: "Dengeli"
+        case .detailed: "Ayrıntılı"
+        }
+    }
+
+    var turkishDetail: String {
+        switch self {
+        case .brief:
+            "Az konu, konu başına en fazla üç madde. Hızlı göz atmak için."
+        case .balanced:
+            "Ölçülmüş varsayılan."
+        case .detailed:
+            "Daha çok konu ve madde. Uzun toplantıda not seyrelmesin diye."
+        }
+    }
+
+    // MARK: Apple motoru (map-reduce)
+
+    /// Toplantı başına hedef konu sayısı; parça sayısına bölünür
+    /// (`FoundationIntelligence.topicTarget`). Dengeli'deki 6 ölçülmüş değerdir.
+    var topicBudget: Double {
+        switch self {
+        case .brief:    3
+        case .balanced: 6
+        case .detailed: 10
+        }
+    }
+
+    /// Birleştirme istemindeki genel bakış aralığı.
+    var overviewRange: String {
+        switch self {
+        case .brief:    "2-3"
+        case .balanced: "4-6"
+        case .detailed: "5-6"
+        }
+    }
+
+    /// Parça istemine eklenen cümle. Dengeli'de **boş** — istem değişmez.
+    var chunkHint: String {
+        switch self {
+        case .brief:
+            " Keep only the most important points: at most 3 bullets per "
+                + "topic, preferring those that carry numbers and decisions."
+        case .balanced:
+            ""
+        case .detailed:
+            " Be thorough: give every concrete fact, number and decision its "
+                + "own bullet."
+        }
+    }
+
+    // MARK: Yerel motor (tek geçiş)
+
+    var localOverview: String {
+        switch self {
+        case .brief:    "3"
+        case .balanced: "4-6"
+        case .detailed: "5-6"
+        }
+    }
+
+    var localTopics: String {
+        switch self {
+        case .brief:    "4-6"
+        case .balanced: "8-12"
+        case .detailed: "10-14"
+        }
+    }
+
+    var localBullets: String {
+        switch self {
+        case .brief:    "2-3"
+        case .balanced: "4-6"
+        case .detailed: "5-8"
+        }
+    }
+
+    var localDensity: String {
+        self == .brief ? "Yalnızca en önemli bilgiyi yaz." : "Not seyrek olmasın."
+    }
+
+    // MARK: Kesin sınır
+
+    /// Konu başına en fazla madde. Nil: şemanın tavanı.
+    var bulletCap: Int? { self == .brief ? 3 : nil }
+    /// Genel bakışta en fazla madde. Nil: şemanın tavanı.
+    var overviewCap: Int? { self == .brief ? 3 : nil }
+
+    /// İstem sınırı ölçümde tutmadı (§23: "en fazla N konu" dendi, 23 bölüm
+    /// çıktı); Kısa'nın vaadi kodda uygulanır. Aksiyonlara dokunulmaz.
+    func shaped(_ result: SummaryResult) -> SummaryResult {
+        guard bulletCap != nil || overviewCap != nil else { return result }
+        var ozet = result.ozet
+        if let overviewCap { ozet.genelBakis = Array(ozet.genelBakis.prefix(overviewCap)) }
+        let topics = result.topics.map { topic in
+            guard let bulletCap else { return topic }
+            return TopicSegment(title: topic.title,
+                                bullets: Array(topic.bullets.prefix(bulletCap)),
+                                start: topic.start, end: topic.end)
+        }
+        return SummaryResult(ozet: ozet, topics: topics, skippedChunks: result.skippedChunks)
+    }
 }

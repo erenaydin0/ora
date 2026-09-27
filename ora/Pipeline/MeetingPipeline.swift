@@ -236,7 +236,8 @@ final class MeetingPipeline {
                 // orada "Ben kaydı tutan kişidir" cümlesi zarar veriyor (§33).
                 hasNamedSpeakers: working.contains {
                     !MeetingStore.isChannelLabel($0.speaker)
-                })
+                },
+                detail: settings.summaryDetail)
             let result = try await engine.summarize(
                 working, context: context, variation: variation) { [weak self] value in
                 Task { @MainActor in self?.stage(.summarizing(value), meetingID) }

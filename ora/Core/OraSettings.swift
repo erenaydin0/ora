@@ -66,6 +66,10 @@ final class OraSettings {
 
     var localModel: LocalModel { LocalModel.named(localModelID) ?? .qwen35_9B }
 
+    /// Özet uzunluğu. Varsayılan Dengeli — ölçümlerin alındığı seviye.
+    /// Yeni ve yeniden üretilen özetlere uygulanır; eski notlar değişmez.
+    var summaryDetail: SummaryDetail { didSet { store(summaryDetail.rawValue, .summaryDetail) } }
+
     // MARK: - Takvim
 
     /// Opt-in, varsayılan kapalı. Kapalıyken EventKit'e hiç dokunulmaz.
@@ -154,6 +158,8 @@ final class OraSettings {
         summaryEngine = defaults.string(forKey: Key.summaryEngine.rawValue)
             .flatMap(SummaryEngine.init(rawValue:)) ?? .apple
         localModelID = defaults.string(forKey: Key.localModelID.rawValue) ?? LocalModel.qwen35_9B.id
+        summaryDetail = defaults.string(forKey: Key.summaryDetail.rawValue)
+            .flatMap(SummaryDetail.init(rawValue:)) ?? .balanced
     }
 
     /// Kendi süreci de dahil, dışlanan tüm bundle ID'ler.
@@ -169,7 +175,7 @@ final class OraSettings {
         case userDisplayName
         case compressAudio, audioRetentionDays, announceRecording
         case transcriptionLanguage
-        case summaryEngine, localModelID
+        case summaryEngine, localModelID, summaryDetail
     }
 
     private let defaults: UserDefaults

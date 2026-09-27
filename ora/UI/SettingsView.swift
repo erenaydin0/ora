@@ -160,6 +160,23 @@ private struct SummarySettings: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            Section("Özet uzunluğu") {
+                Picker("", selection: $settings.summaryDetail) {
+                    ForEach(SummaryDetail.allCases) { detail in
+                        Text(detail.turkishName).tag(detail)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                Text(settings.summaryDetail.turkishDetail + " Aksiyonlar her "
+                     + "uzunlukta aynı kalır. Yeni ve yeniden üretilen özetlere "
+                     + "uygulanır; mevcut notlar değişmez.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Section(model.displayName) {
                 LabeledContent("Yakalanan bilgi") {
                     Text("%\(model.measuredCoverage) · Apple modeli %20")

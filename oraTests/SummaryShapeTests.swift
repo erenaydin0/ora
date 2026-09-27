@@ -190,4 +190,88 @@ struct SummaryShapeTests {
         let channels = SummaryContext(meetingDate: .now, participants: [], userName: "Eren")
         #expect(FoundationIntelligence.speakerLine(channels).contains("Ben"))
     }
+
+    // MARK: - Özet uzunluğu
+
+    /// **Dengeli ölçülmüş olandır.** Yerel motorun istemi bu seviyede §37'de
+    /// ölçülen metnin bayt bayt aynısı olmalı; değişirse ölçüm geçersizleşir.
+    @Test
+    func dengeliYerelIstemOlculenMetinleAynidir() {
+        var context = SummaryContext.empty
+        context.detail = .balanced
+        let prompt = LocalIntelligence.prompt(body: "X", context: context)
+        let measured = """
+            - Genel bakış 4-6 madde: toplantının en önemli sonuçları, sayılarıyla.
+            - Konu başlıkları toplantının gerçek konularını izlesin (8-12 konu), her
+              konunun altında 4-6 madde olsun. Not seyrek olmasın.
+            """
+        #expect(prompt.contains(measured))
+    }
+
+    /// Apple motorunda Dengeli'nin sayıları eski sabitlerle aynıdır: konu
+    /// hedefi eski `6 / parça` formülü, genel bakış "4-6", parça istemine ek yok.
+    @Test
+    func dengeliAppleSabitleriDegismedi() {
+        for chunks in 1 ... 12 {
+            let old = max(1, min(4, Int((6.0 / Double(chunks)).rounded(.up))))
+            #expect(FoundationIntelligence.topicTarget(chunkCount: chunks) == old)
+            #expect(FoundationIntelligence.topicTarget(chunkCount: chunks,
+                                                       detail: .balanced) == old)
+        }
+        #expect(SummaryDetail.balanced.overviewRange == "4-6")
+        #expect(SummaryDetail.balanced.chunkHint.isEmpty)
+    }
+
+    /// Kısa daha az, Ayrıntılı daha çok konu ister — hiçbir parça sayısında
+    /// sıra bozulmaz.
+    @Test
+    func konuHedefiUzunlukSirasinaUyar() {
+        for chunks in 1 ... 12 {
+            let brief = FoundationIntelligence.topicTarget(chunkCount: chunks, detail: .brief)
+            let balanced = FoundationIntelligence.topicTarget(chunkCount: chunks, detail: .balanced)
+            let detailed = FoundationIntelligence.topicTarget(chunkCount: chunks, detail: .detailed)
+            #expect(brief <= balanced && balanced <= detailed, "\(chunks) parça")
+        }
+        #expect(FoundationIntelligence.topicTarget(chunkCount: 1, detail: .brief) == 3)
+        #expect(FoundationIntelligence.topicTarget(chunkCount: 1, detail: .detailed) == 4)
+    }
+
+    /// Kısa'nın vaadi kodda uygulanır; aksiyonlara dokunulmaz. Dengeli sonucu
+    /// olduğu gibi bırakır.
+    @Test
+    func kisaSinirKoddaUygulanirAksiyonlarKorunur() {
+        let actions = (1 ... 5).map {
+            Ozet.Aksiyon(kisi: "Ayşe", gorev: "Rapor \($0) hazırla",
+                         baglam: "", sonTarih: "belirtilmedi")
+        }
+        let result = SummaryResult(
+            ozet: Ozet(genelBakis: ["a", "b", "c", "d", "e"], kararlar: ["k"],
+                       aksiyonlar: actions),
+            topics: [TopicSegment(title: "Bütçe", bullets: ["1", "2", "3", "4", "5"],
+                                  start: 0, end: 10)],
+            skippedChunks: 1)
+
+        let brief = SummaryDetail.brief.shaped(result)
+        #expect(brief.ozet.genelBakis == ["a", "b", "c"])
+        #expect(brief.topics.first?.bullets == ["1", "2", "3"])
+        #expect(brief.ozet.aksiyonlar == actions, "aksiyonlar kısalmaz")
+        #expect(brief.ozet.kararlar == ["k"])
+        #expect(brief.skippedChunks == 1)
+
+        let balanced = SummaryDetail.balanced.shaped(result)
+        #expect(balanced.ozet == result.ozet)
+        #expect(balanced.topics == result.topics)
+    }
+
+    /// Ayar varsayılanı Dengeli'dir ve seçim kalıcıdır.
+    @Test
+    func ozetUzunluguAyariVarsayilanDengeli() {
+        let suite = "ora.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        #expect(OraSettings(defaults: defaults).summaryDetail == .balanced)
+        OraSettings(defaults: defaults).summaryDetail = .brief
+        #expect(OraSettings(defaults: defaults).summaryDetail == .brief)
+    }
 }

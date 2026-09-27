@@ -113,9 +113,10 @@ nonisolated struct LocalIntelligence: Intelligent {
         progress(1)
         Log.info(.intelligence, "Yerel motor bitti — \(topics.count) konu, "
                  + "\(ozet.aksiyonlar.count) aksiyon")
-        return SummaryResult(ozet: FoundationIntelligence.deduplicated(ozet),
-                             topics: FoundationIntelligence.deduplicatedTopics(topics),
-                             skippedChunks: 0)
+        return context.detail.shaped(
+            SummaryResult(ozet: FoundationIntelligence.deduplicated(ozet),
+                          topics: FoundationIntelligence.deduplicatedTopics(topics),
+                          skippedChunks: 0))
     }
 
     // MARK: - Devredilenler
@@ -192,15 +193,16 @@ nonisolated struct LocalIntelligence: Intelligent {
     /// §37'de ölçülen istem. Yoğunluk satırları (8-12 konu, sayıları maddeye
     /// taşı) kapsamayı %32'den %38'e çıkardı; bedeli kuyrukta zayıf konu
     /// başlıkları. İki satırdan biri değiştirilecekse önce `probes` tezgâhı
-    /// yeniden koşturulur.
+    /// yeniden koşturulur. Sayılar `SummaryDetail`'den gelir; **Dengeli'de
+    /// metin ölçülen istemin aynısıdır** (`SummaryShapeTests`).
     static func prompt(body: String, context: SummaryContext) -> String {
         """
         Aşağıda bir toplantının tam dökümü var. Toplantı notunu çıkar.
 
         Kurallar:
-        - Genel bakış 4-6 madde: toplantının en önemli sonuçları, sayılarıyla.
-        - Konu başlıkları toplantının gerçek konularını izlesin (8-12 konu), her
-          konunun altında 4-6 madde olsun. Not seyrek olmasın.
+        - Genel bakış \(context.detail.localOverview) madde: toplantının en önemli sonuçları, sayılarıyla.
+        - Konu başlıkları toplantının gerçek konularını izlesin (\(context.detail.localTopics) konu), her
+          konunun altında \(context.detail.localBullets) madde olsun. \(context.detail.localDensity)
         - Dökümde geçen sayı, tutar, oran, yüzde, tarih, süre, ürün ve firma
           adlarını maddelerin içine taşı; genel bir cümleyle geçiştirme.
         - Madde konuşmayı değil olguyu anlatır; konuşma fiiliyle bitmez.
