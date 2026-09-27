@@ -309,7 +309,8 @@ karar versin.
       sürerken), menü bar, kayıt ekranı; transkriptte bayrak
 - [x] Toplantı şablonları (§4.7) — beş şablon, `meetings.template`; Genel'de
       istem bayt bayt aynı, diğerleri ölçülmedi
-- [ ] Kanal başına dil — mikrofon tr, sistem en (§4.8)
+- [x] Kanal başına dil — mikrofon tr, sistem en (§4.8) — Ayarlar → Genel →
+      "Karşı tarafın dili"; canlı akışta ve tam geçişte
 
 ## Kapsam Dışı — bilerek yapılmayacaklar
 - Windows / Linux desteği

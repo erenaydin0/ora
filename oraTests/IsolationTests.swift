@@ -122,7 +122,7 @@ private nonisolated struct WitnessTranscription: Transcribing {
     let witness: ThreadWitness
     let segments: [Segment]
 
-    func transcribe(url: URL, locale: Locale, vocabulary: [String],
+    func transcribe(url: URL, locales: ChannelLocales, vocabulary: [String],
                     progress: @Sendable @escaping (Double) -> Void) async throws -> [Segment] {
         witness.record("transcribe")
         progress(1)

@@ -119,7 +119,7 @@ nonisolated enum TranscriptionLocale {
         for candidate in candidates {
             do {
                 let segments = try await SpeechTranscription()
-                    .transcribe(url: url, locale: candidate, vocabulary: [],
+                    .transcribe(url: url, locales: ChannelLocales(candidate), vocabulary: [],
                                 channels: [channel], limit: seconds) { _ in }
                 let score = meanConfidence(segments)
                 Log.info(.transcribe, "Otomatik dil adayı \(candidate.identifier): "

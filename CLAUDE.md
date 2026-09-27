@@ -250,6 +250,12 @@ Bu sıra asla değişmez:
   ~40 saniyesini kurulu adaylarla ayrı ayrı çözüp ortalama güven skorunu
   karşılaştırarak seçer. Aday havuzu yalnızca **kurulu** dillerdir; seçim için
   dil paketi indirilmez.
+- **Kanal başına dil** (`ChannelLocales`, `OraSettings.remoteLanguage`,
+  COMPETITION.md §4.8): karşı tarafın dili ayrıca seçilebilir (varsayılan
+  "toplantı diliyle aynı" — eski davranış). "Otomatik" her kanal için **o
+  kanalın** sesine bakar. Tek şeritli dosya (içe aktarılan ses) tek dildir ve
+  toplantı dilini alır. Canlı akışta dil tanıma yoktur: "Otomatik" Türkçe
+  başlar, tam geçiş düzeltir. Karar `MeetingPipeline.channelLocales`'ta.
 
 ## Foundation Models Kuralları — ölçülmüş davranış
 - Kullanmadan önce **her zaman** `SystemLanguageModel.default.availability`
@@ -1134,11 +1140,12 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       öğrenilir, sonraki toplantılarda kişi adıyla gelir (v5 şeması: iki tablo);
       küme adlandırılınca aksiyonların sahibi de değişir; mikrofonda hoparlör
       yankısı bastırılır (kulaklıkta kapalı).
-      **Faz 10 — Not defteri (kısmen):** kullanıcının kendi notu (kayıt
+      **Faz 10 — Not defteri:** kullanıcının kendi notu (kayıt
       ekranında not sütunu, Özet'te "Notlarım"), kayıt sırasında önemli an
       işareti (⌃⌘M, menü bar), notların özet istemine girmesi ve kayıt sonrası
       zenginleştirme (not başına transkriptten ≤ 3 madde). Şema v7 (`notes`).
       Toplantı şablonları (Genel ölçülmüş olan; diğer dördü ölçülmedi).
+      Kanal başına dil (karşı tarafın dili ayrı seçilir). **Faz 10 tamam.**
       **Faz 11 — Bağlantılar yapıldı:** `ora/Net/` tek kapı, kendi AI
       sağlayıcını (Anthropic · OpenAI · OpenRouter · yerel sunucu) özet ve
       sohbet motoru olarak bağlama, Slack ve Notion'a ön izlemeli gönderim ve

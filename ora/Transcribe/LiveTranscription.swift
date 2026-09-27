@@ -24,7 +24,7 @@ protocol LiveTranscribing: Actor {
     nonisolated var updates: AsyncStream<LiveUpdate> { get }
     var isPaused: Bool { get }
     var pauseReason: String? { get }
-    func start(locale: Locale, vocabulary: [String]) async
+    func start(locales: ChannelLocales, vocabulary: [String]) async
     func feed(_ live: LiveBuffer)
     func finish() async
 }
@@ -52,14 +52,18 @@ actor LiveTranscription: LiveTranscribing {
 
     /// Kayıt başlarken çağrılır. Başarısız olursa canlı transkript kapalı kalır,
     /// kayıt etkilenmez.
-    func start(locale: Locale, vocabulary: [String] = []) async {
+    func start(locales: ChannelLocales, vocabulary: [String] = []) async {
         guard sessions.isEmpty else { return }
-        let modelConfiguration = await CustomVocabulary.configuration(for: vocabulary,
-                                                                      locale: locale)
+        var configurations: [String: SFSpeechLanguageModel.Configuration] = [:]
+        for locale in locales.distinct {
+            configurations[locale.identifier] = await CustomVocabulary.configuration(
+                for: vocabulary, locale: locale)
+        }
         for channel in Channel.allCases {
+            let locale = locales.locale(for: channel)
             do {
                 let session = try await ChannelSession(channel: channel, locale: locale,
-                                                       modelConfiguration: modelConfiguration) { [weak self] update in
+                                                       modelConfiguration: configurations[locale.identifier]) { [weak self] update in
                     Task { await self?.emit(update) }
                 }
                 sessions[channel.rawValue] = session
@@ -68,7 +72,7 @@ actor LiveTranscription: LiveTranscribing {
                 return
             }
         }
-        Log.info(.transcribe, "Canlı transkripsiyon açıldı — \(locale.identifier)")
+        Log.info(.transcribe, "Canlı transkripsiyon açıldı — \(locales.label)")
     }
 
     /// Capture'ın `liveBuffers` akışından gelen her buffer buraya düşer.

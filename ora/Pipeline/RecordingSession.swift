@@ -101,11 +101,11 @@ final class RecordingSession {
 
     /// Kayıt başladıktan **sonra** çağrılır. Hata verirse veya duraklarsa
     /// kayıt kesintisiz sürer; kayıt sonrası tam geçiş açığı kapatır.
-    func startLive(locale: Locale, vocabulary: [String]) async {
+    func startLive(locales: ChannelLocales, vocabulary: [String]) async {
         let live = makeLive()
         self.live = live
         route.set(live)
-        await live.start(locale: locale, vocabulary: vocabulary)
+        await live.start(locales: locales, vocabulary: vocabulary)
 
         if await live.isPaused {
             liveNotice = await live.pauseReason

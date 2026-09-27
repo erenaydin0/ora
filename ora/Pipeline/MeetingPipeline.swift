@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 
 /// ARCHITECTURE.md'deki `Pipeline` katmanı: Capture'ın bıraktığı ses
 /// dosyasından transkript, noktalama, özet ve konu bloklarını üretir ve
@@ -28,7 +29,8 @@ final class MeetingPipeline {
         @Sendable (Locale, @escaping @Sendable (Double) -> Void) async throws -> Void
     /// Konuşulan dili tanıyan bir Apple API'si yok; "otomatik" sesin ilk
     /// bölümünü kurulu adaylarla çözüp güven skorlarını karşılaştırır.
-    typealias LocaleDetection = @Sendable (URL) async -> Locale
+    /// Kanal başına: otomatik seçim o kanalın sesine bakar (§4.8).
+    typealias LocaleDetection = @Sendable (URL, Channel) async -> Locale
 
     static let defaultLocalePreparation: LocalePreparation = { locale, progress in
         let module = SpeechTranscription.makeTranscriber(locale: locale, live: false)
@@ -36,8 +38,31 @@ final class MeetingPipeline {
                                                       progress: progress)
     }
 
-    static let defaultLocaleDetection: LocaleDetection = { url in
-        await TranscriptionLocale.detect(url: url, channel: .mic)
+    static let defaultLocaleDetection: LocaleDetection = { url, channel in
+        await TranscriptionLocale.detect(url: url, channel: channel)
+    }
+
+    /// Kanal dillerinin kararı (COMPETITION.md §4.8).
+    ///
+    /// - `remote == nil`: karşı taraf toplantı diliyle aynı — eski davranış.
+    /// - Tek şeritli dosya (içe aktarılan ses) **tek dildir**: kanal ayrımı
+    ///   diye bir fiziksel gerçek yok, tek akış sistem kanalı olarak çözülür
+    ///   ve toplantı dilini alır.
+    /// - "Otomatik" her kanal için **o kanalın** sesine bakar.
+    static func channelLocales(meeting: TranscriptionLanguage,
+                               remote: TranscriptionLanguage?,
+                               lanes: Int,
+                               detect: (Channel) async -> Locale) async -> ChannelLocales {
+        let mic: Locale
+        if let chosen = meeting.locale { mic = chosen } else { mic = await detect(.mic) }
+        guard lanes >= 2, let remote else { return ChannelLocales(mic) }
+        if let chosen = remote.locale { return ChannelLocales(mic: mic, system: chosen) }
+        return ChannelLocales(mic: mic, system: await detect(.system))
+    }
+
+    /// Dosyanın şerit sayısı. Açılamazsa 0 — tek dil varsayılır.
+    static func laneCount(_ url: URL) -> Int {
+        (try? AVAudioFile(forReading: url)).map { Int($0.processingFormat.channelCount) } ?? 0
     }
 
     private let store: MeetingStore
@@ -157,23 +182,24 @@ final class MeetingPipeline {
         emit(.audio(url), meetingID)
         stage(.preparingLanguage, meetingID)
 
-        let locale: Locale
-        if let chosen = settings.transcriptionLanguage.locale {
-            locale = chosen
-        } else {
-            locale = await detectLocale(url)
-        }
+        let detect = detectLocale
+        let locales = await Self.channelLocales(
+            meeting: settings.transcriptionLanguage,
+            remote: settings.remoteLanguage,
+            lanes: Self.laneCount(url)) { channel in await detect(url, channel) }
 
         do {
-            Log.debug(.transcribe, "Tam geçiş: dil hazırlanıyor (\(locale.identifier))")
-            try await prepareLocale(locale) { [weak self] value in
-                Task { @MainActor in self?.stage(.downloadingLanguage(value), meetingID) }
+            Log.debug(.transcribe, "Tam geçiş: dil hazırlanıyor (\(locales.label))")
+            for locale in locales.distinct {
+                try await prepareLocale(locale) { [weak self] value in
+                    Task { @MainActor in self?.stage(.downloadingLanguage(value), meetingID) }
+                }
             }
             stage(.transcribing(0), meetingID)
             let words = (try? await vocabularyStore.activeWords()) ?? []
             Log.debug(.transcribe, "Tam geçiş: \(words.count) sözlük terimi, ses açılıyor")
             let transcribed = try await transcription.transcribe(
-                url: url, locale: locale, vocabulary: words
+                url: url, locales: locales, vocabulary: words
             ) { [weak self] value in
                 Task { @MainActor in self?.stage(.transcribing(value), meetingID) }
             }
@@ -188,11 +214,11 @@ final class MeetingPipeline {
                 try? await store.syncTranscriptParticipants(meetingID)
             }
             Log.info(.transcribe, "Tam geçiş bitti — \(segments.count) segment, "
-                     + "\(locale.identifier)")
+                     + "\(locales.label)")
             await summarize(meetingID: meetingID, segments: segments)
         } catch {
             stage(.idle, meetingID)
-            Log.error(.transcribe, "Tam geçiş başarısız (\(locale.identifier))", error)
+            Log.error(.transcribe, "Tam geçiş başarısız (\(locales.label))", error)
             // Ham ses korunur: "Yeniden dene" bu dosyayı işler.
             emit(.retryable(url), meetingID)
             emit(.failed(error as? OraError ?? .transcriptionFailed(underlying: error)),

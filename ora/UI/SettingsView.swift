@@ -61,15 +61,33 @@ private struct GeneralSettings: View {
             }
 
             Section("Toplantı dili") {
-                Picker("Dil", selection: Binding(get: { recorder.language },
-                                                 set: { recorder.language = $0 })) {
+                Picker("Toplantı dili", selection: Binding(get: { recorder.language },
+                                                           set: { recorder.language = $0 })) {
                     ForEach(TranscriptionLanguage.allCases) { language in
                         Text(language.turkishName).tag(language)
                     }
                 }
-                .pickerStyle(.inline)
-                .labelsHidden()
                 .disabled(recorder.isRecording)
+
+                // Kanal başına dil (COMPETITION.md §4.8): iki kanal zaten ayrı
+                // çözülüyor; karşı tarafa kendi dilini vermek mimariden bedava.
+                Picker("Karşı tarafın dili", selection: $settings.remoteLanguage) {
+                    Text("Toplantı diliyle aynı").tag(TranscriptionLanguage?.none)
+                    Divider()
+                    ForEach(TranscriptionLanguage.allCases) { language in
+                        Text(language.turkishName).tag(Optional(language))
+                    }
+                }
+                .disabled(recorder.isRecording)
+
+                Text("Yabancı bir müşteriyle görüşürken siz Türkçe, karşı taraf "
+                     + "İngilizce konuşuyorsa karşı tarafın dilini ayrıca seçin: "
+                     + "mikrofonunuz ve toplantı uygulamasının sesi ayrı dillerde "
+                     + "yazıya dökülür. İçe aktarılan tek kanallı seslerde yalnızca "
+                     + "toplantı dili kullanılır.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 // `Text(String)` markdown ayrıştırmaz; birleştirilmiş metinde
                 // vurgu için anahtar açıkça kurulur (yıldızlar ekranda görünüyordu).

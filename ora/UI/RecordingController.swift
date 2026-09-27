@@ -799,7 +799,7 @@ final class RecordingController {
         await refresh()
         // Canlı transkripsiyon **ikincil** iştir ve kayıt başladıktan sonra
         // açılır; hata verirse kayıt kesintisiz sürer (CLAUDE.md kural #2).
-        await session.startLive(locale: language.locale ?? Locale(identifier: "tr-TR"),
+        await session.startLive(locales: settings.liveLocales,
                                 vocabulary: (try? await vocabularyStore.activeWords()) ?? [])
     }
 

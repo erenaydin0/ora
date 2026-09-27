@@ -94,11 +94,50 @@ nonisolated enum TranscriptionProgress: Sendable {
 }
 
 nonisolated protocol Transcribing: Sendable {
-    /// Diskteki stereo WAV üzerinden tam geçiş. Nihai gerçek budur.
+    /// Diskteki stereo WAV üzerinden tam geçiş. Nihai gerçek budur. Her kanal
+    /// kendi diliyle çözülür (COMPETITION.md §4.8).
     @concurrent func transcribe(url: URL,
-                    locale: Locale,
+                    locales: ChannelLocales,
                     vocabulary: [String],
                     progress: @Sendable @escaping (Double) -> Void) async throws -> [Segment]
+}
+
+/// Kanal başına transkripsiyon dili (COMPETITION.md §4.8).
+///
+/// Yabancı müşteriyle toplantıda kullanıcı Türkçe, karşı taraf İngilizce
+/// konuşur. İki kanal zaten ayrı `SpeechAnalyzer` ile çözüldüğü için her
+/// birine kendi dilini vermek mimariden bedava gelir — tek kanallı
+/// rakiplerin yapısal olarak yapamadığı bir şey.
+nonisolated struct ChannelLocales: Sendable, Equatable {
+    /// Kanal 0: kullanıcının kendisi.
+    var mic: Locale
+    /// Kanal 1: toplantı uygulamasının sesi, yani karşı taraf.
+    var system: Locale
+
+    init(mic: Locale, system: Locale) {
+        self.mic = mic
+        self.system = system
+    }
+
+    /// İki kanal aynı dilde.
+    init(_ both: Locale) {
+        self.init(mic: both, system: both)
+    }
+
+    func locale(for channel: Channel) -> Locale {
+        channel == .mic ? mic : system
+    }
+
+    /// Hazırlanması gereken diller, tekrarsız.
+    var distinct: [Locale] {
+        mic.identifier == system.identifier ? [mic] : [mic, system]
+    }
+
+    var isMixed: Bool { distinct.count > 1 }
+
+    var label: String {
+        isMixed ? "mic \(mic.identifier) · sistem \(system.identifier)" : mic.identifier
+    }
 }
 
 /// Analiz motoru kurulurken çıkan, kullanıcıya `OraError.transcriptionFailed`

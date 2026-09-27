@@ -65,7 +65,7 @@ toplantı sohbeti, FTS5 arama, takvim eşleştirme, otomatik algılama, vocabula
 | 5 | ✅ Depolama yönetimi (AAC'ye çevir / eski sesi sil) | ★★ | S | yok |
 | 6 | ✅ Kullanıcı notu + not zenginleştirme (Granola modeli) | ★★★ | M | yok |
 | 7 | ✅ Toplantı şablonları | ★★ | M | yok |
-| 8 | Kanal başına dil (mic tr / sistem en) | ★★★ | S | yok |
+| 8 | ✅ Kanal başına dil (mic tr / sistem en) | ★★★ | S | yok |
 | 9 | ✅ Kayıt sırasında "önemli an" işareti | ★★ | S | yok |
 | 10 | Toplantılar arası sohbet (FTS ile daraltılmış) | ★★★ | M | yok |
 | 11 | Kişi sayfası + tekrarlayan toplantı hazırlığı | ★★ | M | yok |

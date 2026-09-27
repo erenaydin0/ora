@@ -59,6 +59,22 @@ final class OraSettings {
         didSet { store(transcriptionLanguage.rawValue, .transcriptionLanguage) }
     }
 
+    /// Karşı tarafın (sistem sesi kanalının) dili. `nil` = toplantı diliyle
+    /// aynı — varsayılan ve eski davranış (COMPETITION.md §4.8). Yabancı
+    /// müşteriyle toplantıda kullanıcı Türkçe, karşı taraf İngilizce konuşur.
+    var remoteLanguage: TranscriptionLanguage? {
+        didSet { store(remoteLanguage?.rawValue ?? Self.sameLanguage, .remoteLanguage) }
+    }
+    private static let sameLanguage = "same"
+
+    /// Kayıt başında canlı transkripsiyonun kanal dilleri. Canlı akışta dil
+    /// tanıma yok: "Otomatik" Türkçe başlar, kayıt sonrası tam geçiş düzeltir.
+    var liveLocales: ChannelLocales {
+        let mic = transcriptionLanguage.locale ?? Locale(identifier: "tr-TR")
+        guard let remote = remoteLanguage else { return ChannelLocales(mic) }
+        return ChannelLocales(mic: mic, system: remote.locale ?? mic)
+    }
+
     // MARK: - Mikrofon
 
     /// Hoparlörden çalan karşı tarafın sesi mikrofon kanalından silinsin mi
@@ -240,6 +256,8 @@ final class OraSettings {
         audioRetentionDays = defaults.integer(forKey: Key.audioRetentionDays.rawValue)
         transcriptionLanguage = defaults.string(forKey: Key.transcriptionLanguage.rawValue)
             .flatMap(TranscriptionLanguage.init(rawValue:)) ?? .turkish
+        remoteLanguage = defaults.string(forKey: Key.remoteLanguage.rawValue)
+            .flatMap(TranscriptionLanguage.init(rawValue:))
         summaryEngine = defaults.string(forKey: Key.summaryEngine.rawValue)
             .flatMap(SummaryEngine.init(rawValue:)) ?? .apple
         localModelID = defaults.string(forKey: Key.localModelID.rawValue) ?? LocalModel.qwen35_9B.id
@@ -270,7 +288,7 @@ final class OraSettings {
         case calendarEnabled, selectedCalendars, windowTitleEnabled
         case userDisplayName
         case compressAudio, audioRetentionDays, announceRecording, appLockEnabled
-        case transcriptionLanguage
+        case transcriptionLanguage, remoteLanguage
         case summaryEngine, localModelID, summaryDetail
         case speakerSeparationEnabled, echoCancellationEnabled, voiceMemoryEnabled
         case cloudProvider, providerModels, localServerURL, consentedConnections

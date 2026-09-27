@@ -17,16 +17,16 @@ nonisolated final class SpeechTranscription: Transcribing {
     /// Analiz motoruna beslenen parça boyutu (kaynak frame cinsinden).
     private static let chunkFrames: AVAudioFrameCount = 16_000
 
-    @concurrent func transcribe(url: URL, locale: Locale, vocabulary: [String],
+    @concurrent func transcribe(url: URL, locales: ChannelLocales, vocabulary: [String],
                     progress: @Sendable @escaping (Double) -> Void) async throws -> [Segment] {
-        try await transcribe(url: url, locale: locale, vocabulary: vocabulary,
+        try await transcribe(url: url, locales: locales, vocabulary: vocabulary,
                              channels: Channel.allCases, limit: nil, progress: progress)
     }
 
     /// - Parameters:
     ///   - channels: yalnızca bu kanallar çözülür (otomatik dil seçimi tek kanal ister)
     ///   - limit: yalnızca ilk bu kadar saniye çözülür (otomatik dil seçimi için)
-    @concurrent func transcribe(url: URL, locale: Locale, vocabulary: [String],
+    @concurrent func transcribe(url: URL, locales: ChannelLocales, vocabulary: [String],
                     channels: [Channel], limit: TimeInterval?,
                     progress: @Sendable @escaping (Double) -> Void) async throws -> [Segment] {
 
@@ -50,15 +50,20 @@ nonisolated final class SpeechTranscription: Transcribing {
         active.sort { $0.rawValue < $1.rawValue }
         let activeCount = active.count
 
-        // Sözlük bir kez derlenir, iki kanalda da aynı yapılandırma kullanılır.
-        let modelConfiguration = await CustomVocabulary.configuration(for: vocabulary,
-                                                                      locale: locale)
+        // Sözlük dil başına bir kez derlenir; iki kanal aynı dildeyse aynı
+        // yapılandırma kullanılır.
+        var configurations: [String: SFSpeechLanguageModel.Configuration] = [:]
+        for locale in locales.distinct {
+            configurations[locale.identifier] = await CustomVocabulary.configuration(
+                for: vocabulary, locale: locale)
+        }
 
         var all: [Segment] = []
         for (index, channel) in active.enumerated() {
+            let locale = locales.locale(for: channel)
             let segments = try await transcribeChannel(
                 url: url, channel: channel, locale: locale,
-                modelConfiguration: modelConfiguration, limit: limit
+                modelConfiguration: configurations[locale.identifier], limit: limit
             ) { fraction in
                 progress((Double(index) + fraction) / Double(activeCount))
             }

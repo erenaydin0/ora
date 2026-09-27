@@ -23,7 +23,7 @@ struct RecordingSessionTests {
         #expect(session.meetingID == 42)
         #expect(capture.startCount == 1)
 
-        await session.startLive(locale: Locale(identifier: "tr-TR"), vocabulary: [])
+        await session.startLive(locales: ChannelLocales(Locale(identifier: "tr-TR")), vocabulary: [])
         #expect(await live.startCount == 1)
         #expect(session.liveNotice == nil, "duraklama yok, not da yok")
 
@@ -58,7 +58,7 @@ struct RecordingSessionTests {
 
         try await session.start(meetingID: 1, preferredApp: nil)
         await waitUntil("kayıt sürüyor") { session.isRecording }
-        await session.startLive(locale: Locale(identifier: "tr-TR"), vocabulary: [])
+        await session.startLive(locales: ChannelLocales(Locale(identifier: "tr-TR")), vocabulary: [])
 
         #expect(session.liveNotice == "Canlı transkript başlatılamadı",
                 "kullanıcıya Türkçe not düştü")
@@ -77,7 +77,7 @@ struct RecordingSessionTests {
         let live = FakeLiveTranscription()
         let session = RecordingSession(capture: capture, makeLive: { live })
         try await session.start(meetingID: 1, preferredApp: nil)
-        await session.startLive(locale: Locale(identifier: "tr-TR"), vocabulary: [])
+        await session.startLive(locales: ChannelLocales(Locale(identifier: "tr-TR")), vocabulary: [])
 
         await live.emit(LiveUpdate(channel: .system, text: "sonra gelen",
                                    isFinal: true, start: 10, end: 12))

@@ -68,8 +68,11 @@ actor FakeLiveTranscription: LiveTranscribing {
         (updates, continuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(32))
     }
 
-    func start(locale: Locale, vocabulary: [String]) async {
+    private(set) var startedLocales: ChannelLocales?
+
+    func start(locales: ChannelLocales, vocabulary: [String]) async {
         startCount += 1
+        startedLocales = locales
         if let pausesOnStart {
             isPaused = true
             pauseReason = pausesOnStart
@@ -87,13 +90,26 @@ actor FakeLiveTranscription: LiveTranscribing {
     func emit(_ update: LiveUpdate) { continuation.yield(update) }
 }
 
+/// Tam geçişe verilen kanal dillerini tutar (sahte değer tipi olduğu için
+/// sınıf içinde).
+nonisolated final class LocaleRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: ChannelLocales?
+    func record(_ locales: ChannelLocales) { lock.withLock { value = locales } }
+    var last: ChannelLocales? { lock.withLock { value } }
+}
+
 /// Verilen segmentleri döndüren tam geçiş.
 struct FakeTranscription: Transcribing {
     var segments: [Segment] = []
     var error: OraError?
 
-    func transcribe(url: URL, locale: Locale, vocabulary: [String],
+    /// Son çağrıda istenen kanal dilleri.
+    let seen = LocaleRecorder()
+
+    func transcribe(url: URL, locales: ChannelLocales, vocabulary: [String],
                     progress: @Sendable @escaping (Double) -> Void) async throws -> [Segment] {
+        seen.record(locales)
         if let error { throw error }
         progress(1)
         return segments
