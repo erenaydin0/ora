@@ -116,6 +116,10 @@ final class SlowIntelligence: Intelligent, @unchecked Sendable {
     private(set) var summarizedTexts: [String] = []
     /// Doluysa otomatik başlık üretimi bunu döndürür.
     var generatedTitle: String?
+    /// Özetlemeye verilen bağlamlar — notların isteme girdiğini ölçmek için.
+    private(set) var contexts: [SummaryContext] = []
+    /// Zenginleştirilen notların metni.
+    private(set) var enrichedNotes: [String] = []
 
     init(tag: String, step: Duration = .milliseconds(900)) {
         self.tag = tag
@@ -137,6 +141,7 @@ final class SlowIntelligence: Intelligent, @unchecked Sendable {
     func summarize(_ segments: [Segment], context: SummaryContext, variation: Bool,
                    progress: @Sendable @escaping (Double) -> Void) async throws -> SummaryResult {
         summarizedTexts.append(segments.first?.text ?? "boş")
+        contexts.append(context)
         for i in 1...6 {
             try? await Task.sleep(for: step)
             progress(Double(i) / 6)
@@ -151,6 +156,13 @@ final class SlowIntelligence: Intelligent, @unchecked Sendable {
                                                  sonTarih: "belirtilmedi")]),
             topics: [TopicSegment(title: "\(tag) konu", bullets: ["madde"], start: 0, end: 10)],
             skippedChunks: 0)
+    }
+
+    func enrich(_ notes: [UserNote], over segments: [Segment],
+                progress: @Sendable @escaping (Double) -> Void) async -> [Int64: [String]] {
+        enrichedNotes.append(contentsOf: notes.map(\.text))
+        progress(1)
+        return Dictionary(uniqueKeysWithValues: notes.map { ($0.id, ["\(tag) ayrıntı: \($0.text)"]) })
     }
 
     func answer(question: String, over segments: [Segment]) async throws -> String { "" }
@@ -174,6 +186,9 @@ struct FailingIntelligence: Intelligent {
         throw OraError.modelUnavailable(reason: "özetleme sahte hata")
     }
 
+    func enrich(_ notes: [UserNote], over segments: [Segment],
+                progress: @Sendable @escaping (Double) -> Void) async -> [Int64: [String]] { [:] }
+
     func answer(question: String, over segments: [Segment]) async throws -> String { "" }
     func generateTitle(from segments: [Segment]) async -> String? { nil }
     func generateTitle(from segments: [Segment], topics: [TopicSegment]) async -> String? { nil }
@@ -194,6 +209,9 @@ struct UnavailableIntelligence: Intelligent {
         Issue.record("model kullanılamazken özetleme çağrıldı")
         throw OraError.modelUnavailable(reason: "çağrılmamalıydı")
     }
+
+    func enrich(_ notes: [UserNote], over segments: [Segment],
+                progress: @Sendable @escaping (Double) -> Void) async -> [Int64: [String]] { [:] }
 
     func answer(question: String, over segments: [Segment]) async throws -> String { "" }
     func generateTitle(from segments: [Segment]) async -> String? { nil }

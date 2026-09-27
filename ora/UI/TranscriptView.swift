@@ -38,6 +38,8 @@ struct TranscriptView: View {
     /// bu arama bulunan toplantının içinde gezdirir.
     var find: Binding<String> = .constant("")
     var isFinding: Binding<Bool> = .constant(false)
+    /// Kayıt sırasında işaretlenen anların satırları — küçük bayrakla çizilir.
+    var markedIDs: Set<Segment.ID> = []
 
     @State private var editing: Segment.ID?
     @State private var draft = ""
@@ -164,6 +166,7 @@ struct TranscriptView: View {
                                            isActive: segment.id == activeID
                                                || segment.id == currentMatch,
                                            isSelected: selected.contains(segment.id),
+                                           isMarked: markedIDs.contains(segment.id),
                                            highlight: isFinding.wrappedValue
                                                ? find.wrappedValue : "",
                                            onPlay: playback.map { player in
@@ -498,6 +501,8 @@ private struct SegmentRow: View {
     /// Toplu atama için seçili. Çalınan satırın krem zemininden ayrı kalsın
     /// diye **çerçeveyle** işaretlenir — ikisi aynı anda olabilir.
     var isSelected = false
+    /// Kayıt sırasında bu satırda "önemli an" işaretlendi.
+    var isMarked = false
     /// Toplantı içi aramanın terimi — metinde kalın ve Carmine görünür.
     var highlight: String = ""
     /// Ses varsa saat etiketi "buradan çal" düğmesine dönüşür.
@@ -516,6 +521,14 @@ private struct SegmentRow: View {
                         .symbolRenderingMode(.monochrome)
                         .foregroundStyle(Color.oraCarmine)
                         .accessibilityLabel("Seçili")
+                }
+                if isMarked {
+                    // BRAND: Carmine Deep yalnızca işaret içindir.
+                    Image(systemName: "flag.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.oraCarmineDeep)
+                        .accessibilityLabel("Önemli an")
+                        .help("Kayıt sırasında önemli olarak işaretlendi")
                 }
                 Text(segment.speaker)
                     .font(.system(size: 12, weight: .semibold))

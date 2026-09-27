@@ -147,6 +147,8 @@ Bu sıra asla değişmez:
 5. Foundation Models ile map-reduce özetleme → konu blokları (başlık +
    maddeler) ve aksiyonlar parça aşamasında; genel bakış ve kararlar
    birleştirme aşamasında
+   5b. **Not zenginleştirme** (yalnızca kullanıcının notu varsa): her notun
+   altına transkriptten en fazla üç madde ayrıntı (bkz. Not Defteri Kuralları)
 6. Son kontrol: üretilen cümlelerin dilbilgisi düzeltilir (olgu koruma
    güvenceli; sayı ve özel isim değişirse satır reddedilir — §24.3)
 7. SQLite güncelle (summaries + action_items + topic_segments)
@@ -457,6 +459,35 @@ Bu sıra asla değişmez:
 - Model karar/aksiyonları tekrarlayabiliyor — çıktı normalize edilmiş
   karşılaştırmayla tekilleştirilir.
 
+## Not Defteri Kuralları (Faz 10)
+- **Not kullanıcınındır, model onu yazmaz.** Kayıt sırasında (ve sonrasında)
+  kullanıcı kendi maddelerini yazar; kayıt sırasında yalnızca yazı yazılır,
+  LLM çalışmaz (kural #1). Kayıt bitince özetleyici her notun **altına**
+  transkriptten ayrıntı ekler (`Intelligent.enrich`, `notes.details`);
+  notun metnine dokunulmaz. Arayüz tonla ayırır: kullanıcının yazdığı
+  `.oraInk`, eklenen ayrıntı `.oraInkMuted`.
+- **Zaman damgası yazmaya başlanan andır**, Enter'a basılan an değil — not
+  duyulanın arkasından yazılır. Sonradan yazılan notun damgası yoktur;
+  transkriptteki yeri IDF ağırlıklı kelime eşleştirmesiyle bulunur
+  (`NoteAnchor.bestMatch`, eşik 0,5) ve bulunamazsa **bağlanmaz**.
+- **Önemli an** (`notes.kind = 'mark'`): kayıt sırasında kayıt ekranından,
+  menü bardan ya da **⌃⌘M** ile. Kısayol yalnızca kayıt sürerken sistem
+  geneline alınır ve kayıt bitince bırakılır. ⌘⇧M **seçilmedi**: Teams'te
+  mikrofonu kapatıp açar, Slack'te bahsedilmeleri açar — ikisi de tam kayıt
+  sırasında basılır. İşaret satırın bitiminden 3 sn sonrasına kadar o satırı
+  gösterir (tepki payı); transkriptte `.oraCarmineDeep` bayrakla çizilir.
+- **Zenginleştirme penceresi:** işarette `at − 90 sn … at + 20 sn` (işaret
+  konuşmanın arkasından gelir), zamansız notta eşleşen satırın ±45 sn'si.
+  Pencere özetleme parçasının yarısını aşarsa merkeze en uzak uçtan daraltılır.
+  Her not **kendi oturumunda** işlenir. Bağlı sağlayıcı seçili olsa da bu adım
+  cihazda koşar (veri minimizasyonu).
+- **Notlar özet istemine ayrı blok olarak girer** (birleştirme adımı; yerel
+  ve bulut motorunda tek geçiş istemi), işaretli satırlar yalnızca kendi
+  parçasının istemine. Blok 900 karakterle sınırlı; aşan not kırpılmaz,
+  dışarıda kalır. **Notsuz toplantıda istem bayt bayt aynıdır** — §23-37
+  ölçümleri notsuz alındı (`NotebookTests.notsuzIstemDegismez`). Notlu istem
+  **ölçülmedi**.
+
 ## Toplantı Algılama Kuralları — ölçülmüş davranış
 - **`ps aux` polling'i yok.** Sinyal CoreAudio olay dinleyicileridir:
   `kAudioHardwarePropertyProcessObjectList` + her süreç için
@@ -738,6 +769,11 @@ summaries(id, meeting_id UNIQUE, overview JSON, decisions JSON, created_at)
 transcripts_fts -- FTS5 virtual table (text, speaker), insert/delete/update trigger'ları
 meetings.local_only
   -- v6: "Bu toplantı cihazdan çıkmasın" (Bağlantı Kuralları §6), varsayılan 0
+notes(id, meeting_id, kind, text, at_time, details JSON, created_at)
+  -- v7: kullanıcının notları. kind: 'note' | 'mark' (önemli an; metni boş
+  --     olabilir). at_time: kayıttaki saniye, sonradan yazılan notta NULL.
+  --     details: transkriptten eklenen ayrıntı — kullanıcının yazdığı değil;
+  --     not düzenlenince silinir, yeniden özetleme yeniler. Cascade silinir
 speaker_embeddings(meeting_id, label, channel, embedding BLOB)
   -- v5: bu toplantının kümeleri, o anki etiketleriyle. PRIMARY KEY(meeting_id, label),
   --     toplantıyla cascade silinir
@@ -795,8 +831,11 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 - **Kişiler kartı davetliyi konuşandan ayırır** ("davetli 6 · konuşan 3"):
   konuşanlar mürekkep, yalnızca davetli kalanlar `.oraInkMuted`. Konuşan
   listesi **segmentlerden türetilir**, ayrıca sorgulanmaz
-- **Özet sırası: Kişiler → Aksiyonlar → Genel bakış → Kararlar → Konular.**
-  Aksiyon önce gelir; kullanıcının toplantı notuna ilk sorusu "bana ne düştü"
+- **Özet sırası: Kişiler → Aksiyonlar → Notlarım → Genel bakış → Kararlar →
+  Konular.** Aksiyon önce gelir; kullanıcının toplantı notuna ilk sorusu "bana
+  ne düştü", ikincisi "ben ne yazmıştım"
+- **Kayıt ekranı iki sütundur:** solda not defteri (`LiveNotesPane`), sağda
+  canlı transkript
 - **Pencere minimumu sohbet paneline göre değişir** (900 → 940, ölçüldü) ve `Window`
   sahnesinde `.windowResizability(.contentMinSize)` ile sert sınır yapılır.
   Bu olmadan `NavigationSplitView` + `.inspector` sığmadığında kenar çubuğunu
@@ -1078,6 +1117,10 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       öğrenilir, sonraki toplantılarda kişi adıyla gelir (v5 şeması: iki tablo);
       küme adlandırılınca aksiyonların sahibi de değişir; mikrofonda hoparlör
       yankısı bastırılır (kulaklıkta kapalı).
+      **Faz 10 — Not defteri (kısmen):** kullanıcının kendi notu (kayıt
+      ekranında not sütunu, Özet'te "Notlarım"), kayıt sırasında önemli an
+      işareti (⌃⌘M, menü bar), notların özet istemine girmesi ve kayıt sonrası
+      zenginleştirme (not başına transkriptten ≤ 3 madde). Şema v7 (`notes`).
       **Faz 11 — Bağlantılar yapıldı:** `ora/Net/` tek kapı, kendi AI
       sağlayıcını (Anthropic · OpenAI · OpenRouter · yerel sunucu) özet ve
       sohbet motoru olarak bağlama, Slack ve Notion'a ön izlemeli gönderim ve
@@ -1174,6 +1217,9 @@ ora/Net/               — **ağa çıkan tek modül** (Faz 11). Outbound (kapı
                          girişi, PKCE, OAuthCallbackServer), ShareTargets
                          (Slack, Notion). Başka
                          hiçbir dosyada `URLSession` geçmez — test tarar
+ora/Notebook/          — UserNote (kullanıcı notu + önemli an), NoteAnchor
+                         (notu transkripte bağlayan saf kurallar), NotebookHints
+                         (özet istemine giden hâli; boşken istem değişmez)
 ora/Diarize/           — SpeakerSeparation (politika: hangi kanal, kelime düzeyi
                          atama, küme adları; saf ve motordan bağımsız),
                          VoiceMatcher (ses izi eşleştirme, tutucu eşikler),

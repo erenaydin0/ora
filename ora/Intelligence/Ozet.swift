@@ -95,6 +95,16 @@ nonisolated struct ParcaOzeti: Sendable, Equatable {
     var aksiyonlar: [Ozet.Aksiyon]
 }
 
+/// Kullanıcının notuna transkriptten eklenen ayrıntı (COMPETITION.md §4.6).
+/// Not kullanıcınındır; model yalnızca **altına** madde ekler.
+@Generable
+nonisolated struct NotAyrintisi: Sendable, Equatable {
+    @Guide(description: "Notu genişleten somut ayrıntılar: sayılar, adlar, kararlar, "
+           + "kimin ne yapacağı. Her madde tek cümle. Metinde yoksa boş bırak",
+           .maximumCount(3))
+    var maddeler: [String]
+}
+
 /// Birleştirme aşamasının çıktısı: yalnızca genel bakış ve kararlar.
 /// Aksiyonlar `ParcaOzeti`'nden gelir.
 @Generable
@@ -153,6 +163,9 @@ nonisolated struct SummaryContext: Sendable, Equatable {
     var hasRecorderLines = false
     /// Kullanıcının seçtiği özet uzunluğu (Ayarlar → Özetleme).
     var detail: SummaryDetail = .balanced
+    /// Kullanıcının notları ve işaretlediği anlar. Boşken istem ölçülen
+    /// metinle bayt bayt aynıdır.
+    var notebook = NotebookHints()
 
     static let empty = SummaryContext(meetingDate: .now, participants: [], userName: nil)
 }

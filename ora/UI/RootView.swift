@@ -181,6 +181,8 @@ struct RootView: View {
             // Sistem genelinde ⌘⇧R: kaydı başlatmak istediğiniz an başka bir
             // uygulamadasınızdır (COMPETITION.md §4.16).
             GlobalHotKey.shared.action = { Task { await recorder.toggle() } }
+            // ⌃⌘M yalnızca kayıt sürerken alınır (`RecordingController.start`).
+            GlobalHotKey.shared.markAction = { Task { await recorder.markMoment() } }
             GlobalHotKey.shared.register()
             await recorder.startServices()
         }
@@ -343,9 +345,30 @@ private struct RecordingView: View {
 
             Divider().overlay(Color.oraBorder)
 
-            TranscriptView(segments: recorder.liveSegments,
-                           volatileText: recorder.volatileText,
-                           notice: recorder.liveNotice)
+            // Not defteri canlı transkriptin yanında: kullanıcı önemli bulduğunu
+            // yazar, kayıt sonrası özet bunu iskelet olarak alır (§4.6).
+            HStack(spacing: 0) {
+                LiveNotesPane(
+                    notes: recorder.liveNotes,
+                    elapsed: { recorder.state.elapsed },
+                    onAdd: { text, startedAt in
+                        Task { await recorder.addNote(text, startedAt: startedAt) }
+                    },
+                    onUpdate: { note, text in Task { await recorder.updateNote(note, text: text) } },
+                    onDelete: { note in Task { await recorder.deleteNote(note) } },
+                    onMark: { Task { await recorder.markMoment() } })
+                    .frame(maxWidth: .infinity)
+
+                Divider().overlay(Color.oraBorder)
+
+                TranscriptView(segments: recorder.liveSegments,
+                               volatileText: recorder.volatileText,
+                               notice: recorder.liveNotice,
+                               markedIDs: NoteAnchor.markedIDs(
+                                   recorder.liveNotes.filter(\.isMark).compactMap(\.at),
+                                   in: recorder.liveSegments))
+                    .frame(maxWidth: .infinity)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.oraPaper)

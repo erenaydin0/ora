@@ -406,10 +406,11 @@ final class ConnectionCenter {
     func payload(_ meetingID: Int64) async -> MeetingExport.Payload? {
         guard let loaded = try? await store.load(meetingID) else { return nil }
         let people = (try? await store.calendarParticipants(meetingID)) ?? []
+        let notes = (try? await store.notes(meetingID)) ?? []
         return MeetingExport.Payload(title: loaded.meeting.title, date: loaded.meeting.date,
                                      duration: loaded.meeting.duration,
                                      segments: loaded.segments, summary: loaded.summary,
                                      topics: loaded.topics, actions: loaded.actions,
-                                     participants: people)
+                                     participants: people, notes: notes)
     }
 }

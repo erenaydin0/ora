@@ -68,6 +68,23 @@ struct IsolationTests {
         #expect(witness.onMain("answer") == false,
                 "sohbet yanıtı ana iş parçacığında üretildi — answer'daki @concurrent gitti")
     }
+
+    /// Not zenginleştirme özetten sonra, not başına bir model çağrısıdır.
+    @Test
+    func notZenginlestirmeAnaIsParcacigindaKosmaz() async throws {
+        let witness = ThreadWitness()
+        let h = try Harness(intelligence: WitnessIntelligence(witness: witness))
+        let id = try await h.seed(text: "toplantı metni")
+        try await h.store.addNote(id, kind: .note, text: "not", at: nil)
+        await h.controller.refresh()
+        h.controller.selection = id
+        await waitUntil("transkript yüklendi") { !h.controller.transcript.isEmpty }
+
+        await h.controller.summarizeNow()
+
+        #expect(witness.onMain("enrich") == false,
+                "not zenginleştirme ana iş parçacığında koştu — enrich'teki @concurrent gitti")
+    }
 }
 
 // MARK: - Yalnızca iş parçacığını kaydeden sahteler
@@ -136,6 +153,12 @@ private nonisolated struct WitnessIntelligence: Intelligent {
             ozet: Ozet(genelBakis: ["genel bakış"], kararlar: ["karar"], aksiyonlar: []),
             topics: [TopicSegment(title: "konu", bullets: ["madde"], start: 0, end: 10)],
             skippedChunks: 0)
+    }
+
+    func enrich(_ notes: [UserNote], over segments: [Segment],
+                progress: @Sendable @escaping (Double) -> Void) async -> [Int64: [String]] {
+        witness.record("enrich")
+        return [:]
     }
 
     func answer(question: String, over segments: [Segment]) async throws -> String {

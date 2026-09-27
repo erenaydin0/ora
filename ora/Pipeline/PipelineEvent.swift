@@ -58,6 +58,8 @@ nonisolated struct PipelineEvent: Sendable {
         case transcript([Segment])
         case summary(Ozet?, [TopicSegment])
         case actions([MeetingAction])
+        /// Kullanıcının notları, zenginleştirmeden sonra (ayrıntılarıyla).
+        case notes([UserNote])
         /// Ses dosyası hazır ya da yeri değişti (sıkıştırma).
         case audio(URL)
         /// Kullanıcıya düşülecek Türkçe not (özet eksik, model kapalı, …).

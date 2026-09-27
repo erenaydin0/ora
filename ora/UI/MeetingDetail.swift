@@ -92,79 +92,10 @@ struct MeetingDetail: View {
                     if recorder.isProcessingSelected {
                         ProcessingState(stage: recorder.transcriptionStage)
                     } else {
-                        SummaryView(
-                            summary: recorder.summary,
-                            topics: recorder.topics,
-                            actions: recorder.actions,
-                            notice: recorder.summaryNotice
-                                ?? recorder.busyNotice
-                                ?? (recorder.canSummarize
-                                    ? "Bu toplantının özeti yok." : nil),
-                            participants: recorder.calendarParticipants,
-                            speakers: recorder.speakingParticipants,
-                            onSummarizeNow: recorder.deferReason != nil
-                                || recorder.canSummarize
-                                ? { Task { await recorder.summarizeNow() } } : nil,
-                            onToggleAction: { recorder.setActionDone($0.id, !$0.isDone) },
-                            onOpenTopic: recorder.displayedSegments.isEmpty ? nil : { topic in
-                                open(at: topic.start)
-                            },
-                            openText: index.isEmpty ? nil : { text in
-                                guard let segment = index.match(text) else { return }
-                                open(at: segment.start)
-                            },
-                            canOpenText: index.isEmpty ? nil : { index.match($0) != nil },
-                            onRetry: recorder.canRetry
-                                ? { Task { await recorder.retryProcessing() } } : nil,
-                            onResummarize: recorder.canResummarize ? {
-                                // İşaretli aksiyon varsa yeniden üretim onu
-                                // sıfırlar; sormadan yapılmaz.
-                                if recorder.hasCompletedActions {
-                                    confirmingResummarize = true
-                                } else {
-                                    Task { await recorder.resummarize() }
-                                }
-                            } : nil)
+                        summaryTab
                     }
                 case .transcript:
-                    TranscriptView(
-                        segments: recorder.displayedSegments,
-                        jumpTarget: $jumpTarget,
-                        playback: playback.isAvailable ? playback : nil,
-                        onRetry: recorder.canRetry
-                            ? { Task { await recorder.retryProcessing() } } : nil,
-                        onCorrect: recorder.canCorrect
-                            ? { segment, text in
-                                Task { await recorder.correct(segment, to: text) }
-                              }
-                            : nil,
-                        onDelete: recorder.canCorrect
-                            ? { segment in Task { await recorder.deleteSegment(segment) } }
-                            : nil,
-                        onRelabel: recorder.canCorrect
-                            ? { segment, speaker in
-                                Task { await recorder.setSpeaker(segment, to: speaker) }
-                              }
-                            : nil,
-                        onRelabelSelection: recorder.canCorrect
-                            ? { segments, speaker in
-                                Task { await recorder.setSpeaker(segments, to: speaker) }
-                              }
-                            : nil,
-                        onRelabelAll: recorder.canCorrect
-                            ? { label, channel, speaker in
-                                Task {
-                                    await recorder.setSpeaker(allLabeled: label,
-                                                              in: channel, to: speaker)
-                                }
-                              }
-                            : nil,
-                        speakerCandidates: recorder.speakerCandidates,
-                        speakerLineCount: { label, channel in
-                            recorder.speakerLineCount(label: label, in: channel)
-                        },
-                        find: $findText,
-                        isFinding: $isFinding)
+                    transcriptTab
                 }
             }
             // Oynatıcı içeriğin **üstünde** yüzer; şerit olarak yer kaplamaz.
@@ -202,6 +133,98 @@ struct MeetingDetail: View {
                  + "Transkript ve ses değişmez.")
         }
         .onDisappear { playback.pause() }
+    }
+
+    /// Özet sekmesi. Ayrı bir özellik: tek ifadede tip denetleyicisini aşıyordu.
+    private var summaryTab: some View {
+        SummaryView(
+            summary: recorder.summary,
+            topics: recorder.topics,
+            actions: recorder.actions,
+            notice: recorder.summaryNotice
+                ?? recorder.busyNotice
+                ?? (recorder.canSummarize
+                    ? "Bu toplantının özeti yok." : nil),
+            participants: recorder.calendarParticipants,
+            speakers: recorder.speakingParticipants,
+            onSummarizeNow: recorder.deferReason != nil
+                || recorder.canSummarize
+                ? { Task { await recorder.summarizeNow() } } : nil,
+            onToggleAction: { recorder.setActionDone($0.id, !$0.isDone) },
+            onOpenTopic: recorder.displayedSegments.isEmpty ? nil : { topic in
+                open(at: topic.start)
+            },
+            openText: index.isEmpty ? nil : { text in
+                guard let segment = index.match(text) else { return }
+                open(at: segment.start)
+            },
+            canOpenText: index.isEmpty ? nil : { index.match($0) != nil },
+            onRetry: recorder.canRetry
+                ? { Task { await recorder.retryProcessing() } } : nil,
+            notes: recorder.notes,
+            onAddNote: recorder.selection == nil ? nil : { text in
+                Task { await recorder.addNote(text) }
+            },
+            onUpdateNote: { note, text in
+                Task { await recorder.updateNote(note, text: text) }
+            },
+            onDeleteNote: { note in Task { await recorder.deleteNote(note) } },
+            onOpenNote: recorder.displayedSegments.isEmpty ? nil : { note in
+                if let at = note.at { open(at: at) }
+            },
+            onResummarize: recorder.canResummarize ? {
+                // İşaretli aksiyon varsa yeniden üretim onu
+                // sıfırlar; sormadan yapılmaz.
+                if recorder.hasCompletedActions {
+                    confirmingResummarize = true
+                } else {
+                    Task { await recorder.resummarize() }
+                }
+            } : nil)
+    }
+
+    private var transcriptTab: some View {
+        TranscriptView(
+            segments: recorder.displayedSegments,
+            jumpTarget: $jumpTarget,
+            playback: playback.isAvailable ? playback : nil,
+            onRetry: recorder.canRetry
+                ? { Task { await recorder.retryProcessing() } } : nil,
+            onCorrect: recorder.canCorrect
+                ? { segment, text in
+                    Task { await recorder.correct(segment, to: text) }
+                  }
+                : nil,
+            onDelete: recorder.canCorrect
+                ? { segment in Task { await recorder.deleteSegment(segment) } }
+                : nil,
+            onRelabel: recorder.canCorrect
+                ? { segment, speaker in
+                    Task { await recorder.setSpeaker(segment, to: speaker) }
+                  }
+                : nil,
+            onRelabelSelection: recorder.canCorrect
+                ? { segments, speaker in
+                    Task { await recorder.setSpeaker(segments, to: speaker) }
+                  }
+                : nil,
+            onRelabelAll: recorder.canCorrect
+                ? { label, channel, speaker in
+                    Task {
+                        await recorder.setSpeaker(allLabeled: label,
+                                                  in: channel, to: speaker)
+                    }
+                  }
+                : nil,
+            speakerCandidates: recorder.speakerCandidates,
+            speakerLineCount: { label, channel in
+                recorder.speakerLineCount(label: label, in: channel)
+            },
+            find: $findText,
+            isFinding: $isFinding,
+            markedIDs: NoteAnchor.markedIDs(
+                recorder.notes.filter(\.isMark).compactMap(\.at),
+                in: recorder.displayedSegments))
     }
 
     /// Özet maddesinden transkripte geçiş: sekme değişir, satıra kaydırılır ve

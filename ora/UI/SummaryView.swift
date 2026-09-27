@@ -32,6 +32,12 @@ struct SummaryView: View {
     var canOpenText: ((String) -> Bool)?
     /// Ses diskte ama transkript yok — ham sesten yeniden işle.
     var onRetry: (() -> Void)?
+    /// Kullanıcının notları (ayrıntılarıyla) ve not işlemleri.
+    var notes: [UserNote] = []
+    var onAddNote: ((String) -> Void)?
+    var onUpdateNote: ((UserNote, String) -> Void)?
+    var onDeleteNote: ((UserNote) -> Void)?
+    var onOpenNote: ((UserNote) -> Void)?
     /// Özeti beğenmediyse kullanıcı yeniden ürettirir. Notun **sonunda** durur:
     /// önce okunur, sonra karar verilir (tepede şerit yok — DESIGN.md §4).
     var onResummarize: (() -> Void)?
@@ -42,7 +48,7 @@ struct SummaryView: View {
     /// başına kaldığında sayfanın tepesinde yalnız bir kart olarak durmasın,
     /// ortadaki boş durumun açıklaması olsun.
     private var hasContent: Bool {
-        summary != nil || !topics.isEmpty || !actions.isEmpty
+        summary != nil || !topics.isEmpty || !actions.isEmpty || !notes.isEmpty
     }
 
     /// Boş durumdaki tek düğme. Yeniden deneme özetlemeden önce gelir:
@@ -80,6 +86,13 @@ struct SummaryView: View {
                                 }
                             }
                         }
+                    }
+                    // Kullanıcının kendi notu aksiyonlardan hemen sonra: "bana
+                    // ne düştü"den sonraki soru "ben ne yazmıştım".
+                    if !notes.isEmpty || onAddNote != nil {
+                        NotesSection(notes: notes, onAdd: onAddNote,
+                                     onUpdate: onUpdateNote, onDelete: onDeleteNote,
+                                     onOpen: onOpenNote)
                     }
                     if let summary {
                         if !summary.genelBakis.isEmpty {

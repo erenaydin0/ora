@@ -140,6 +140,12 @@ nonisolated struct LocalIntelligence: Intelligent {
         try await fallback.answer(question: question, over: segments)
     }
 
+    @concurrent func enrich(_ notes: [UserNote], over segments: [Segment],
+                            progress: @Sendable @escaping (Double) -> Void) async
+        -> [Int64: [String]] {
+        await fallback.enrich(notes, over: segments, progress: progress)
+    }
+
     @concurrent func generateTitle(from segments: [Segment]) async -> String? {
         await fallback.generateTitle(from: segments)
     }
@@ -219,7 +225,7 @@ nonisolated struct LocalIntelligence: Intelligent {
           gösterilen, anlatılan ya da tamamlanan bir şey aksiyon değildir.
           Sahibini metindeki addan al; belli değilse "belirtilmedi" yaz.
         - Karar, grubun üzerinde anlaştığı şeydir; konu başlığı karar değildir.
-        \(FoundationIntelligence.dateLine(context))
+        \(FoundationIntelligence.dateLine(context))\(Self.notebookBlock(context))
 
         Yalnızca şu şemada JSON döndür, başka hiçbir şey yazma:
         {
@@ -234,6 +240,23 @@ nonisolated struct LocalIntelligence: Intelligent {
         TOPLANTI DÖKÜMÜ:
         \(body)
         """
+    }
+
+    /// Kullanıcının notları ve işaretlediği satırlar. **Notsuz toplantıda
+    /// boş** — ölçülen istem değişmez (`SummaryShapeTests`).
+    static func notebookBlock(_ context: SummaryContext) -> String {
+        var block = ""
+        if !context.notebook.notes.isEmpty {
+            block += "\nKaydı tutan kişi toplantı sırasında şu notları aldı; onun için en "
+                + "önemli noktalar bunlar. Genel bakış ve konular bunları mutlaka kapsasın:\n"
+                + context.notebook.notes.map { "- \($0)" }.joined(separator: "\n")
+        }
+        if !context.notebook.markedLines.isEmpty {
+            block += "\nKaydı tutan kişi şu satırları önemli diye işaretledi; orada "
+                + "söylenenler notta yer alsın:\n"
+                + context.notebook.markedLines.map { "- \($0)" }.joined(separator: "\n")
+        }
+        return block
     }
 
     // MARK: - Çıktıyı çözme

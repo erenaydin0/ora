@@ -57,6 +57,12 @@ final class RecordingController {
     /// Adlandırma menüsünün adayları.
     var speakerCandidates: [String] { library.speakerCandidates }
     var chatTurns: [MeetingStore.ChatTurn] { library.chatTurns }
+    /// Seçili toplantının notları ve işaretlenen anlar.
+    var notes: [UserNote] { library.notes }
+    /// Kayıt sürerken yazılan notlar. Seçimden ayrı tutulur: kullanıcı kayıt
+    /// sırasında kenar çubuğunda başka bir toplantıya tıklasa bile not
+    /// **kaydedilen** toplantıya düşer.
+    private(set) var liveNotes: [UserNote] = []
 
     /// Kullanıcının kendi adı — "Bana düşenler" grubu buna bakar.
     var userDisplayName: String { settings.userDisplayName }
@@ -518,6 +524,63 @@ final class RecordingController {
         }
     }
 
+    // MARK: - Not defteri (COMPETITION.md §4.6, §4.9)
+
+    /// Notun gideceği toplantı: kayıt sürüyorsa kaydedilen, değilse seçili.
+    private var noteTarget: Int64? { session.meetingID ?? selection }
+
+    /// Not ekler. Kayıt sürerken zaman damgası alır: `startedAt` kullanıcının
+    /// yazmaya **başladığı** an — not duyulanın arkasından yazılır, Enter'a
+    /// basılan an geç kalır.
+    func addNote(_ text: String, startedAt: TimeInterval? = nil) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let meetingID = noteTarget else { return }
+        let at = isRecording ? (startedAt ?? state.elapsed) : nil
+        await writeNote(meetingID) {
+            try await $0.addNote(meetingID, kind: .note, text: trimmed, at: at)
+        }
+    }
+
+    /// Kayıt sırasında "önemli an" işareti (⌃⌘M, menü bar, kayıt ekranı).
+    /// Kayıt dışında bir şey yapmaz — işaretin anlamı kayıttaki yeridir.
+    func markMoment() async {
+        guard isRecording, let meetingID = session.meetingID else { return }
+        let at = state.elapsed
+        await writeNote(meetingID) {
+            try await $0.addNote(meetingID, kind: .mark, text: "", at: at)
+        }
+        Log.info(.pipeline, "Önemli an işaretlendi — \(UserNote.timeLabel(at))")
+    }
+
+    func updateNote(_ note: UserNote, text: String) async {
+        guard let meetingID = noteTarget else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // İşaretin metni boş kalabilir; notun kalamaz — boşaltılan not silinir.
+        if trimmed.isEmpty, !note.isMark {
+            await deleteNote(note)
+            return
+        }
+        await writeNote(meetingID) { try await $0.updateNote(note.id, text: trimmed) }
+    }
+
+    func deleteNote(_ note: UserNote) async {
+        guard let meetingID = noteTarget else { return }
+        await writeNote(meetingID) { try await $0.deleteNote(note.id) }
+    }
+
+    private func writeNote(_ meetingID: Int64,
+                           _ write: (MeetingStore) async throws -> Void) async {
+        do {
+            try await write(store)
+        } catch {
+            Log.error(.store, "Not kaydedilemedi", error)
+            self.error = .audioWriteFailed(underlying: error)
+            return
+        }
+        let fresh = await library.refreshNotes(meetingID)
+        if meetingID == session.meetingID { liveNotes = fresh }
+    }
+
     // MARK: - Türetilmiş
 
     var isRecording: Bool { state.isRecording }
@@ -578,7 +641,8 @@ final class RecordingController {
                                      duration: meeting.duration, segments: transcript,
                                      summary: summary, topics: topics,
                                      actions: actions,
-                                     participants: calendarParticipants)
+                                     participants: calendarParticipants,
+                                     notes: notes)
     }
 
     // MARK: - Liste (kütüphaneye devredildi — REFACTOR.md Adım 5)
@@ -700,6 +764,7 @@ final class RecordingController {
             return
         }
         selection = meetingID
+        liveNotes = []
 
         // Takvim açıksa o ana denk gelen etkinlik aranır (±10 dk tolerans).
         // Etkinlik başlığı ve katılımcılar buradan gelir; toplantı linki
@@ -727,6 +792,9 @@ final class RecordingController {
             return
         }
         suggestions.recordingStarted(bundleID: signal?.bundleID ?? preferredApp)
+        // İşaret kısayolu yalnızca kayıt sürerken sistem geneline alınır:
+        // başka uygulamaların kısayoluyla kayıt dışında çakışmasın.
+        GlobalHotKey.shared.registerMark()
         await refresh()
         // Canlı transkripsiyon **ikincil** iştir ve kayıt başladıktan sonra
         // açılır; hata verirse kayıt kesintisiz sürer (CLAUDE.md kural #2).
@@ -736,10 +804,15 @@ final class RecordingController {
 
     func stop() async {
         guard isRecording, let meetingID = session.meetingID else { return }
+        GlobalHotKey.shared.unregisterMark()
         do {
             let url = try await session.stop()
             let duration = Self.duration(of: url)
             try? await store.markProcessing(meetingID, audioPath: url, duration: duration)
+            // Kayıt sırasında yazılan notlar toplantının ekranına taşınır;
+            // kayıt sürerken kütüphane yükleme yapmıyordu.
+            await library.refreshNotes(meetingID)
+            liveNotes = []
             await refresh()
             await pipeline.fullPass(meetingID: meetingID, url: url)
         } catch {

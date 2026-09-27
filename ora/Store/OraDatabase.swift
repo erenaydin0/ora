@@ -239,6 +239,26 @@ nonisolated final class OraDatabase: Storing {
                 """)
         }
 
+        // Not defteri (COMPETITION.md §4.6, §4.9): kullanıcının kendi notları
+        // ve kayıt sırasında işaretlenen anlar. `at_time` kayıttaki saniyedir,
+        // sonradan yazılan notta NULL. `details` transkriptten eklenen ayrıntı
+        // (JSON `[String]`) — kullanıcının yazdığı değil, ayrı sütunda durur ki
+        // yeniden özetleme notun kendisine dokunmadan onu yenileyebilsin.
+        migrator.registerMigration("v7_notes") { db in
+            try db.execute(sql: """
+                CREATE TABLE notes (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+                    kind       TEXT NOT NULL DEFAULT 'note',
+                    text       TEXT NOT NULL DEFAULT '',
+                    at_time    REAL,
+                    details    TEXT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                CREATE INDEX idx_notes_meeting ON notes(meeting_id, at_time);
+                """)
+        }
+
         return migrator
     }
 }

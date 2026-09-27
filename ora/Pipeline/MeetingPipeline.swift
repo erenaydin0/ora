@@ -342,6 +342,11 @@ final class MeetingPipeline {
         // (`resolvedPerson`); isteme roster yazılmaz — ölçüldü, model onu
         // kısıt değil menü gibi kullanıyor (RESEARCH.md §23.5).
         let named = (try? await store.transcriptParticipants(meetingID)) ?? []
+        // Kullanıcının notları ve işaretlediği anlar (§4.6, §4.9): özet
+        // istemine ayrı blok olarak girer, özetten sonra da transkriptten
+        // ayrıntıyla genişletilir. Özetleme ilerlemesi notlara pay bırakır.
+        let notes = (try? await store.notes(meetingID)) ?? []
+        let share = notes.isEmpty ? 1.0 : 0.9
         var produced: Ozet?
         var producedTopics: [TopicSegment] = []
         do {
@@ -356,12 +361,13 @@ final class MeetingPipeline {
                     !MeetingStore.isChannelLabel($0.speaker)
                 },
                 hasRecorderLines: working.contains { $0.speaker == Channel.mic.speaker },
-                detail: settings.summaryDetail)
+                detail: settings.summaryDetail,
+                notebook: NotebookHints.from(notes, segments: working))
             let result: SummaryResult
             do {
                 result = try await engine.summarize(
                     working, context: context, variation: variation) { [weak self] value in
-                    Task { @MainActor in self?.stage(.summarizing(value), meetingID) }
+                    Task { @MainActor in self?.stage(.summarizing(value * share), meetingID) }
                 }
             } catch let error as OraError
                         where engine is CloudIntelligence && intelligence.availability.isAvailable {
@@ -372,7 +378,7 @@ final class MeetingPipeline {
                             + error.turkishDetail)
                 result = try await intelligence.summarize(
                     working, context: context, variation: variation) { [weak self] value in
-                    Task { @MainActor in self?.stage(.summarizing(value), meetingID) }
+                    Task { @MainActor in self?.stage(.summarizing(value * share), meetingID) }
                 }
             }
             produced = result.ozet
@@ -386,6 +392,20 @@ final class MeetingPipeline {
             Log.info(.intelligence, "Özet hazır — \(result.ozet.kararlar.count) karar, "
                      + "\(result.ozet.aksiyonlar.count) aksiyon, "
                      + "\(result.topics.count) konu, \(result.skippedChunks) atlanan parça")
+
+            // 5b — Notların altına transkriptten ayrıntı. Motor bağlı sağlayıcı
+            // olsa da bu adım cihazda koşar (`CloudIntelligence.enrich`).
+            if !notes.isEmpty {
+                let details = await engine.enrich(notes, over: working) { [weak self] value in
+                    Task { @MainActor in
+                        self?.stage(.summarizing(share + value * (1 - share)), meetingID)
+                    }
+                }
+                try? await store.saveNoteDetails(meetingID, details: details)
+                if let refreshed = try? await store.notes(meetingID) {
+                    emit(.notes(refreshed), meetingID)
+                }
+            }
         } catch let error as OraError {
             emit(.notice(error.turkishMessage + ". " + error.turkishDetail), meetingID)
             Log.error(.intelligence, "Özetleme başarısız", error)

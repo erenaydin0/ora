@@ -80,6 +80,14 @@ nonisolated protocol Intelligent: Sendable {
                    progress: @Sendable @escaping (Double) -> Void) async throws
         -> SummaryResult
 
+    /// Kullanıcının notlarını ve işaretlediği anları transkriptten ayrıntıyla
+    /// genişletir (COMPETITION.md §4.6). Not başına en fazla üç madde; notun
+    /// kendisine dokunulmaz. En iyi çabadır — ayrıntı üretilemeyen not
+    /// sözlükte yer almaz, hata fırlatılmaz.
+    @concurrent func enrich(_ notes: [UserNote], over segments: [Segment],
+                            progress: @Sendable @escaping (Double) -> Void) async
+        -> [Int64: [String]]
+
     /// Toplantı sohbeti: transkript üzerinde soru-cevap, map-reduce ile.
     @concurrent func answer(question: String, over segments: [Segment]) async throws -> String
 

@@ -299,7 +299,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
                 - Write as decisions only things that were actually decided;
                   if nothing was decided, leave the list empty.
                 - The overview and the decisions must not be the same sentences.
-                \(Self.dateLine(context))
+                \(Self.dateLine(context))\(Self.notesBlock(context))
 
                 \(combined)
                 """,
@@ -369,7 +369,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
             - In the context field write which part of the conversation the
               work came from.
             - Write a due date only if the text states one.
-            \(Self.dateLine(context))
+            \(Self.dateLine(context))\(Self.markLine(context, chunk: text))
 
             \(text)
             """
@@ -643,6 +643,27 @@ nonisolated struct FoundationIntelligence: Intelligent {
         return "Meeting date: \(formatter.string(from: context.meetingDate)). "
             + "Interpret weekday names in the text relative to this date; "
             + "do not invent dates."
+    }
+
+    /// Kullanıcının notları birleştirme isteminde ayrı bir blok olarak durur
+    /// (COMPETITION.md §4.6): neyin önemli olduğuna 3B model karar vermek
+    /// zorunda kalmaz — seçemediği ölçülmüştü (§35). **Notsuz toplantıda boş**;
+    /// istem ölçülen metinle bayt bayt aynı kalır.
+    static func notesBlock(_ context: SummaryContext) -> String {
+        guard !context.notebook.notes.isEmpty else { return "" }
+        return "\nThe person recording wrote these notes during the meeting. They "
+            + "mark what mattered most; make sure the overview and the decisions cover "
+            + "them, using the facts from the topic notes:\n"
+            + context.notebook.notes.map { "- \($0)" }.joined(separator: "\n")
+    }
+
+    /// Bu parçada işaretlenmiş bir satır varsa modele söylenir; yoksa boş.
+    static func markLine(_ context: SummaryContext, chunk text: String) -> String {
+        let lines = context.notebook.markedLines.filter { text.contains($0) }
+        guard !lines.isEmpty else { return "" }
+        return "\nThe person recording marked these lines as important; make sure "
+            + "the notes cover what was said there:\n"
+            + lines.map { "- \($0)" }.joined(separator: "\n")
     }
 
     // MARK: - Birleştirme yardımcıları
@@ -1013,6 +1034,67 @@ nonisolated struct FoundationIntelligence: Intelligent {
         }
         if !current.isEmpty { result.append(current) }
         return result
+    }
+
+    // MARK: - Not zenginleştirme
+
+    /// Her not **kendi oturumunda** ve yalnızca kendi penceresiyle işlenir:
+    /// pencere dar (işaret için ~2 dk), istem küçük, parça sınırı gerekmez.
+    @concurrent func enrich(_ notes: [UserNote], over segments: [Segment],
+                            progress: @Sendable @escaping (Double) -> Void) async
+        -> [Int64: [String]] {
+        guard availability.isAvailable, !segments.isEmpty, !notes.isEmpty else { return [:] }
+        let speakers = Set(segments.map(\.speaker))
+        var result: [Int64: [String]] = [:]
+        for (index, note) in notes.enumerated() {
+            defer { progress(Double(index + 1) / Double(notes.count)) }
+            let window = NoteAnchor.trimmed(NoteAnchor.window(for: note, in: segments),
+                                            limit: summaryLimit / 2, center: note.at)
+            guard !window.isEmpty else { continue }
+            let session = LanguageModelSession(instructions: Self.summaryInstructions)
+            do {
+                let response = try await session.respond(
+                    to: Self.enrichmentPrompt(note, excerpt: TranscriptChunker.render(window)),
+                    generating: NotAyrintisi.self)
+                let own = Self.normalized(note.text)
+                let bullets = Self.cleaned(response.content.maddeler, speakers: speakers)
+                    .filter { Self.normalized($0) != own }
+                if !bullets.isEmpty { result[note.id] = Array(bullets.prefix(3)) }
+            } catch {
+                Log.warning(.intelligence, "Not ayrıntısı üretilemedi: \(error.localizedDescription)")
+            }
+        }
+        Log.info(.intelligence, "Notlar zenginleştirildi — \(result.count)/\(notes.count)")
+        return result
+    }
+
+    static func enrichmentPrompt(_ note: UserNote, excerpt: String) -> String {
+        let text = note.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let task: String
+        if text.isEmpty {
+            task = """
+                The person recording marked a moment of this meeting as important.
+                Below is the conversation around that moment. In one or two
+                bullets, write what was stated or decided there.
+                """
+        } else {
+            task = """
+                The person recording wrote this note during the meeting:
+                "\(text)"
+                Below is the part of the meeting the note refers to. Add up to
+                three bullets with the concrete details from the excerpt that
+                expand the note: numbers, names, decisions, who will do what. Do
+                not repeat the note. If the excerpt adds nothing, return an empty
+                list.
+                """
+        }
+        return """
+            \(task)
+            Write in Turkish, one sentence per bullet, as facts in the third
+            person; never report who spoke.
+
+            \(excerpt)
+            """
     }
 
     // MARK: - Toplantı sohbeti

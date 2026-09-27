@@ -66,6 +66,8 @@ final class MeetingLibrary {
     /// Toplantıdan bağımsızdır; liste tazelemesiyle okunur.
     private(set) var knownParticipants: [String] = []
     private(set) var chatTurns: [MeetingStore.ChatTurn] = []
+    /// Kullanıcının notları ve işaretlediği anlar (ayrıntılarıyla).
+    private(set) var notes: [UserNote] = []
 
     // MARK: - Bağımlılıklar
 
@@ -147,7 +149,8 @@ final class MeetingLibrary {
             guard let loaded = try await store.load(meetingID) else { return }
             let chat = (try? await store.chatHistory(meetingID)) ?? []
             let people = (try? await store.calendarParticipants(meetingID)) ?? []
-            apply(loaded, chat: chat, participants: people, for: meetingID)
+            let notes = (try? await store.notes(meetingID)) ?? []
+            apply(loaded, chat: chat, participants: people, notes: notes, for: meetingID)
         } catch {
             Log.error(.store, "Toplantı yüklenemedi: \(meetingID)", error)
             onError?(.audioWriteFailed(underlying: error))
@@ -161,9 +164,10 @@ final class MeetingLibrary {
     /// yükleme yarışıyordu. Okumadan ayrı bir metot olması ölçülebilmesi için:
     /// yarışı gerçek zamanlamayla kurmak deterministik değildi.
     func apply(_ loaded: LoadedMeeting, chat: [MeetingStore.ChatTurn],
-               participants: [String], for meetingID: Int64) {
+               participants: [String], notes: [UserNote] = [], for meetingID: Int64) {
         guard isOnScreen(meetingID) else { return }
 
+        self.notes = notes
         transcript = loaded.segments
         summary = loaded.summary
         topics = loaded.topics
@@ -190,6 +194,7 @@ final class MeetingLibrary {
         deferReason = nil
         chatTurns = []
         calendarParticipants = []
+        notes = []
         retryableAudio = nil
         audioURL = nil
         clearLivePreview()
@@ -214,6 +219,8 @@ final class MeetingLibrary {
             topics = producedTopics
         case .actions(let produced):
             actions = produced
+        case .notes(let produced):
+            notes = produced
         case .audio(let url):
             audioURL = url
             // Sıkıştırma dosyanın yerini değiştirdiyse "Yeniden dene" de artık
@@ -397,6 +404,17 @@ final class MeetingLibrary {
             do { try await store.setActionDone(actionID, done) }
             catch { Log.error(.store, "Aksiyon durumu yazılamadı", error) }
         }
+    }
+
+    // MARK: - Notlar
+
+    /// Toplantının notlarını yeniden okur; o toplantı ekrandaysa gösterir.
+    /// Kayıt sürerken de çalışır — notlar kaydın ortasında yazılır.
+    @discardableResult
+    func refreshNotes(_ meetingID: Int64) async -> [UserNote] {
+        let fresh = (try? await store.notes(meetingID)) ?? []
+        if isOnScreen(meetingID) { notes = fresh }
+        return fresh
     }
 
     /// Sohbet turu ekler ve geçmişi tazeler.

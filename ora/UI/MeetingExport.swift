@@ -15,6 +15,8 @@ enum MeetingExport {
         let topics: [TopicSegment]
         let actions: [MeetingAction]
         let participants: [String]
+        /// Kullanıcının notları ve işaretlediği anlar, ayrıntılarıyla.
+        var notes: [UserNote] = []
     }
 
     // MARK: - Markdown
@@ -45,6 +47,18 @@ enum MeetingExport {
                     line += " _(\(deadline))_"
                 }
                 lines.append(line)
+            }
+            lines.append("")
+        }
+
+        if !payload.notes.isEmpty {
+            lines.append("#### Notlarım")
+            lines.append("")
+            for note in payload.notes {
+                var line = note.isMark ? "- ⚑ \(note.displayText)" : "- **\(note.displayText)**"
+                if let label = note.timeLabel { line += " `\(label)`" }
+                lines.append(line)
+                note.details.forEach { lines.append("  - \($0)") }
             }
             lines.append("")
         }

@@ -58,6 +58,8 @@ struct MenuBarContent: View {
         if recorder.isRecording {
             Button("Kaydı durdur") { Task { await recorder.stop() } }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
+            Button("Önemli anı işaretle") { Task { await recorder.markMoment() } }
+                .keyboardShortcut("m", modifiers: [.control, .command])
             if !lock.isLocked, let line = recorder.lastLiveLine, !line.isEmpty {
                 Text(line.count > 60 ? String(line.prefix(60)) + "…" : line)
             }

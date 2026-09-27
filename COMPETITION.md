@@ -63,10 +63,10 @@ toplantı sohbeti, FTS5 arama, takvim eşleştirme, otomatik algılama, vocabula
 | 3 | ✅ Alıntı bağı: her madde → transkript → ses | ★★★ | S | yok |
 | 4 | ✅ Arama parçacığı + toplantı içi arama | ★★ | XS | yok |
 | 5 | ✅ Depolama yönetimi (AAC'ye çevir / eski sesi sil) | ★★ | S | yok |
-| 6 | Kullanıcı notu + not zenginleştirme (Granola modeli) | ★★★ | M | yok |
+| 6 | ✅ Kullanıcı notu + not zenginleştirme (Granola modeli) | ★★★ | M | yok |
 | 7 | Toplantı şablonları | ★★ | M | yok |
 | 8 | Kanal başına dil (mic tr / sistem en) | ★★★ | S | yok |
-| 9 | Kayıt sırasında "önemli an" işareti | ★★ | S | yok |
+| 9 | ✅ Kayıt sırasında "önemli an" işareti | ★★ | S | yok |
 | 10 | Toplantılar arası sohbet (FTS ile daraltılmış) | ★★★ | M | yok |
 | 11 | Kişi sayfası + tekrarlayan toplantı hazırlığı | ★★ | M | yok |
 | 12 | Hatırlatıcılar / Kısayollar (App Intents) çıkışı | ★★ | M | yok |
@@ -182,6 +182,9 @@ bağlamı olarak kullanılır.
 **Neden:** Kayıt sırasında LLM çalıştırmadan, kullanıcının dikkatini
 modele taşımanın en ucuz yolu. 4.6'nın küçük kardeşi; önce bu yapılabilir.
 **Bonus:** İşaretli aralığı `.m4a` olarak dışa aktar → Soundbites'ın yerel karşılığı.
+**Yapıldı (Faz 10):** kısayol **⌃⌘M** — ⌘⇧M Teams'te mikrofonu, Slack'te
+bahsedilmeleri açıyor ve tam kayıt sırasında basılıyor; kısayol yalnızca kayıt
+sürerken alınıyor. Bonus (işaretli aralığı `.m4a` dışa aktarma) yapılmadı.
 
 ### 4.10 Toplantılar arası sohbet ve arama
 **Rakip:** Fireflies AskFred, Granola "klasörlerle sohbet".

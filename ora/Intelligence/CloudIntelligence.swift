@@ -64,6 +64,14 @@ nonisolated struct CloudIntelligence: Intelligent {
 
     // MARK: - Cihazda kalanlar
 
+    /// Not zenginleştirme cihazda kalır: not başına küçük bir pencere yeter,
+    /// kullanıcının kendi notunu buluta taşımanın kazancı yok (kural 4).
+    @concurrent func enrich(_ notes: [UserNote], over segments: [Segment],
+                            progress: @Sendable @escaping (Double) -> Void) async
+        -> [Int64: [String]] {
+        await fallback.enrich(notes, over: segments, progress: progress)
+    }
+
     @concurrent func restorePunctuation(_ segments: [Segment],
                                         progress: @Sendable @escaping (Double) -> Void) async throws
         -> [Segment] {

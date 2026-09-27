@@ -303,8 +303,10 @@ karar versin.
 - [ ] Yetersiz bellekte yerel motor seçilemez; seçiliyken düşülür
 
 ## Faz 10 — Not Defteri (COMPETITION.md §7)
-- [ ] Kullanıcının kendi notu + kayıt sonrası zenginleştirme (§4.6)
-- [ ] Kayıt sırasında "önemli an" işareti (§4.9)
+- [x] Kullanıcının kendi notu + kayıt sonrası zenginleştirme (§4.6) —
+      `notes` tablosu (v7), not başına transkriptten ≤ 3 madde ayrıntı
+- [x] Kayıt sırasında "önemli an" işareti (§4.9) — ⌃⌘M (yalnızca kayıt
+      sürerken), menü bar, kayıt ekranı; transkriptte bayrak
 - [ ] Toplantı şablonları (§4.7)
 - [ ] Kanal başına dil — mikrofon tr, sistem en (§4.8)
 
