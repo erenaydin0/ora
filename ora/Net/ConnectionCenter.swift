@@ -411,6 +411,8 @@ final class ConnectionCenter {
                                      duration: loaded.meeting.duration,
                                      segments: loaded.segments, summary: loaded.summary,
                                      topics: loaded.topics, actions: loaded.actions,
-                                     participants: people, notes: notes)
+                                     participants: people, notes: notes,
+                                     decisionsTitle: MeetingTemplate(
+                                         stored: loaded.meeting.template).decisionsTitle)
     }
 }

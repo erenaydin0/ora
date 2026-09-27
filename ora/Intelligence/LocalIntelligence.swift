@@ -212,7 +212,7 @@ nonisolated struct LocalIntelligence: Intelligent {
     /// metin ölçülen istemin aynısıdır** (`SummaryShapeTests`).
     static func prompt(body: String, context: SummaryContext) -> String {
         """
-        Aşağıda bir toplantının tam dökümü var. Toplantı notunu çıkar.
+        Aşağıda bir toplantının tam dökümü var. Toplantı notunu çıkar.\(context.template.localFocus)
 
         Kurallar:
         - Genel bakış \(context.detail.localOverview) madde: toplantının en önemli sonuçları, sayılarıyla.
@@ -224,7 +224,7 @@ nonisolated struct LocalIntelligence: Intelligent {
         - Aksiyon, toplantıdan sonra yapılacak iştir. Toplantı sırasında
           gösterilen, anlatılan ya da tamamlanan bir şey aksiyon değildir.
           Sahibini metindeki addan al; belli değilse "belirtilmedi" yaz.
-        - Karar, grubun üzerinde anlaştığı şeydir; konu başlığı karar değildir.
+        \(context.template.localDecisionRule)
         \(FoundationIntelligence.dateLine(context))\(Self.notebookBlock(context))
 
         Yalnızca şu şemada JSON döndür, başka hiçbir şey yazma:

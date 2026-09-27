@@ -32,6 +32,8 @@ struct SummaryView: View {
     var canOpenText: ((String) -> Bool)?
     /// Ses diskte ama transkript yok — ham sesten yeniden işle.
     var onRetry: (() -> Void)?
+    /// Kararlar bölümünün adı — şablona göre değişir (§4.7).
+    var decisionsTitle = MeetingTemplate.general.decisionsTitle
     /// Kullanıcının notları (ayrıntılarıyla) ve not işlemleri.
     var notes: [UserNote] = []
     var onAddNote: ((String) -> Void)?
@@ -106,7 +108,7 @@ struct SummaryView: View {
                             }
                         }
                         if !summary.kararlar.isEmpty {
-                            Section("Kararlar") {
+                            Section(decisionsTitle) {
                                 VStack(alignment: .leading, spacing: 8) {
                                     ForEach(Array(summary.kararlar.enumerated()),
                                             id: \.offset) { _, karar in

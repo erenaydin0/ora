@@ -487,6 +487,21 @@ Bu sıra asla değişmez:
   dışarıda kalır. **Notsuz toplantıda istem bayt bayt aynıdır** — §23-37
   ölçümleri notsuz alındı (`NotebookTests.notsuzIstemDegismez`). Notlu istem
   **ölçülmedi**.
+- **Şablon şemayı değiştirmez, talimatı değiştirir** (`MeetingTemplate`,
+  `meetings.template`): Genel · Bire bir · Müşteri görüşmesi · Ürün / sprint ·
+  Mülakat. Modele toplantının türü söylenir ve `kararlar` alanının o
+  toplantıda neyi taşıdığı yeniden tanımlanır (bire birde geri bildirim,
+  müşteride talepler, mülakatta aday hakkında söylenenler — mülakatta model
+  **kendi yargısını yazmaz**); Özet'te bölümün adı buna göre değişir.
+  **Genel ölçülmüş olandır ve varsayılandır:** Apple istemleri
+  (`reducePrompt` / `chunkPrompt`) ve yerel istem o şablonda ölçülen metnin
+  bayt bayt aynısıdır (`TemplateTests`). Diğerleri **ölçülmedi**.
+- Şablon başlıktaki çipten seçilir; özet varsa "bu şablonla yeniden
+  oluşturulsun mu" diye sorulur. Bu yeniden üretim **varsayılan örneklemeyle**
+  koşar (yeni istem, "başka bir özet" değil), başarısız olursa eldeki özet
+  korunur ve başlık yeniden üretilmez (`preservingExisting`). Takvim etkinliği
+  adından şablon **önerilir** ("1:1", "sprint", "mülakat") — yalnızca şablon
+  hâlâ Genel'ken; kullanıcının seçimi ezilmez.
 
 ## Toplantı Algılama Kuralları — ölçülmüş davranış
 - **`ps aux` polling'i yok.** Sinyal CoreAudio olay dinleyicileridir:
@@ -747,6 +762,8 @@ Türkçe bir bildirimle sor. Şarj durumu izleme, `IOPSCopyPowerSourcesInfo`,
 meetings(id, title, date, duration, status, template, audio_path,
          calendar_event_id, created_at)
   -- calendar_event_id: EKEvent.eventIdentifier, takvim kapalıysa NULL
+  -- template: 'general' | 'one_on_one' | 'customer' | 'sprint' | 'interview'
+  --           (MeetingTemplate); tanınmayan değer Genel sayılır
 transcripts(id, meeting_id, speaker, channel, text, start_time, end_time, confidence, created_at)
   -- transcripts.channel: 'mic' | 'system'
 action_items(id, meeting_id, person, task, context, deadline, status, created_at)
@@ -1121,6 +1138,7 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       ekranında not sütunu, Özet'te "Notlarım"), kayıt sırasında önemli an
       işareti (⌃⌘M, menü bar), notların özet istemine girmesi ve kayıt sonrası
       zenginleştirme (not başına transkriptten ≤ 3 madde). Şema v7 (`notes`).
+      Toplantı şablonları (Genel ölçülmüş olan; diğer dördü ölçülmedi).
       **Faz 11 — Bağlantılar yapıldı:** `ora/Net/` tek kapı, kendi AI
       sağlayıcını (Anthropic · OpenAI · OpenRouter · yerel sunucu) özet ve
       sohbet motoru olarak bağlama, Slack ve Notion'a ön izlemeli gönderim ve
@@ -1219,7 +1237,8 @@ ora/Net/               — **ağa çıkan tek modül** (Faz 11). Outbound (kapı
                          hiçbir dosyada `URLSession` geçmez — test tarar
 ora/Notebook/          — UserNote (kullanıcı notu + önemli an), NoteAnchor
                          (notu transkripte bağlayan saf kurallar), NotebookHints
-                         (özet istemine giden hâli; boşken istem değişmez)
+                         (özet istemine giden hâli; boşken istem değişmez),
+                         MeetingTemplate (şablon başına istem parçaları)
 ora/Diarize/           — SpeakerSeparation (politika: hangi kanal, kelime düzeyi
                          atama, küme adları; saf ve motordan bağımsız),
                          VoiceMatcher (ses izi eşleştirme, tutucu eşikler),

@@ -166,6 +166,8 @@ nonisolated struct SummaryContext: Sendable, Equatable {
     /// Kullanıcının notları ve işaretlediği anlar. Boşken istem ölçülen
     /// metinle bayt bayt aynıdır.
     var notebook = NotebookHints()
+    /// Toplantı şablonu. Genel'de istem ölçülen metinle bayt bayt aynıdır.
+    var template: MeetingTemplate = .general
 
     static let empty = SummaryContext(meetingDate: .now, participants: [], userName: nil)
 }

@@ -282,27 +282,8 @@ nonisolated struct FoundationIntelligence: Intelligent {
         let session = LanguageModelSession(instructions: Self.summaryInstructions)
         do {
             // Birleştirme **aksiyon üretmez** — sorumlu kişiyi bilemez.
-            let response = try await session.respond(to: """
-                Below are topic-by-topic notes from a meeting. From them
-                produce a \(context.detail.overviewRange) bullet overview of the meeting and the decisions
-                that were made. Write everything in Turkish.
-                Rules:
-                - Each overview bullet is one sentence; first what happened,
-                  then its consequence.
-                - Do not copy a bullet from the notes word for word; combine
-                  what belongs together and state the outcome.
-                - Prefer the facts that carry numbers, amounts, dates and
-                  names; drop notes that only report that somebody spoke.
-                - Do not write the meeting's date or duration in the overview.
-                - A decision is something the group settled on; a subject
-                  heading or a topic name is not a decision.
-                - Write as decisions only things that were actually decided;
-                  if nothing was decided, leave the list empty.
-                - The overview and the decisions must not be the same sentences.
-                \(Self.dateLine(context))\(Self.notesBlock(context))
-
-                \(combined)
-                """,
+            let response = try await session.respond(
+                to: Self.reducePrompt(combined: combined, context: context),
                 generating: ToplantiOzeti.self,
                 options: options)
             progress(0.85)
@@ -330,49 +311,79 @@ nonisolated struct FoundationIntelligence: Intelligent {
         }
     }
 
+    /// Birleştirme istemi. **Birleştirme aksiyon üretmez** — sorumlu kişiyi
+    /// bilemez. Genel şablon, Dengeli uzunluk ve notsuz toplantıda metin
+    /// ölçülen istemin bayt bayt aynısıdır (`TemplateTests`).
+    static func reducePrompt(combined: String, context: SummaryContext) -> String {
+        """
+        Below are topic-by-topic notes from a meeting. From them
+        produce a \(context.detail.overviewRange) bullet overview of the meeting and the decisions
+        that were made. Write everything in Turkish.\(context.template.reduceFocus)
+        Rules:
+        - Each overview bullet is one sentence; first what happened,
+          then its consequence.
+        - Do not copy a bullet from the notes word for word; combine
+          what belongs together and state the outcome.
+        - Prefer the facts that carry numbers, amounts, dates and
+          names; drop notes that only report that somebody spoke.
+        - Do not write the meeting's date or duration in the overview.
+        \(context.template.decisionRules)
+        - The overview and the decisions must not be the same sentences.
+        \(Self.dateLine(context))\(Self.notesBlock(context))
+
+        \(combined)
+        """
+    }
+
+    /// Parça istemi. Genel şablon, Dengeli uzunluk ve işaretsiz parçada metin
+    /// ölçülen istemin bayt bayt aynısıdır (`TemplateTests`).
+    static func chunkPrompt(text: String, target: Int, context: SummaryContext) -> String {
+        """
+        Turn this meeting excerpt into written notes. Produce at most
+        \(target) topics. For each topic write a 2-6 word Turkish heading
+        and bullets. If few topics are requested, write each one in more
+        detail; give every important point its own bullet.\(context.detail.chunkHint)\(context.template.chunkFocus)
+
+        Write for someone who was not in the room: every bullet must teach
+        a fact — a number, a decision, how something works, a problem, a
+        plan. Reporting that somebody spoke teaches nothing.
+
+        Rules:
+        - Write each bullet as your own sentence. Never quote the speakers
+          and never begin a bullet with a name followed by a colon.
+        - Never end a bullet with a speech verb (açıkladı, anlattı,
+          belirtti, söyledi, bahsetti, sordu, gösterdi).
+        - Keep numbers, amounts, dates, product, company and person names
+          exactly as in the text; a bullet carrying a concrete detail is
+          worth more than a general one.
+        - Write a person's name only when they take work on, ask for a
+          change, object, or state a position that matters.
+        - Each bullet is one sentence, third person, Turkish, and stands
+          on its own. Never write in the first person ("yapıyoruz",
+          "ediyorum", "bahsedeceğim"); the notes are written by an
+          observer.
+        \(Self.speakerLine(context))
+        Action rules:
+        - An action is work that will be done after the meeting.
+        - Write the task as a command: the work first, the verb last.
+        - Leave the list empty unless someone clearly committed to work;
+          most excerpts contain none.
+        - Take the owner from whoever took the work on in the text; write
+          "belirtilmedi" if it is unclear.
+        - In the context field write which part of the conversation the
+          work came from.
+        - Write a due date only if the text states one.
+        \(Self.dateLine(context))\(Self.markLine(context, chunk: text))
+
+        \(text)
+        """
+    }
+
     /// Bir parçayı konularına ayırır. Başarısız olursa **bir kez** daha denenir.
     private func chunkTopics(of text: String, target: Int,
                              context: SummaryContext,
                              options: GenerationOptions) async -> ParcaOzeti? {
-        let prompt = """
-            Turn this meeting excerpt into written notes. Produce at most
-            \(target) topics. For each topic write a 2-6 word Turkish heading
-            and bullets. If few topics are requested, write each one in more
-            detail; give every important point its own bullet.\(context.detail.chunkHint)
-
-            Write for someone who was not in the room: every bullet must teach
-            a fact — a number, a decision, how something works, a problem, a
-            plan. Reporting that somebody spoke teaches nothing.
-
-            Rules:
-            - Write each bullet as your own sentence. Never quote the speakers
-              and never begin a bullet with a name followed by a colon.
-            - Never end a bullet with a speech verb (açıkladı, anlattı,
-              belirtti, söyledi, bahsetti, sordu, gösterdi).
-            - Keep numbers, amounts, dates, product, company and person names
-              exactly as in the text; a bullet carrying a concrete detail is
-              worth more than a general one.
-            - Write a person's name only when they take work on, ask for a
-              change, object, or state a position that matters.
-            - Each bullet is one sentence, third person, Turkish, and stands
-              on its own. Never write in the first person ("yapıyoruz",
-              "ediyorum", "bahsedeceğim"); the notes are written by an
-              observer.
-            \(Self.speakerLine(context))
-            Action rules:
-            - An action is work that will be done after the meeting.
-            - Write the task as a command: the work first, the verb last.
-            - Leave the list empty unless someone clearly committed to work;
-              most excerpts contain none.
-            - Take the owner from whoever took the work on in the text; write
-              "belirtilmedi" if it is unclear.
-            - In the context field write which part of the conversation the
-              work came from.
-            - Write a due date only if the text states one.
-            \(Self.dateLine(context))\(Self.markLine(context, chunk: text))
-
-            \(text)
-            """
+        let prompt = Self.chunkPrompt(text: text, target: target, context: context)
         for attempt in 1 ... 2 {
             let session = LanguageModelSession(instructions: Self.summaryInstructions)
             do {

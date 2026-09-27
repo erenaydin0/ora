@@ -145,6 +145,10 @@ nonisolated struct MeetingListItem: Identifiable, Hashable, FetchableRecord, Dec
     var status: String
     /// "Bu toplantı cihazdan çıkmasın" işaretli mi (Bağlantı Kuralları §6).
     var localOnly: Bool
+    /// `meetings.template` — ham değer; tanınmayan değer Genel sayılır.
+    var template: String?
+
+    var meetingTemplate: MeetingTemplate { MeetingTemplate(stored: template) }
 
     var dateLabel: String {
         date.formatted(date: .abbreviated, time: .shortened)

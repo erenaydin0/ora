@@ -642,7 +642,8 @@ final class RecordingController {
                                      summary: summary, topics: topics,
                                      actions: actions,
                                      participants: calendarParticipants,
-                                     notes: notes)
+                                     notes: notes,
+                                     decisionsTitle: selectedTemplate.decisionsTitle)
     }
 
     // MARK: - Liste (kütüphaneye devredildi — REFACTOR.md Adım 5)
@@ -967,6 +968,35 @@ final class RecordingController {
     var canResummarize: Bool {
         summary != nil && !isRecording && !isTranscribing && !transcript.isEmpty
             && modelAvailability.isAvailable
+    }
+
+    // MARK: - Şablon (COMPETITION.md §4.7)
+
+    /// Seçili toplantının şablonu.
+    var selectedTemplate: MeetingTemplate { selectedMeeting?.meetingTemplate ?? .general }
+
+    /// Şablonu değiştirir. Özet varsa yeniden üretilip üretilmeyeceğini
+    /// arayüz sorar — şablon talimatı değiştirir, eldeki özet eski talimatla
+    /// yazılmıştır.
+    func setTemplate(_ meetingID: Int64, _ template: MeetingTemplate) async {
+        do {
+            try await store.setTemplate(meetingID, template)
+            Log.info(.store, "Toplantı \(meetingID) şablonu: \(template.rawValue)")
+        } catch {
+            Log.error(.store, "Şablon yazılamadı", error)
+        }
+        await library.refresh()
+    }
+
+    /// Şablon değişince özeti yeni talimatla üretir. Örnekleme varsayılan
+    /// kalır (yeni istem); üretim başarısızsa eldeki özet korunur.
+    func resummarizeWithTemplate() async {
+        guard canResummarize, let meetingID = selection else { return }
+        Log.info(.intelligence, "Özet şablonla yeniden üretiliyor — toplantı \(meetingID) "
+                 + "(\(selectedTemplate.rawValue))")
+        library.clearSummaryNotice()
+        await pipeline.summarize(meetingID: meetingID, segments: transcript,
+                                 preservingExisting: true)
     }
 
     /// Tamamlandı işaretli aksiyon var mı — yeniden üretim bunları sıfırlar,

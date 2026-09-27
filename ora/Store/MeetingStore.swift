@@ -245,6 +245,15 @@ nonisolated struct MeetingStore: Sendable {
         }
     }
 
+    // MARK: - Şablon (COMPETITION.md §4.7)
+
+    func setTemplate(_ meetingID: Int64, _ template: MeetingTemplate) async throws {
+        try await database.write { db in
+            try db.execute(sql: "UPDATE meetings SET template = ? WHERE id = ?",
+                           arguments: [template.rawValue, meetingID])
+        }
+    }
+
     func isLocalOnly(_ meetingID: Int64) async throws -> Bool {
         try await database.read { db in
             try Bool.fetchOne(db, sql: "SELECT local_only FROM meetings WHERE id = ?",
@@ -284,13 +293,14 @@ nonisolated struct MeetingStore: Sendable {
         return try await database.read { db in
             guard !term.isEmpty else {
                 return try MeetingListItem.fetchAll(db, sql: """
-                    SELECT id, title, date, duration, status, local_only AS localOnly
+                    SELECT id, title, date, duration, status, local_only AS localOnly, template
                     FROM meetings ORDER BY date DESC
                     """)
             }
             let pattern = Self.ftsPattern(term)
             return try MeetingListItem.fetchAll(db, sql: """
-                SELECT id, title, date, duration, status, local_only AS localOnly FROM meetings
+                SELECT id, title, date, duration, status, local_only AS localOnly, template
+                FROM meetings
                 WHERE title LIKE ?
                    OR id IN (
                         SELECT t.meeting_id FROM transcripts_fts f
@@ -543,6 +553,14 @@ nonisolated extension MeetingStore {
             try db.execute(sql: """
                 UPDATE meetings SET calendar_event_id = ?, title = ? WHERE id = ?
                 """, arguments: [event.eventID, event.title, meetingID])
+            // Etkinlik adından şablon **önerisi** ("1:1", "sprint", "mülakat").
+            // Yalnızca şablon hâlâ Genel'ken: kullanıcının seçimi ezilmez.
+            if let guess = MeetingTemplate.guess(from: event.title) {
+                try db.execute(sql: """
+                    UPDATE meetings SET template = ?
+                    WHERE id = ? AND (template IS NULL OR template = 'general')
+                    """, arguments: [guess.rawValue, meetingID])
+            }
 
             for name in event.attendees {
                 let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)

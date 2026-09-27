@@ -17,6 +17,8 @@ enum MeetingExport {
         let participants: [String]
         /// Kullanıcının notları ve işaretlediği anlar, ayrıntılarıyla.
         var notes: [UserNote] = []
+        /// Kararlar bölümünün adı — şablona göre değişir (§4.7).
+        var decisionsTitle = MeetingTemplate.general.decisionsTitle
     }
 
     // MARK: - Markdown
@@ -71,7 +73,7 @@ enum MeetingExport {
                 lines.append("")
             }
             if !summary.kararlar.isEmpty {
-                lines.append("#### Kararlar")
+                lines.append("#### \(payload.decisionsTitle)")
                 lines.append("")
                 summary.kararlar.forEach { lines.append("- \($0)") }
                 lines.append("")
@@ -108,7 +110,7 @@ enum MeetingExport {
             summary.genelBakis.forEach { lines.append("• \($0)") }
             lines.append("")
             if !summary.kararlar.isEmpty {
-                lines.append("Kararlar:")
+                lines.append("\(payload.decisionsTitle):")
                 summary.kararlar.forEach { lines.append("• \($0)") }
                 lines.append("")
             }
@@ -261,7 +263,7 @@ private struct ExportDocument: View {
                     block("Genel bakış") { bullets(summary.genelBakis) }
                 }
                 if !summary.kararlar.isEmpty {
-                    block("Kararlar") { bullets(summary.kararlar) }
+                    block(payload.decisionsTitle) { bullets(summary.kararlar) }
                 }
             }
             // Konular PDF'te hiç yoktu — notun gövdesi basılı çıktıda eksikti.

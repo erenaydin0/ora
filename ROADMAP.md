@@ -307,7 +307,8 @@ karar versin.
       `notes` tablosu (v7), not başına transkriptten ≤ 3 madde ayrıntı
 - [x] Kayıt sırasında "önemli an" işareti (§4.9) — ⌃⌘M (yalnızca kayıt
       sürerken), menü bar, kayıt ekranı; transkriptte bayrak
-- [ ] Toplantı şablonları (§4.7)
+- [x] Toplantı şablonları (§4.7) — beş şablon, `meetings.template`; Genel'de
+      istem bayt bayt aynı, diğerleri ölçülmedi
 - [ ] Kanal başına dil — mikrofon tr, sistem en (§4.8)
 
 ## Kapsam Dışı — bilerek yapılmayacaklar

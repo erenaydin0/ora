@@ -36,6 +36,8 @@ struct MeetingDetail: View {
     @State private var index = TranscriptIndex([])
     /// Yeniden özetleme onayı — yalnızca işaretlenmiş aksiyon varsa sorulur.
     @State private var confirmingResummarize = false
+    /// Şablon değişti, özet eski talimatla yazılmış: yeniden üretilsin mi?
+    @State private var askingTemplateResummarize = false
 
     /// Gösterilecek bir toplantı içeriği var mı — seçim yokken de kayıt sonrası
     /// akış bu yoldan görünür.
@@ -75,6 +77,9 @@ struct MeetingDetail: View {
                           find: {
                               tab = .transcript
                               isFinding = true
+                          },
+                          onTemplate: meeting.map { item in
+                              { template in changeTemplate(item.id, to: template) }
                           })
 
             Divider().overlay(Color.oraBorder)
@@ -132,6 +137,21 @@ struct MeetingDetail: View {
                  + "üretilir; tamamlandı işaretleriniz silinir. "
                  + "Transkript ve ses değişmez.")
         }
+        .alert("Özet bu şablonla yeniden oluşturulsun mu?",
+               isPresented: $askingTemplateResummarize) {
+            Button("Şimdi değil", role: .cancel) { askingTemplateResummarize = false }
+            Button("Yeniden oluştur") {
+                askingTemplateResummarize = false
+                Task { await recorder.resummarizeWithTemplate() }
+            }
+        } message: {
+            Text(recorder.hasCompletedActions
+                 ? "Şablon, özetin neye odaklanacağını değiştirir. Aksiyonlar yeniden "
+                   + "üretilir; tamamlandı işaretleriniz silinir. Transkript, notlarınız "
+                   + "ve ses değişmez."
+                 : "Şablon, özetin neye odaklanacağını değiştirir. Transkript, "
+                   + "notlarınız ve ses değişmez.")
+        }
         .onDisappear { playback.pause() }
     }
 
@@ -161,6 +181,7 @@ struct MeetingDetail: View {
             canOpenText: index.isEmpty ? nil : { index.match($0) != nil },
             onRetry: recorder.canRetry
                 ? { Task { await recorder.retryProcessing() } } : nil,
+            decisionsTitle: recorder.selectedTemplate.decisionsTitle,
             notes: recorder.notes,
             onAddNote: recorder.selection == nil ? nil : { text in
                 Task { await recorder.addNote(text) }
@@ -227,6 +248,14 @@ struct MeetingDetail: View {
                 in: recorder.displayedSegments))
     }
 
+    /// Şablon yazılır; özet varsa yeniden üretilip üretilmeyeceği sorulur.
+    private func changeTemplate(_ meetingID: Int64, to template: MeetingTemplate) {
+        Task {
+            await recorder.setTemplate(meetingID, template)
+            if recorder.canResummarize { askingTemplateResummarize = true }
+        }
+    }
+
     /// Özet maddesinden transkripte geçiş: sekme değişir, satıra kaydırılır ve
     /// **oynatıcı da o ana kurulur** — kullanıcı yalnızca Çal'a basar.
     /// Kendiliğinden çalmaz; ses beklenmedik anda başlamamalı.
@@ -246,6 +275,8 @@ private struct MeetingHeader: View {
     /// Transkript yoksa arama düğmesi görünmez.
     var canFind = false
     var find: () -> Void = {}
+    /// Şablon seçici. Kayıt sürerken ve seçim yokken nil.
+    var onTemplate: ((MeetingTemplate) -> Void)?
 
     /// Başlığın gerçekten kullanabileceği genişlik. Sekme seçici sabit
     /// genişlikte olduğu için dar pencerede başlığa yer kalmıyordu; ölçülen
@@ -316,6 +347,9 @@ private struct MeetingHeader: View {
     @ViewBuilder
     private func chips(showsDuration: Bool, showsStatus: Bool) -> some View {
         HStack(spacing: 6) {
+            if let onTemplate, let meeting {
+                TemplateChip(current: meeting.meetingTemplate, choose: onTemplate)
+            }
             Chip(icon: "calendar", text: meeting?.dateLabel ?? "")
             if showsDuration, let duration = meeting?.duration, duration > 0 {
                 Chip(icon: "clock", text: meeting?.durationLabel ?? "")
@@ -367,6 +401,38 @@ private struct CompactTabs: View {
                 .fill(Color.oraChrome)
         }
         .fixedSize()
+    }
+}
+
+/// Şablon seçici — çip görünümünde bir menü. Şablon özetin neye
+/// odaklanacağını değiştirir (COMPETITION.md §4.7).
+private struct TemplateChip: View {
+    let current: MeetingTemplate
+    let choose: (MeetingTemplate) -> Void
+
+    var body: some View {
+        Menu {
+            ForEach(MeetingTemplate.allCases) { template in
+                Button {
+                    guard template != current else { return }
+                    choose(template)
+                } label: {
+                    if template == current {
+                        Label(template.turkishName, systemImage: "checkmark")
+                    } else {
+                        Text(template.turkishName)
+                    }
+                }
+            }
+        } label: {
+            Chip(icon: "doc.text", text: current.turkishName)
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Şablon: özetin neye odaklanacağı")
+        .accessibilityLabel("Şablon, \(current.turkishName)")
     }
 }
 

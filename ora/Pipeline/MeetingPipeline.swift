@@ -285,9 +285,15 @@ final class MeetingPipeline {
 
     // MARK: - Adım 4-7: noktalama, özet, kayıt, bildirim
 
-    /// - Parameter variation: kullanıcı özeti beğenmeyip **yeniden ürettiğinde**
-    ///   açılır; örnekleme serbestleşir ve başlık yeniden üretilmez.
-    func summarize(meetingID: Int64, segments: [Segment], variation: Bool = false) async {
+    /// - Parameters:
+    ///   - variation: kullanıcı özeti beğenmeyip **yeniden ürettiğinde**
+    ///     açılır; örnekleme serbestleşir ve başlık yeniden üretilmez.
+    ///   - preservingExisting: şablon değişince yeniden özetleme — örnekleme
+    ///     varsayılan kalır (yeni istem), ama üretim başarısızsa eldeki özet
+    ///     korunur ve başlık yeniden üretilmez.
+    func summarize(meetingID: Int64, segments: [Segment], variation: Bool = false,
+                   preservingExisting: Bool = false) async {
+        let redo = variation || preservingExisting
         defer { if running.contains(meetingID) { stage(.done, meetingID) } }
 
         // Kayıt bitince işlem hemen başlar. **Tek istisna:** düşük güç modu veya
@@ -362,7 +368,8 @@ final class MeetingPipeline {
                 },
                 hasRecorderLines: working.contains { $0.speaker == Channel.mic.speaker },
                 detail: settings.summaryDetail,
-                notebook: NotebookHints.from(notes, segments: working))
+                notebook: NotebookHints.from(notes, segments: working),
+                template: MeetingTemplate(stored: record?.meeting.template))
             let result: SummaryResult
             do {
                 result = try await engine.summarize(
@@ -424,7 +431,7 @@ final class MeetingPipeline {
         //
         // Yeniden özetlemede başlık **üretilmez**: toplantının adı zaten var ve
         // kullanıcı onu elle değiştirmiş olabilir.
-        if record?.meeting.calendarEventId == nil, !variation,
+        if record?.meeting.calendarEventId == nil, !redo,
            let title = await engine.generateTitle(from: working, topics: producedTopics) {
             try? await store.updateTitle(meetingID, title: title)
         }
@@ -433,7 +440,7 @@ final class MeetingPipeline {
         // özet **korunur**: yeniden üretim denemesi var olan özeti, konuları ve
         // işaretlenmiş aksiyonları silmez.
         await finish(meetingID, ozet: produced, topics: producedTopics,
-                     save: produced != nil || !variation)
+                     save: produced != nil || !redo)
     }
 
     /// Ortak kapanış: özeti yaz, durumu `ready` yap, sesi sıkıştır, aksiyonları
