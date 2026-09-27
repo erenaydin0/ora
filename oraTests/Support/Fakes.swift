@@ -311,3 +311,23 @@ nonisolated final class FakeTransport: HTTPTransport, @unchecked Sendable {
         return (next.body, response)
     }
 }
+
+/// Hatırlatıcılar sahtesi: izin cevabı verilir, eklenenler tutulur.
+nonisolated final class FakeReminders: ReminderWriting, @unchecked Sendable {
+    private let lock = NSLock()
+    private var granted: Bool
+    private var items: [(title: String, notes: String)] = []
+
+    init(granted: Bool = true) { self.granted = granted }
+
+    var added: [(title: String, notes: String)] { lock.withLock { items } }
+
+    func authorize() async -> Bool { lock.withLock { granted } }
+
+    func add(title: String, notes: String) async throws -> String {
+        lock.withLock {
+            items.append((title, notes))
+            return "hatirlatici-\(items.count)"
+        }
+    }
+}

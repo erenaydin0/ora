@@ -264,7 +264,9 @@ Bu sıra asla değişmez:
   sessizce başarısız olma.
 - **Bağlam penceresi işletim sistemiyle değişir:** macOS 26'da 4096, macOS
   27'de **8192** token (`SystemLanguageModel.contextSize`, RESEARCH.md §41).
-  Pencere **sabit yazılmaz**, çalışma zamanında okunur.
+  Pencere **sabit yazılmaz**, çalışma zamanında okunur. macOS 27'nin
+  tokenizer'ı Türkçe'de 3,1–3,2 krk/token veriyor (26'da 2,45); istemin
+  sabit kısmı (talimat + şema + istem gövdesi) ~1.100 token (§41.1).
 - Bu yüzden **map-reduce zorunludur**: transkripti parçalara böl — sınır
   4096'lık pencerede ölçülen **6.000 karakter** (noktalamada 3.500) ve
   `TranscriptChunker.summaryLimit(contextSize:)` ile pencereyle orantılı
@@ -520,6 +522,32 @@ Bu sıra asla değişmez:
   korunur ve başlık yeniden üretilmez (`preservingExisting`). Takvim etkinliği
   adından şablon **önerilir** ("1:1", "sprint", "mülakat") — yalnızca şablon
   hâlâ Genel'ken; kullanıcının seçimi ezilmez.
+
+## Yerel Çıkış Kuralları (Faz 12, COMPETITION.md §4.12)
+Ağ gerektirmeyen, bağlantı kuralı dışında kalan çıkışlar. Hepsi **opt-in**'dir
+ve "Bu toplantı cihazdan çıkmasın" işaretine **uyar**: dosya ağa değil diske
+gider, ama hedef bir bulut eşitlemesinin içinde olabilir.
+- **Markdown klasörü** (`MarkdownFolder`, `OraSettings.markdownFolder`):
+  `.finished` olayında not seçilen klasöre yazılır (YAML künye: `ora`,
+  `tarih`, `tags`; dışa aktarımın Markdown'ı; transkript varsayılan kapalı).
+  Aynı tarih + başlık aynı dosyanın üstüne yazılır. Klasör iCloud Drive ya da
+  `Library/CloudStorage` altındaysa Ayarlar bunu açıkça söyler.
+- **Hatırlatıcılar** (`ReminderWriting`, `EventKitReminders`,
+  `OraSettings.remindersEnabled`): aksiyon kullanıcının tek tek seçmesiyle
+  (bağlam menüsü ya da "açık aksiyonları ekle") ayrı bir **"ora" listesine**
+  eklenir; diğer listelere dokunulmaz. **Takvime yazma yasağı değişmedi** —
+  bu ayrı bir izin (`NSRemindersFullAccessUsageDescription`) ve ayrı bir
+  depodur; kapalıyken EventKit'e dokunulmaz. Son tarih serbest metindir ve
+  tarih alanına **çevrilmez** (yanlış güne kurulan hatırlatıcı, kurulmayandan
+  kötüdür); notta yazar. Aynı aksiyon iki kez eklenmez
+  (`action_items.reminder_id`). Hardened runtime yetkisi olarak mevcut
+  `personal-information.calendars` kullanılıyor; **gerçek imzalı derlemede
+  izin istemi denenmedi**.
+- **Kısayollar** (`ora/Intents/`, App Intents): Kaydı başlat · Kaydı durdur ·
+  Önemli anı işaretle · Son toplantının özeti. Eylemler uygulamanın kendi
+  denetleyicisini kullanır (`IntentBridge`); ikinci veritabanı bağlantısı
+  açılmaz. Uygulama kilitliyken özet eylemi içerik vermez; kayıt denetimi
+  çalışır.
 
 ## Toplantı Algılama Kuralları — ölçülmüş davranış
 - **`ps aux` polling'i yok.** Sinyal CoreAudio olay dinleyicileridir:
@@ -784,9 +812,11 @@ meetings(id, title, date, duration, status, template, audio_path,
   --           (MeetingTemplate); tanınmayan değer Genel sayılır
 transcripts(id, meeting_id, speaker, channel, text, start_time, end_time, confidence, created_at)
   -- transcripts.channel: 'mic' | 'system'
-action_items(id, meeting_id, person, task, context, deadline, status, created_at)
+action_items(id, meeting_id, person, task, context, deadline, status, created_at,
+             reminder_id)
   -- context: işin neden çıktığı, tek cümle. Boşsa NULL
   -- status: 'pending' | 'done' — kullanıcı arayüzden işaretler
+  -- reminder_id: Hatırlatıcılar'a eklendiyse kimliği (v10), yoksa NULL
 vocabulary(id, word, source, status, rejected_until, added_date)
   -- vocabulary.status: 'active' | 'pending' | 'rejected'
 corrections(id, mistake, correct, meeting_id, created_at)
@@ -929,6 +959,8 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 - `NSSpeechRecognitionUsageDescription` — Türkçe açıklama
 - `NSCalendarsFullAccessUsageDescription` — yalnızca takvim özelliği açıksa
   istenir; metin "yazmaz, veri çıkmaz" güvencesini içerir
+- `NSRemindersFullAccessUsageDescription` — yalnızca Hatırlatıcılar açılırken
+  istenir; "ora listesi" ve iCloud eşitlemesini açıkça söyler
 - `NSAudioCaptureUsageDescription` — sistem sesi tap'i için (ekran kaydı izni DEĞİL)
 - **App Sandbox KAPALI** (RESEARCH.md §29.4). Çakışan takvim toplantılarını
   ayırmanın tek yerel yolu pencere başlığını okumak ve Erişilebilirlik API'si
@@ -1177,6 +1209,10 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       zenginleştirme (not başına transkriptten ≤ 3 madde). Şema v7 (`notes`).
       Toplantı şablonları (Genel ölçülmüş olan; diğer dördü ölçülmedi).
       Kanal başına dil (karşı tarafın dili ayrı seçilir). **Faz 10 tamam.**
+      **Faz 12 — Toplantılar arası:** etiketler (v8) ve etikete göre süzme,
+      kişi sayfası + menü barda "son ortak toplantı", toplantılar arası
+      sohbet (FTS ile daraltılmış yerel RAG, v9), yerel çıkışlar: Markdown
+      klasörü, Hatırlatıcılar (v10), Kısayollar.
       **Faz 11 — Bağlantılar yapıldı:** `ora/Net/` tek kapı, kendi AI
       sağlayıcını (Anthropic · OpenAI · OpenRouter · yerel sunucu) özet ve
       sohbet motoru olarak bağlama, Slack ve Notion'a ön izlemeli gönderim ve
@@ -1277,6 +1313,8 @@ ora/Notebook/          — UserNote (kullanıcı notu + önemli an), NoteAnchor
                          (notu transkripte bağlayan saf kurallar), NotebookHints
                          (özet istemine giden hâli; boşken istem değişmez),
                          MeetingTemplate (şablon başına istem parçaları)
+ora/Intents/           — OraIntents (App Intents + AppShortcutsProvider,
+                         IntentBridge)
 ora/Diarize/           — SpeakerSeparation (politika: hangi kanal, kelime düzeyi
                          atama, küme adları; saf ve motordan bağımsız),
                          VoiceMatcher (ses izi eşleştirme, tutucu eşikler),

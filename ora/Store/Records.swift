@@ -67,6 +67,8 @@ nonisolated struct ActionItemRecord: OraRecord, Identifiable {
     var deadline: String?
     var status: String
     var createdAt: Date?
+    /// Hatırlatıcılar'a eklendiyse hatırlatıcının kimliği.
+    var reminderId: String?
 
     mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
@@ -203,6 +205,8 @@ nonisolated struct MeetingAction: Sendable, Identifiable, Hashable {
     var context: String?
     var deadline: String?
     var isDone: Bool
+    /// Hatırlatıcılar'a eklendi mi.
+    var reminderID: String? = nil
 }
 
 /// Aksiyon panosunun satırı: aksiyon **ve** hangi toplantıdan çıktığı.
@@ -218,6 +222,8 @@ nonisolated struct BoardAction: Identifiable, Hashable, FetchableRecord, Decodab
     var context: String?
     var deadline: String?
     var status: String
+    /// Hatırlatıcılar'a eklendiyse kimliği.
+    var reminderID: String?
 
     var isDone: Bool { status == MeetingStore.ActionStatus.done.rawValue }
 

@@ -147,6 +147,19 @@ final class OraSettings {
     /// Notion'da notların altına yazılacağı sayfanın kimliği.
     var notionPageID: String { didSet { store(notionPageID, .notionPageID) } }
 
+    // MARK: - Yerel çıkışlar (COMPETITION.md §4.12)
+
+    /// Özet hazır olunca notun yazılacağı klasör. Boş = kapalı (varsayılan).
+    var markdownFolder: String { didSet { store(markdownFolder, .markdownFolder) } }
+    /// Klasöre yazılan nota transkript de eklensin mi. Varsayılan kapalı:
+    /// not, transkriptten ayrı durunca okunur.
+    var markdownIncludesTranscript: Bool {
+        didSet { store(markdownIncludesTranscript, .markdownIncludesTranscript) }
+    }
+
+    /// Aksiyonları Hatırlatıcılar'a ekleme. **Opt-in**; açılırken izin istenir.
+    var remindersEnabled: Bool { didSet { store(remindersEnabled, .remindersEnabled) } }
+
     // MARK: - Takvim
 
     /// Opt-in, varsayılan kapalı. Kapalıyken EventKit'e hiç dokunulmaz.
@@ -272,6 +285,9 @@ final class OraSettings {
         autoShareConnections = Set(defaults.stringArray(
             forKey: Key.autoShareConnections.rawValue) ?? [])
         notionPageID = defaults.string(forKey: Key.notionPageID.rawValue) ?? ""
+        markdownFolder = defaults.string(forKey: Key.markdownFolder.rawValue) ?? ""
+        markdownIncludesTranscript = defaults.bool(forKey: Key.markdownIncludesTranscript.rawValue)
+        remindersEnabled = defaults.bool(forKey: Key.remindersEnabled.rawValue)
         summaryDetail = defaults.string(forKey: Key.summaryDetail.rawValue)
             .flatMap(SummaryDetail.init(rawValue:)) ?? .balanced
     }
@@ -293,6 +309,7 @@ final class OraSettings {
         case speakerSeparationEnabled, echoCancellationEnabled, voiceMemoryEnabled
         case cloudProvider, providerModels, localServerURL, consentedConnections
         case autoShareConnections, notionPageID
+        case markdownFolder, markdownIncludesTranscript, remindersEnabled
     }
 
     private let defaults: UserDefaults

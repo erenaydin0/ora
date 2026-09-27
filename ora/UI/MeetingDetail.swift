@@ -201,6 +201,12 @@ struct MeetingDetail: View {
                 } else {
                     Task { await recorder.resummarize() }
                 }
+            } : nil,
+            onRemind: recorder.remindersEnabled ? { action in
+                Task { await recorder.addToReminders(actionID: action.id) }
+            } : nil,
+            onRemindAll: recorder.remindersEnabled ? {
+                Task { await recorder.addOpenActionsToReminders() }
             } : nil)
     }
 

@@ -21,6 +21,8 @@ final class Harness {
     let secrets: InMemorySecrets
     let transport: FakeTransport
     let outboundLog: OutboundLog
+    /// Hatırlatıcılar sahte — hiçbir test EventKit'e dokunmaz.
+    let reminders: FakeReminders
     private let suiteName: String
 
     init(intelligence: any Intelligent,
@@ -28,6 +30,7 @@ final class Harness {
          transcription: any Transcribing = FakeTranscription(),
          diarizer: any Diarizing = FakeDiarizer(),
          transport: FakeTransport = FakeTransport(),
+         reminders: FakeReminders = FakeReminders(),
          deferReason: @escaping @Sendable () -> PowerState.DeferReason? = { nil },
          stopURL: URL = URL(fileURLWithPath: "/dev/null")) throws {
 
@@ -47,6 +50,7 @@ final class Harness {
         capture = FakeCapture(stopURL: stopURL)
         secrets = InMemorySecrets()
         self.transport = transport
+        self.reminders = reminders
         outboundLog = OutboundLog(url: URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("ora-outbound-\(UUID().uuidString).jsonl"))
         controller = RecordingController(capture: capture,
@@ -59,6 +63,7 @@ final class Harness {
                                          outboundLog: outboundLog,
                                          database: database,
                                          settings: settings,
+                                         reminders: reminders,
                                          deferReason: deferReason,
                                          prepareLocale: { _, progress in progress(1) })
     }

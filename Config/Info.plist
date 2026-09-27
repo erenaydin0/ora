@@ -36,6 +36,9 @@
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>ora, toplantıdaki diğer katılımcıların sesini kaydedebilmek için toplantı uygulamasının sistem sesini yakalar. Ekranınız kaydedilmez, ses cihazınızdan çıkmaz.</string>
 
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>ora, yalnızca sizin seçtiğiniz toplantı aksiyonlarını Hatırlatıcılar'daki “ora” listesine eklemek için Hatırlatıcılar'a erişir. Diğer listelerinize dokunmaz. Hatırlatıcılarınız iCloud ile eşitleniyorsa eklenen maddeler de eşitlenir.</string>
+
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>ora toplantı adını ve katılımcıları okumak için takviminize erişir. Takviminize hiçbir şey yazmaz. Bu bilgi cihazınızda kalır; yalnızca kendiniz bir AI sağlayıcısı veya paylaşım hedefi bağlarsanız ve yalnızca o işin gerektirdiği kadarı dışarı gider.</string>
 </dict>

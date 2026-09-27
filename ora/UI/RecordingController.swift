@@ -150,6 +150,8 @@ final class RecordingController {
     /// Dışarıdan gelen ses ve transkript → toplantı. Hattı **koşturmaz**,
     /// nereden devam edileceğini söyler (`ora/Import/`).
     private let importer: MeetingImporter
+    /// Hatırlatıcılar (opt-in). Testte sahtelenir — EventKit'e dokunmaz.
+    private let reminders: any ReminderWriting
 
     /// - Parameters:
     ///   - detector, calendar: `settings`'e bağlı oldukları için varsayılan
@@ -171,11 +173,13 @@ final class RecordingController {
          detector: MeetingDetector? = nil,
          calendar: CalendarReader? = nil,
          notifications: MeetingNotifications = MeetingNotifications(),
+         reminders: (any ReminderWriting)? = nil,
          deferReason: @escaping @Sendable () -> PowerState.DeferReason?
             = PowerState.deferReason,
          prepareLocale: MeetingPipeline.LocalePreparation? = nil) {
         self.session = RecordingSession(capture: capture)
         self.intelligence = intelligence
+        self.reminders = reminders ?? EventKitReminders()
         self.settings = settings
         self.notifications = notifications
         let resolvedDetector = detector ?? MeetingDetector(settings: settings)
@@ -611,6 +615,109 @@ final class RecordingController {
         if meetingID == session.meetingID { liveNotes = fresh }
     }
 
+    // MARK: - Yerel çıkışlar (COMPETITION.md §4.12)
+
+    /// Özet hazır olunca notu seçilen klasöre yazar. "Cihazdan çıkmasın"
+    /// işaretli toplantı yazılmaz: klasör bir bulut eşitlemesinin içinde
+    /// olabilir.
+    func writeMarkdown(meetingID: Int64) async {
+        let path = settings.markdownFolder
+        guard !path.isEmpty, (try? await store.isLocalOnly(meetingID)) != true,
+              let payload = await connections.payload(meetingID) else { return }
+        let tags = meetings.first { $0.id == meetingID }?.tags ?? []
+        do {
+            let url = try MarkdownFolder.write(payload, meetingID: meetingID, tags: tags,
+                                               to: URL(fileURLWithPath: path, isDirectory: true),
+                                               includeTranscript: settings.markdownIncludesTranscript)
+            Log.info(.store, "Not klasöre yazıldı: \(url.lastPathComponent)")
+        } catch {
+            Log.error(.store, "Not klasöre yazılamadı", error)
+            self.error = .audioWriteFailed(underlying: error)
+        }
+    }
+
+    /// Hatırlatıcılar açık mı — arayüz ekleme seçeneğini buna göre gösterir.
+    var remindersEnabled: Bool { settings.remindersEnabled }
+
+    /// Hatırlatıcılar'ı açar ya da kapatır. Açarken izin istenir; verilmezse
+    /// ayar kapalı kalır ve kullanıcıya Türkçe söylenir.
+    func setRemindersEnabled(_ enabled: Bool) async {
+        guard enabled else {
+            settings.remindersEnabled = false
+            return
+        }
+        if await reminders.authorize() {
+            settings.remindersEnabled = true
+        } else {
+            settings.remindersEnabled = false
+            error = .permissionDenied(.reminders)
+        }
+    }
+
+    /// Aksiyonu Hatırlatıcılar'daki "ora" listesine ekler. Aynı aksiyon iki
+    /// kez eklenmez; "cihazdan çıkmasın" işaretli toplantının aksiyonu
+    /// eklenmez (Hatırlatıcılar iCloud ile eşitlenebilir).
+    @discardableResult
+    func addToReminders(actionID: Int64) async -> Bool {
+        guard settings.remindersEnabled,
+              let action = (try? await store.allActions())?.first(where: { $0.id == actionID }),
+              action.reminderID == nil else { return false }
+        if (try? await store.isLocalOnly(action.meetingID)) == true {
+            error = .connectionFailed(reason: "Bu toplantı “cihazdan çıkmasın” olarak işaretli; "
+                + "aksiyonları Hatırlatıcılar'a eklenmez.")
+            return false
+        }
+        do {
+            let id = try await reminders.add(
+                title: MeetingStore.cleaned(action.task),
+                notes: EventKitReminders.notes(context: action.context,
+                                               meetingTitle: action.meetingTitle,
+                                               meetingDate: action.meetingDate,
+                                               person: action.person,
+                                               deadline: action.deadline))
+            try await store.setReminderID(actionID, id)
+            Log.info(.calendar, "Aksiyon Hatırlatıcılar'a eklendi — \(actionID)")
+        } catch let error as OraError {
+            self.error = error
+            return false
+        } catch {
+            Log.error(.calendar, "Hatırlatıcı eklenemedi", error)
+            self.error = .permissionDenied(.reminders)
+            return false
+        }
+        if library.isOnScreen(action.meetingID) { await library.reload() }
+        await library.refresh()
+        return true
+    }
+
+    /// Seçili toplantının açık ve henüz eklenmemiş aksiyonlarının tümü.
+    func addOpenActionsToReminders() async {
+        for action in actions where !action.isDone && action.reminderID == nil {
+            guard await addToReminders(actionID: action.id) else { return }
+        }
+    }
+
+    /// Kısayollar için: özeti hazır son toplantının kısa metni.
+    func lastMeetingSummary() async -> String? {
+        guard let list = try? await store.list() else { return nil }
+        for item in list where item.status == MeetingRecord.Status.ready.rawValue {
+            guard let loaded = try? await store.load(item.id), let summary = loaded.summary
+            else { continue }
+            return Self.spokenSummary(title: item.title, date: item.date, summary: summary,
+                                      openActions: loaded.actions.count { !$0.isDone })
+        }
+        return nil
+    }
+
+    /// Kısayolun okuyacağı metin: başlık, tarih, genel bakış ve açık aksiyon.
+    nonisolated static func spokenSummary(title: String, date: Date, summary: Ozet,
+                                          openActions: Int) -> String {
+        var lines = ["\(title) — " + date.formatted(date: .abbreviated, time: .shortened)]
+        lines += summary.genelBakis.map { "• " + MeetingStore.cleaned($0) }
+        if openActions > 0 { lines.append("\(openActions) açık aksiyon var.") }
+        return lines.joined(separator: "\n")
+    }
+
     // MARK: - Toplantılar arası sohbet (COMPETITION.md §4.10)
 
     /// Sohbetin kapsamı: seçili toplantı ya da tüm toplantılar.
@@ -1025,6 +1132,8 @@ final class RecordingController {
             // Otomatik paylaşım yalnızca kurulu, açık ve onaylı hedeflere.
             let meetingID = event.meetingID
             Task { await self.connections.autoShare(meetingID: meetingID) }
+            // Markdown klasörü (yerel çıkış, ağ yok).
+            Task { await self.writeMarkdown(meetingID: meetingID) }
 
         // Geri kalanı **arayüz içeriğidir**. Süzme kütüphanede: "ekranda ne
         // var" bilgisinin sahibi orası. Veritabanına her hâlükârda yazıldı;

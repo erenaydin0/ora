@@ -209,7 +209,7 @@ enum MeetingExport {
         return panel.runModal() == .OK ? panel.url : nil
     }
 
-    private static func fileName(_ payload: Payload) -> String {
+    static func fileName(_ payload: Payload) -> String {
         let stamp = payload.date.formatted(.iso8601.year().month().day())
         let safe = payload.title
             .replacingOccurrences(of: "/", with: "-")

@@ -58,7 +58,10 @@ struct ActionBoardView: View {
                                 ForEach(group.actions) { action in
                                     BoardRow(action: action,
                                              toggle: { recorder.setActionDone(action.id, !action.isDone) },
-                                             open: { recorder.openMeeting(action.meetingID) })
+                                             open: { recorder.openMeeting(action.meetingID) },
+                                             remind: recorder.remindersEnabled ? {
+                                                 Task { await recorder.addToReminders(actionID: action.id) }
+                                             } : nil)
                                 }
                             }
                         }
@@ -118,6 +121,8 @@ struct BoardRow: View {
     let action: BoardAction
     let toggle: () -> Void
     let open: () -> Void
+    /// Hatırlatıcılar açıksa aksiyonu "ora" listesine ekler.
+    var remind: (() -> Void)?
 
     @State private var isHovered = false
 
@@ -165,9 +170,22 @@ struct BoardRow: View {
                 .help("Kaynak toplantıyı aç")
             }
             Spacer(minLength: 0)
+            if action.reminderID != nil {
+                Image(systemName: "bell.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .help("Hatırlatıcılar'a eklendi")
+                    .accessibilityLabel("Hatırlatıcılar'a eklendi")
+            }
         }
         .padding(10)
         .oraQuietCard(hovered: isHovered)
         .onHover { isHovered = $0 }
+        .contextMenu {
+            if let remind, action.reminderID == nil {
+                Button("Hatırlatıcılar'a ekle", action: remind)
+            }
+            Button("Kaynak toplantıyı aç", action: open)
+        }
     }
 }

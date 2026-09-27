@@ -24,6 +24,9 @@ struct OraApp: App {
         let lock = AppLock(settings: OraSettings.shared)
         lock.startObserving()
         _lock = State(initialValue: lock)
+        // Kısayollar eylemleri uygulamanın kendi denetleyicisini kullanır.
+        IntentBridge.controller = _recorder.wrappedValue
+        IntentBridge.lock = lock
     }
 
     var body: some Scene {

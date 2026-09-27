@@ -319,6 +319,9 @@ Faz 11 (Bağlantılar) bundan önce yapıldı; numara sırası iş sırasını i
       toplantı öncesi LLM hazırlık notu yapılmadı
 - [x] Toplantılar arası sohbet (§4.10) — FTS5 ile daraltılmış yerel RAG,
       kaynak toplantı bağlantıları; cihazdaki modelle (v9)
+- [x] Yerel çıkışlar (§4.12): Markdown klasörü, Hatırlatıcılar ("ora"
+      listesi, v10), Kısayollar (App Intents). Apple Notes'a gönderim
+      yapılmadı — Otomasyon izni ister (`automation.apple-events` kapalı)
 
 ## Kapsam Dışı — bilerek yapılmayacaklar
 - Windows / Linux desteği

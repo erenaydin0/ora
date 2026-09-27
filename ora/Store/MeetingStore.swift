@@ -121,6 +121,14 @@ nonisolated struct MeetingStore: Sendable {
         }
     }
 
+    /// Aksiyonun Hatırlatıcılar'daki kimliği.
+    func setReminderID(_ actionID: Int64, _ reminderID: String) async throws {
+        try await database.write { db in
+            try db.execute(sql: "UPDATE action_items SET reminder_id = ? WHERE id = ?",
+                           arguments: [reminderID, actionID])
+        }
+    }
+
     /// Kullanıcının transkriptte yaptığı düzeltme. Hem satır güncellenir hem de
     /// `corrections` tablosuna yazılır — Faz 6'da vocabulary'yi besleyecek.
     func applyCorrection(meetingID: Int64, original: Segment, corrected: String) async throws {
@@ -377,7 +385,8 @@ nonisolated struct MeetingStore: Sendable {
                        a.task          AS task,
                        a.context       AS context,
                        a.deadline      AS deadline,
-                       a.status        AS status
+                       a.status        AS status,
+                       a.reminder_id   AS reminderID
                 FROM action_items a
                 JOIN meetings m ON m.id = a.meeting_id
                 ORDER BY m.date DESC, a.id
@@ -422,7 +431,8 @@ nonisolated struct MeetingStore: Sendable {
                     row.id.map {
                         MeetingAction(id: $0, person: row.person, task: row.task,
                                       context: row.context, deadline: row.deadline,
-                                      isDone: row.status == ActionStatus.done.rawValue)
+                                      isDone: row.status == ActionStatus.done.rawValue,
+                                      reminderID: row.reminderId)
                     }
                 })
         }

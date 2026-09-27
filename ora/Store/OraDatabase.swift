@@ -284,6 +284,12 @@ nonisolated final class OraDatabase: Storing {
             try db.execute(sql: "ALTER TABLE chat_history ADD COLUMN sources TEXT")
         }
 
+        // Hatırlatıcılar'a eklenen aksiyon (COMPETITION.md §4.12): kimlik
+        // aynı aksiyonun ikinci kez eklenmesini önler ve arayüzde gösterilir.
+        migrator.registerMigration("v10_reminders") { db in
+            try db.execute(sql: "ALTER TABLE action_items ADD COLUMN reminder_id TEXT")
+        }
+
         return migrator
     }
 }

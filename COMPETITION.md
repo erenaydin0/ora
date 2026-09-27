@@ -69,7 +69,7 @@ toplantı sohbeti, FTS5 arama, takvim eşleştirme, otomatik algılama, vocabula
 | 9 | ✅ Kayıt sırasında "önemli an" işareti | ★★ | S | yok |
 | 10 | ✅ Toplantılar arası sohbet (FTS ile daraltılmış) | ★★★ | M | yok |
 | 11 | ✅ Kişi sayfası + tekrarlayan toplantı hazırlığı (LLM'siz kısmı) | ★★ | M | yok |
-| 12 | Hatırlatıcılar / Kısayollar (App Intents) çıkışı | ★★ | M | yok |
+| 12 | ✅ Hatırlatıcılar / Kısayollar (App Intents) çıkışı | ★★ | M | yok |
 | 13 | ✅ Diarization — pyannote community-1, FluidAudio (§4.13) | ★★★ | L | FluidAudio |
 | 14 | Ses dosyası içe aktarma | ★★ | M | yapıldı (ses + transkript) |
 | 15 | Kayıt öncesi tampon ("başlatmayı unuttum") | ★★ | M | **karar gerek** |

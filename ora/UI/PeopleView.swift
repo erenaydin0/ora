@@ -126,7 +126,10 @@ private struct PersonPage: View {
                             ForEach(detail.openActions) { action in
                                 BoardRow(action: action,
                                          toggle: { recorder.setActionDone(action.id, true) },
-                                         open: { recorder.openMeeting(action.meetingID) })
+                                         open: { recorder.openMeeting(action.meetingID) },
+                                         remind: recorder.remindersEnabled ? {
+                                             Task { await recorder.addToReminders(actionID: action.id) }
+                                         } : nil)
                             }
                         }
                     }

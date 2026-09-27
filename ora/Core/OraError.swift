@@ -5,6 +5,7 @@ nonisolated enum Permission: String {
     case systemAudio
     case speechRecognition
     case calendar
+    case reminders
 
     var turkishName: String {
         switch self {
@@ -12,6 +13,7 @@ nonisolated enum Permission: String {
         case .systemAudio:       "Sistem sesi"
         case .speechRecognition: "Konuşma tanıma"
         case .calendar:          "Takvim"
+        case .reminders:         "Hatırlatıcılar"
         }
     }
 }
@@ -75,6 +77,8 @@ nonisolated extension OraError {
                 "Sistem Ayarları → Gizlilik ve Güvenlik → Konuşma Tanıma bölümünden ora'ya izin verin."
             case .calendar:
                 "Sistem Ayarları → Gizlilik ve Güvenlik → Takvimler bölümünden ora'ya izin verin."
+            case .reminders:
+                "Sistem Ayarları → Gizlilik ve Güvenlik → Hatırlatıcılar bölümünden ora'ya izin verin."
             }
         case .localeNotInstalled:
             "Dil paketi indirilmeli. Ayarlar'dan indirmeyi başlatabilirsiniz."

@@ -43,6 +43,10 @@ struct SummaryView: View {
     /// Özeti beğenmediyse kullanıcı yeniden ürettirir. Notun **sonunda** durur:
     /// önce okunur, sonra karar verilir (tepede şerit yok — DESIGN.md §4).
     var onResummarize: (() -> Void)?
+    /// Hatırlatıcılar açıksa aksiyonu "ora" listesine ekler (§4.12).
+    var onRemind: ((MeetingAction) -> Void)?
+    /// Açık ve eklenmemiş aksiyonların tümü.
+    var onRemindAll: (() -> Void)?
 
     @State private var actionsExpanded = true
 
@@ -84,7 +88,22 @@ struct SummaryView: View {
                                 ForEach(actions) { action in
                                     ActionRow(action: action,
                                               onToggle: { onToggleAction?(action) },
-                                              onOpen: opener(action.task))
+                                              onOpen: opener(action.task),
+                                              onRemind: onRemind.map { remind in
+                                                  { remind(action) }
+                                              })
+                                }
+                                if let onRemindAll,
+                                   actions.contains(where: { !$0.isDone && $0.reminderID == nil }) {
+                                    Button(action: onRemindAll) {
+                                        Label("Açık aksiyonları Hatırlatıcılar'a ekle",
+                                              systemImage: "bell")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(Color.oraInkMuted)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(.top, 2)
+                                    .help("Hatırlatıcılar'daki “ora” listesine ekler")
                                 }
                             }
                         }
@@ -367,6 +386,7 @@ private struct ActionRow: View {
     var onToggle: (() -> Void)?
     /// İş cümlesine tıklamak transkriptte o ana götürür.
     var onOpen: (() -> Void)?
+    var onRemind: (() -> Void)?
     @State private var isHovered = false
 
     var body: some View {
@@ -411,12 +431,26 @@ private struct ActionRow: View {
                     .padding(.top, 2)
             }
 
+            if action.reminderID != nil {
+                Image(systemName: "bell.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .padding(.top, 3)
+                    .help("Hatırlatıcılar'a eklendi")
+                    .accessibilityLabel("Hatırlatıcılar'a eklendi")
+            }
+
             OwnerChip(person: action.person, deadline: action.deadline)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .oraQuietCard(hovered: isHovered)
+        .contextMenu {
+            if let onRemind, action.reminderID == nil {
+                Button("Hatırlatıcılar'a ekle", action: onRemind)
+            }
+        }
         .onHover { hovering in
             withAnimation(OraStyle.transition) { isHovered = hovering }
         }

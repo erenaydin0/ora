@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Ayarlar penceresi (⌘,). Sekmeler: Genel, Özetleme, Algılama, Takvim, Sözlük, Depolama.
+/// Ayarlar penceresi (⌘,). Sekmeler: Genel, Özetleme, Algılama, Takvim, Sözlük,
+/// Bağlantılar, Çıkışlar, Depolama.
 struct SettingsView: View {
 
     let recorder: RecordingController
@@ -21,13 +22,99 @@ struct SettingsView: View {
                 .tabItem { Label("Sözlük", systemImage: "text.book.closed") }
             ConnectionsSettings(connections: recorder.connections, settings: settings)
                 .tabItem { Label("Bağlantılar", systemImage: "link") }
+            OutputsSettings(recorder: recorder, settings: settings)
+                .tabItem { Label("Çıkışlar", systemImage: "tray.and.arrow.up") }
             StorageSettings(recorder: recorder, settings: settings)
                 .tabItem { Label("Depolama", systemImage: "internaldrive") }
         }
-        .frame(width: 520, height: 460)
+        .frame(width: 580, height: 460)
         .background(Color.oraPaper)
         // Sözlük ve takvim sekmeleri kişi adı taşır; kilit burayı da örter.
         .lockable(lock)
+    }
+}
+
+/// Yerel çıkışlar (COMPETITION.md §4.12): ağ gerektirmeyen, cihazda kalan
+/// yollar — Markdown klasörü, Hatırlatıcılar, Kısayollar.
+private struct OutputsSettings: View {
+    let recorder: RecordingController
+    @Bindable var settings: OraSettings
+
+    var body: some View {
+        Form {
+            Section("Markdown klasörü") {
+                HStack {
+                    Text(settings.markdownFolder.isEmpty
+                         ? "Kapalı"
+                         : (settings.markdownFolder as NSString).abbreviatingWithTildeInPath)
+                        .font(.system(size: 12))
+                        .foregroundStyle(settings.markdownFolder.isEmpty
+                                         ? Color.oraInkMuted : Color.oraInk)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                    Button(settings.markdownFolder.isEmpty ? "Klasör seç…" : "Değiştir…") {
+                        if let url = Self.pickFolder() {
+                            settings.markdownFolder = url.path(percentEncoded: false)
+                        }
+                    }
+                    if !settings.markdownFolder.isEmpty {
+                        Button("Kapat") { settings.markdownFolder = "" }
+                    }
+                }
+                Toggle("Transkripti de ekle", isOn: $settings.markdownIncludesTranscript)
+                    .disabled(settings.markdownFolder.isEmpty)
+                Text("Özet hazır olunca not bu klasöre Markdown olarak yazılır — Obsidian "
+                     + "ya da herhangi bir not klasörü. Etiketler dosyanın künyesine girer. "
+                     + "“Cihazdan çıkmasın” işaretli toplantılar yazılmaz.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                if MarkdownFolder.isSynced(settings.markdownFolder) {
+                    Label("Bu klasör bir bulut hizmetiyle eşitleniyor (iCloud Drive, Dropbox "
+                          + "vb.). Yazılan notlar o hizmetin sunucularına da gider.",
+                          systemImage: "exclamationmark.triangle")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.oraInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Section("Hatırlatıcılar") {
+                Toggle("Aksiyonları Hatırlatıcılar'a ekleyebilirim",
+                       isOn: Binding(get: { settings.remindersEnabled },
+                                     set: { on in Task { await recorder.setRemindersEnabled(on) } }))
+                Text("Açıkken aksiyonlara sağ tıklayıp “Hatırlatıcılar'a ekle” diyebilirsiniz; "
+                     + "maddeler ayrı bir “ora” listesine girer, diğer listelerinize "
+                     + "dokunulmaz. ora takviminize yine hiçbir şey yazmaz. "
+                     + "Hatırlatıcılarınız iCloud ile eşitleniyorsa eklenen maddeler de "
+                     + "eşitlenir; “cihazdan çıkmasın” işaretli toplantının aksiyonları eklenmez.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section("Kısayollar") {
+                Text("Kısayollar uygulamasında ve Spotlight'ta ora'nın eylemleri hazır: "
+                     + "Kaydı başlat · Kaydı durdur · Önemli anı işaretle · "
+                     + "Son toplantının özeti. Ek izin gerekmez.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+    }
+
+    private static func pickFolder() -> URL? {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Seç"
+        return panel.runModal() == .OK ? panel.url : nil
     }
 }
 
