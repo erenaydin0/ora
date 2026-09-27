@@ -5,10 +5,11 @@ struct SettingsView: View {
 
     let recorder: RecordingController
     @Bindable var settings: OraSettings
+    let lock: AppLock
 
     var body: some View {
         TabView {
-            GeneralSettings(recorder: recorder, settings: settings)
+            GeneralSettings(recorder: recorder, settings: settings, lock: lock)
                 .tabItem { Label("Genel", systemImage: "gearshape") }
             SummarySettings(recorder: recorder, settings: settings)
                 .tabItem { Label("Özetleme", systemImage: "sparkles") }
@@ -23,6 +24,8 @@ struct SettingsView: View {
         }
         .frame(width: 520, height: 460)
         .background(Color.oraPaper)
+        // Sözlük ve takvim sekmeleri kişi adı taşır; kilit burayı da örter.
+        .lockable(lock)
     }
 }
 
@@ -30,6 +33,7 @@ struct SettingsView: View {
 private struct GeneralSettings: View {
     let recorder: RecordingController
     @Bindable var settings: OraSettings
+    let lock: AppLock
 
     var body: some View {
         Form {
@@ -48,6 +52,10 @@ private struct GeneralSettings: View {
 
             Section("Başlangıç") {
                 LaunchAtLoginToggle()
+            }
+
+            Section("Uygulama kilidi") {
+                AppLockToggle(lock: lock)
             }
 
             Section("Toplantı dili") {
@@ -243,6 +251,39 @@ private struct SummarySettings: View {
     }
 }
 
+/// Touch ID / parola kilidi. Anahtar ayarı doğrudan yazmaz: açmak da kapatmak
+/// da `AppLock.setEnabled` üzerinden kimlik doğrulaması ister, doğrulama
+/// olmazsa anahtar yerinde kalır.
+private struct AppLockToggle: View {
+    let lock: AppLock
+
+    var body: some View {
+        Toggle("ora'yı Touch ID ya da parolayla kilitle", isOn: Binding(
+            get: { lock.isEnabled },
+            set: { on in Task { await lock.setEnabled(on) } }
+        ))
+        .disabled(lock.isAuthenticating || (!lock.isEnabled && !lock.isAvailable))
+
+        Text("Açıkken ora açılışta, ekran kilitlenince ve uygulamadan "
+             + "\(AppLock.idleTimeoutLabel) uzak kalınca kilitlenir. Kayıt ve "
+             + "toplantı algılama kilitliyken de çalışır; menü bar içerik "
+             + "göstermez. Açıp kapatmak kimlik doğrulaması ister.")
+            .font(.system(size: 12))
+            .foregroundStyle(Color.oraInkMuted)
+            .fixedSize(horizontal: false, vertical: true)
+
+        if !lock.isEnabled && !lock.isAvailable {
+            Text("Bu Mac'te parola ya da Touch ID ayarlı değil.")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraInkMuted)
+        } else if let failure = lock.failure, !lock.isLocked {
+            Text(failure)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraRed)
+        }
+    }
+}
+
 /// "Başlangıçta çalıştır". Durumun tek kaynağı sistemdir (`LoginItem`),
 /// bu yüzden `OraSettings`'te bir alanı yok ve pencere her açılışta durumu
 /// yeniden okur — kullanıcı kaydı Sistem Ayarları'ndan kaldırmış olabilir.
@@ -385,8 +426,10 @@ private struct CalendarSettings: View {
             Section {
                 Toggle("Takvimi kullan", isOn: $settings.calendarEnabled)
                 Text("ora toplantı adını ve katılımcıları okumak için takviminize "
-                     + "erişir. Takviminize hiçbir şey yazmaz ve hiçbir veri "
-                     + "cihazınızdan çıkmaz. Kapalıyken takvime hiç dokunulmaz.")
+                     + "erişir. Takviminize hiçbir şey yazmaz. Bu bilgi cihazınızda "
+                     + "kalır; yalnızca kendiniz bir AI sağlayıcısı ya da paylaşım "
+                     + "hedefi bağlarsanız ve yalnızca o işin gerektirdiği kadarı "
+                     + "dışarı gider. Kapalıyken takvime hiç dokunulmaz.")
                     .font(.system(size: 12))
                     .foregroundStyle(Color.oraInkMuted)
                 if let permissionError {

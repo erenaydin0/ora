@@ -44,6 +44,9 @@ struct MenuBarLabel: View {
 struct MenuBarContent: View {
 
     let recorder: RecordingController
+    /// Kilitliyken kayıt denetimleri durur, **içerik** (canlı satır, sıradaki
+    /// toplantının adı) gösterilmez.
+    let lock: AppLock
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -55,7 +58,7 @@ struct MenuBarContent: View {
         if recorder.isRecording {
             Button("Kaydı durdur") { Task { await recorder.stop() } }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
-            if let line = recorder.lastLiveLine, !line.isEmpty {
+            if !lock.isLocked, let line = recorder.lastLiveLine, !line.isEmpty {
                 Text(line.count > 60 ? String(line.prefix(60)) + "…" : line)
             }
         } else if let signal = recorder.pendingSignal {
@@ -68,7 +71,7 @@ struct MenuBarContent: View {
                 .keyboardShortcut("r", modifiers: [.command, .shift])
         }
 
-        if let event = recorder.upcomingEvent {
+        if !lock.isLocked, let event = recorder.upcomingEvent {
             Divider()
             Text("Sıradaki: \(event.timeLabel)  \(event.title)")
         }
@@ -76,6 +79,9 @@ struct MenuBarContent: View {
         Divider()
 
         Button("Pencereyi aç") { openWindow(id: "main") }
+        if lock.isEnabled, !lock.isLocked {
+            Button("Şimdi kilitle") { lock.lock() }
+        }
         SettingsLink { Text("Ayarlar…") }
             .keyboardShortcut(",", modifiers: .command)
 

@@ -725,6 +725,16 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
   bir sözdü ve Faz 11'de yerini Bağlantı Kuralları'na bıraktı. Garanti artık
   koddadır: ağa çıkan tek modül `ora/Net/`.
   Dağıtım .dmg + Developer ID, Mac App Store hedeflenmiyor.
+- **Uygulama kilidi opt-in, varsayılan kapalı** (`OraSettings.appLockEnabled`,
+  Ayarlar → Genel). `LocalAuthentication` + `.deviceOwnerAuthentication`:
+  Touch ID yoksa Mac parolası — Touch ID'siz Mac'te de çalışır. Ek yetki ya
+  da Info.plist anahtarı istemez. Açılışta, ekran kilidi/uyku/kullanıcı
+  değişiminde ve uygulamadan 5 dk uzak kalınca kilitlenir (tek ertelenmiş
+  görev, yoklama yok). **Yalnızca arayüzü örter:** kayıt, hat, algılama ve
+  global kısayol kilitliyken de çalışır; menü bar kayıt denetimini gösterir
+  ama canlı satırı ve sıradaki toplantının adını göstermez. Açıp kapatmak
+  kimlik doğrulaması ister; ayar doğrudan yazılmaz, `AppLock.setEnabled`'dan
+  geçer.
 - **Erişilebilirlik izni opt-in.** `OraSettings.windowTitleEnabled` varsayılan
   **kapalı**; kapalıyken `WindowTitle`'a hiç dokunulmaz ve izin istenmez.
   Onboarding'de ve Ayarlar → Takvim'de açılabilir.
@@ -964,7 +974,9 @@ ora/Core/              — AppPaths, Log, OraError, OraSettings (tüm kullanıc�
                          ayarları — dil dahil),
                          PowerState, AudioArchive (boyut/sıkıştırma/silme),
                          GlobalHotKey (⌘⇧R, Carbon),
-                         LoginItem (SMAppService — girişte başlat)
+                         LoginItem (SMAppService — girişte başlat),
+                         AppLock (Touch ID / parola kilidi, opt-in;
+                         `DeviceAuthenticating` testte sahtelenir)
 ora/Detect/            — MeetingDetector (CoreAudio olay dinleyicileri) +
                          MeetingDetecting protokolü, MeetingSuggestions
                          (sinyal → öneri → karar; teslim
@@ -1020,7 +1032,8 @@ ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          AudioPlayback (+ PlaybackBar), MeetingExport, SettingsView,
                          MeetingNotifications, ChatInspector,
                          ImportView (dosya seçiciler + yapıştırma sayfası),
-                         EmptyState (+ ProcessingState), CurveLoader, FlowLayout
+                         EmptyState (+ ProcessingState), CurveLoader, FlowLayout,
+                         LockScreen (+ `.lockable(_:)` — ana pencere ve Ayarlar)
 ora/Resources/Assets.xcassets/Colors    — BRAND paletinin tek kaynağı
 ora/Resources/Assets.xcassets/AppIcon   — scripts/make-icon.swift üretir
 scripts/               — make-icon.swift (ikon), build-release.sh (arşiv → .dmg)

@@ -101,6 +101,13 @@ final class OraSettings {
         + "kendi bilgisayarımda yapılıyor, hiçbir yere gönderilmiyor. "
         + "İtirazı olan var mı?"
 
+    // MARK: - Uygulama kilidi
+
+    /// Touch ID / parola ile uygulama kilidi. **Opt-in, varsayılan kapalı.**
+    /// Doğrudan yazılmaz — açıp kapatmak `AppLock.setEnabled` üzerinden
+    /// kimlik doğrulaması ister.
+    var appLockEnabled: Bool { didSet { store(appLockEnabled, .appLockEnabled) } }
+
     // MARK: - Depolama
 
     /// Transkripsiyon ve özet bittikten sonra sesi AAC'ye çevir.
@@ -152,6 +159,7 @@ final class OraSettings {
         selectedCalendarIDs = Set(defaults.stringArray(forKey: Key.selectedCalendars.rawValue) ?? [])
         announceRecording = defaults.bool(forKey: Key.announceRecording.rawValue)
         compressAudio = defaults.bool(forKey: Key.compressAudio.rawValue)
+        appLockEnabled = defaults.bool(forKey: Key.appLockEnabled.rawValue)
         audioRetentionDays = defaults.integer(forKey: Key.audioRetentionDays.rawValue)
         transcriptionLanguage = defaults.string(forKey: Key.transcriptionLanguage.rawValue)
             .flatMap(TranscriptionLanguage.init(rawValue:)) ?? .turkish
@@ -173,7 +181,7 @@ final class OraSettings {
         case detectionEnabled, excludedBundleIDs, alwaysRecord
         case calendarEnabled, selectedCalendars, windowTitleEnabled
         case userDisplayName
-        case compressAudio, audioRetentionDays, announceRecording
+        case compressAudio, audioRetentionDays, announceRecording, appLockEnabled
         case transcriptionLanguage
         case summaryEngine, localModelID, summaryDetail
     }

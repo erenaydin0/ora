@@ -7,6 +7,7 @@ struct OraApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var recorder: RecordingController
     @State private var settings: OraSettings
+    @State private var lock: AppLock
 
     /// Dizin hazırlığı ve sandbox göçü **burada** yapılır, `AppDelegate`'te
     /// değil: `RecordingController()` veritabanını açıyor ve `@State`
@@ -20,11 +21,14 @@ struct OraApp: App {
         }
         _recorder = State(initialValue: RecordingController())
         _settings = State(initialValue: OraSettings.shared)
+        let lock = AppLock(settings: OraSettings.shared)
+        lock.startObserving()
+        _lock = State(initialValue: lock)
     }
 
     var body: some Scene {
         Window("ora", id: "main") {
-            RootView(recorder: recorder)
+            RootView(recorder: recorder, lock: lock)
                 .tint(Color.oraCarmine)
                 .containerBackground(Color.oraPaper, for: .window)
         }
@@ -39,7 +43,7 @@ struct OraApp: App {
 
         // Taşıyıcı yüzey: menü bar. Pencere kapalıyken de kayıt sürdürülebilir.
         MenuBarExtra {
-            MenuBarContent(recorder: recorder)
+            MenuBarContent(recorder: recorder, lock: lock)
         } label: {
             MenuBarLabel(recorder: recorder)
         }
@@ -47,7 +51,7 @@ struct OraApp: App {
         .menuBarExtraStyle(.menu)
 
         Settings {
-            SettingsView(recorder: recorder, settings: settings)
+            SettingsView(recorder: recorder, settings: settings, lock: lock)
                 .tint(Color.oraCarmine)
                 .containerBackground(Color.oraPaper, for: .window)
         }

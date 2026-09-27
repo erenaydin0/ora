@@ -4,6 +4,7 @@ import SwiftUI
 struct RootView: View {
 
     let recorder: RecordingController
+    let lock: AppLock
     @State private var isChatShown = false
     /// Transkript yapıştırma sayfası ve içindeki metin.
     @State private var isPasting = false
@@ -62,12 +63,19 @@ struct RootView: View {
         // listeye de bırakır, nota da. Tür ayrımını `importFile` yapar ve
         // tanımadığı dosyayı sessizce yutmaz.
         .dropDestination(for: URL.self) { urls, _ in
-            guard recorder.canImport, !urls.isEmpty else { return false }
+            guard recorder.canImport, !lock.isLocked, !urls.isEmpty else { return false }
             Task { await recorder.importFiles(urls) }
             return true
-        } isTargeted: { isDropTargeted = $0 && recorder.canImport }
+        } isTargeted: { isDropTargeted = $0 && recorder.canImport && !lock.isLocked }
         .overlay {
             if isDropTargeted { DropHint() }
+        }
+        // Kilit kenar çubuğunu da örter; araç çubuğu pencere kromudur,
+        // ayrıca gizlenir. Açık bir yapıştırma sayfası içerik taşır, kapanır.
+        .lockable(lock)
+        .toolbar(lock.isLocked ? .hidden : .visible, for: .windowToolbar)
+        .onChange(of: lock.isLocked) { _, locked in
+            if locked { isPasting = false }
         }
         .frame(minWidth: isChatShown ? Self.minWidthWithChat : Self.minWidth,
                minHeight: 560)
@@ -461,6 +469,6 @@ private struct StopSuggestionBanner: View {
 }
 
 #Preview {
-    RootView(recorder: RecordingController())
+    RootView(recorder: RecordingController(), lock: AppLock(settings: .shared))
         .frame(width: 1100, height: 700)
 }
