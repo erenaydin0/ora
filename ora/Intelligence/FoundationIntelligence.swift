@@ -1171,6 +1171,130 @@ nonisolated struct FoundationIntelligence: Intelligent {
         }
     }
 
+    // MARK: - Toplantılar arası sohbet
+
+    static let noCrossAnswer = "Toplantılarınızda bu soruyla ilgili bir şey bulamadım. "
+        + "Bir konu, kişi ya da ürün adıyla sormayı deneyin."
+
+    /// Bölümler parçalara toplanır; her parçaya soru ayrı sorulur (map),
+    /// yanıtlar birleştirilir (reduce) — toplantı sohbetinin aynı deseni,
+    /// yalnızca girdi 60 toplantı değil FTS'nin bulduğu ~20 bölüm.
+    @concurrent func answer(question: String,
+                            across passages: [MeetingPassage]) async throws -> CrossAnswer {
+        guard availability.isAvailable else {
+            throw OraError.modelUnavailable(reason: availability.turkishMessage)
+        }
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !passages.isEmpty else {
+            return CrossAnswer(text: Self.noCrossAnswer, sources: [])
+        }
+
+        var findings: [(text: String, sources: [Int64])] = []
+        for chunk in Self.crossChunks(passages, limit: summaryLimit) {
+            let session = LanguageModelSession(instructions: Self.instructions)
+            do {
+                let response = try await session.respond(to: """
+                    Do the following excerpts from past meetings answer this question?
+                    Question: \(trimmed)
+
+                    Each excerpt starts with the meeting's title and date in
+                    brackets. If they answer it, answer briefly in Turkish and say
+                    which meeting each fact comes from. If they do not, write only
+                    "YOK". Do not invent anything.
+
+                    \(chunk.map(Self.render).joined(separator: "\n\n"))
+                    """)
+                let finding = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !finding.isEmpty,
+                      !finding.uppercased(with: Locale(identifier: "tr_TR")).hasPrefix("YOK")
+                else { continue }
+                findings.append((finding, Self.attributed(finding, in: chunk)))
+            } catch {
+                Log.warning(.intelligence, "Toplantılar arası sohbet parçası atlandı: "
+                            + error.localizedDescription)
+            }
+        }
+
+        guard !findings.isEmpty else { return CrossAnswer(text: Self.noCrossAnswer, sources: []) }
+        var sources: [Int64] = []
+        for id in findings.flatMap(\.sources) where !sources.contains(id) { sources.append(id) }
+        if findings.count == 1 { return CrossAnswer(text: findings[0].text, sources: sources) }
+
+        let session = LanguageModelSession(instructions: Self.instructions)
+        do {
+            let response = try await session.respond(to: """
+                Question: \(trimmed)
+
+                These findings came from different past meetings. Combine them and
+                answer the question briefly, in Turkish, keeping which meeting each
+                fact comes from. Do not add anything that is not in the findings.
+
+                \(findings.map(\.text).joined(separator: "\n---\n"))
+                """)
+            return CrossAnswer(text: response.content, sources: sources)
+        } catch {
+            return CrossAnswer(text: findings.map(\.text).joined(separator: "\n\n"),
+                               sources: sources)
+        }
+    }
+
+    /// Bölümün modele verilen hâli: köşeli parantezde toplantı adı ve tarihi,
+    /// sonra satırlar. Parantez, başlığın bir konuşmacı öneki sanılmasını önler.
+    static func render(_ passage: MeetingPassage) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "tr_TR")
+        formatter.dateFormat = "d MMMM yyyy"
+        return "[\(passage.title) — \(formatter.string(from: passage.date))]\n"
+            + TranscriptChunker.render(passage.segments)
+    }
+
+    /// Bölümleri sınırı aşmayan parçalara toplar. Tek başına sınırı aşan
+    /// bölüm satır sınırından bölünür; hiçbir satır atılmaz.
+    static func crossChunks(_ passages: [MeetingPassage], limit: Int) -> [[MeetingPassage]] {
+        var pieces: [MeetingPassage] = []
+        for passage in passages {
+            if render(passage).count <= limit {
+                pieces.append(passage)
+            } else {
+                for part in TranscriptChunker.chunks(of: passage.segments, limit: limit - 120) {
+                    pieces.append(MeetingPassage(meetingID: passage.meetingID, title: passage.title,
+                                                 date: passage.date, segments: part))
+                }
+            }
+        }
+        var chunks: [[MeetingPassage]] = []
+        var current: [MeetingPassage] = []
+        var size = 0
+        for piece in pieces {
+            let cost = render(piece).count + 2
+            if !current.isEmpty, size + cost > limit {
+                chunks.append(current)
+                current = []
+                size = 0
+            }
+            current.append(piece)
+            size += cost
+        }
+        if !current.isEmpty { chunks.append(current) }
+        return chunks
+    }
+
+    /// Yanıt hangi toplantılardan geliyor? Adı yanıtta geçenler; hiçbiri
+    /// geçmiyorsa parçadaki bütün toplantılar (atıf eksik kalmasın).
+    static func attributed(_ finding: String, in chunk: [MeetingPassage]) -> [Int64] {
+        let text = normalized(finding)
+        var named: [Int64] = []
+        var all: [Int64] = []
+        for passage in chunk {
+            if !all.contains(passage.meetingID) { all.append(passage.meetingID) }
+            let title = normalized(passage.title)
+            if !title.isEmpty, text.contains(title), !named.contains(passage.meetingID) {
+                named.append(passage.meetingID)
+            }
+        }
+        return named.isEmpty ? all : named
+    }
+
     // MARK: - Otomatik başlık
 
     @concurrent func generateTitle(from segments: [Segment]) async -> String? {

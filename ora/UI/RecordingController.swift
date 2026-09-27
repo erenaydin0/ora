@@ -311,6 +311,7 @@ final class RecordingController {
         await refreshVocabulary()
         refreshModelState()
         await refreshUpcoming()
+        await refreshCrossChat()
         await purgeExpiredAudio()
         refreshStorage()
         Task { [weak self] in
@@ -608,6 +609,65 @@ final class RecordingController {
         }
         let fresh = await library.refreshNotes(meetingID)
         if meetingID == session.meetingID { liveNotes = fresh }
+    }
+
+    // MARK: - Toplantılar arası sohbet (COMPETITION.md §4.10)
+
+    /// Sohbetin kapsamı: seçili toplantı ya da tüm toplantılar.
+    enum ChatScope: String, CaseIterable, Identifiable {
+        case meeting, all
+        var id: String { rawValue }
+        var turkishName: String {
+            switch self {
+            case .meeting: "Bu toplantı"
+            case .all:     "Tüm toplantılar"
+            }
+        }
+    }
+
+    /// Kullanıcının seçtiği kapsam. Toplantı seçili değilken (pano, kişiler,
+    /// boş ekran) sohbet her zaman tüm toplantılara sorar.
+    var chatScope: ChatScope = .meeting
+    var effectiveChatScope: ChatScope {
+        selection == nil || showsActionBoard || showsPeople ? .all : chatScope
+    }
+    private(set) var crossTurns: [MeetingStore.CrossTurn] = []
+
+    /// Toplantılar arası sohbet **cihazdaki** modelle yapılır: tek istek
+    /// birden çok toplantı taşır ve "cihazdan çıkmasın" kilidi toplantı
+    /// başına denetlenir (Bağlantı Kuralları §6). İndirilen yerel model de
+    /// sohbeti devralmaz (yalnızca özet).
+    var crossChatAvailability: ModelAvailability { intelligence.availability }
+
+    func refreshCrossChat() async {
+        crossTurns = (try? await store.crossChatHistory()) ?? crossTurns
+    }
+
+    func askAcross(_ question: String) async {
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isAnswering, !isRecording else { return }
+        isAnswering = true
+        defer { isAnswering = false }
+        do {
+            // Arama bir LLM çağrısı değildir; modele yalnızca bulunan
+            // bölümler verilir.
+            let passages = try await store.passages(for: trimmed)
+            Log.info(.intelligence, "Toplantılar arası sohbet: \(passages.count) bölüm, "
+                     + "\(Set(passages.map(\.meetingID)).count) toplantı")
+            let answer = try await intelligence.answer(question: trimmed, across: passages)
+            try await store.appendCrossChat(question: trimmed, answer: answer.text,
+                                            sources: answer.sources)
+            await refreshCrossChat()
+        } catch let error as OraError {
+            self.error = error
+        } catch {
+            self.error = .modelUnavailable(reason: error.localizedDescription)
+        }
+    }
+
+    func clearCrossChat() async {
+        try? await store.clearCrossChat()
+        crossTurns = []
     }
 
     // MARK: - Türetilmiş

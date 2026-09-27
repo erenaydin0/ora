@@ -140,6 +140,11 @@ nonisolated struct LocalIntelligence: Intelligent {
         try await fallback.answer(question: question, over: segments)
     }
 
+    @concurrent func answer(question: String,
+                            across passages: [MeetingPassage]) async throws -> CrossAnswer {
+        try await fallback.answer(question: question, across: passages)
+    }
+
     @concurrent func enrich(_ notes: [UserNote], over segments: [Segment],
                             progress: @Sendable @escaping (Double) -> Void) async
         -> [Int64: [String]] {

@@ -317,6 +317,8 @@ Faz 11 (Bağlantılar) bundan önce yapıldı; numara sırası iş sırasını i
 - [x] Etiketler + kenar çubuğunda etikete göre süzme (§4.16) — v8
 - [x] Kişi sayfası + menü barda "son ortak toplantı" brifingi (§4.11) — LLM'siz;
       toplantı öncesi LLM hazırlık notu yapılmadı
+- [x] Toplantılar arası sohbet (§4.10) — FTS5 ile daraltılmış yerel RAG,
+      kaynak toplantı bağlantıları; cihazdaki modelle (v9)
 
 ## Kapsam Dışı — bilerek yapılmayacaklar
 - Windows / Linux desteği

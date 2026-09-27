@@ -182,6 +182,16 @@ final class SlowIntelligence: Intelligent, @unchecked Sendable {
     }
 
     func answer(question: String, over segments: [Segment]) async throws -> String { "" }
+
+    /// Toplantılar arası sohbete verilen bölümler.
+    private(set) var crossPassages: [MeetingPassage] = []
+
+    func answer(question: String, across passages: [MeetingPassage]) async throws -> CrossAnswer {
+        crossPassages = passages
+        var ids: [Int64] = []
+        for passage in passages where !ids.contains(passage.meetingID) { ids.append(passage.meetingID) }
+        return CrossAnswer(text: "\(tag) yanıt: \(question)", sources: ids)
+    }
     func generateTitle(from segments: [Segment]) async -> String? { generatedTitle }
     func generateTitle(from segments: [Segment], topics: [TopicSegment]) async -> String? {
         generatedTitle
@@ -206,6 +216,9 @@ struct FailingIntelligence: Intelligent {
                 progress: @Sendable @escaping (Double) -> Void) async -> [Int64: [String]] { [:] }
 
     func answer(question: String, over segments: [Segment]) async throws -> String { "" }
+    func answer(question: String, across passages: [MeetingPassage]) async throws -> CrossAnswer {
+        CrossAnswer(text: "", sources: [])
+    }
     func generateTitle(from segments: [Segment]) async -> String? { nil }
     func generateTitle(from segments: [Segment], topics: [TopicSegment]) async -> String? { nil }
 }
@@ -230,6 +243,9 @@ struct UnavailableIntelligence: Intelligent {
                 progress: @Sendable @escaping (Double) -> Void) async -> [Int64: [String]] { [:] }
 
     func answer(question: String, over segments: [Segment]) async throws -> String { "" }
+    func answer(question: String, across passages: [MeetingPassage]) async throws -> CrossAnswer {
+        CrossAnswer(text: "", sources: [])
+    }
     func generateTitle(from segments: [Segment]) async -> String? { nil }
     func generateTitle(from segments: [Segment], topics: [TopicSegment]) async -> String? { nil }
 }

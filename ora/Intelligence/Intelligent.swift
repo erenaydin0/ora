@@ -56,6 +56,13 @@ nonisolated struct SummaryResult: Sendable {
     var skippedChunks: Int
 }
 
+/// Toplantılar arası sohbetin yanıtı ve dayandığı toplantılar.
+nonisolated struct CrossAnswer: Sendable, Equatable {
+    var text: String
+    /// Yanıtın geldiği toplantılar — arayüz bunları bağlantı olarak listeler.
+    var sources: [Int64]
+}
+
 nonisolated protocol Intelligent: Sendable {
     var availability: ModelAvailability { get }
 
@@ -90,6 +97,12 @@ nonisolated protocol Intelligent: Sendable {
 
     /// Toplantı sohbeti: transkript üzerinde soru-cevap, map-reduce ile.
     @concurrent func answer(question: String, over segments: [Segment]) async throws -> String
+
+    /// Toplantılar arası sohbet (COMPETITION.md §4.10): FTS'nin bulduğu
+    /// bölümler üzerinde soru-cevap. Bölüm yoksa ya da hiçbiri yanıtlamıyorsa
+    /// bunu Türkçe söyler, uydurmaz.
+    @concurrent func answer(question: String,
+                            across passages: [MeetingPassage]) async throws -> CrossAnswer
 
     /// Transkriptten başlık üretir. Pencere başlığı **okunmaz** — sandbox'lı
     /// uygulamada ekran kaydı izni ister (RESEARCH.md §11).

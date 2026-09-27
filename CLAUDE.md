@@ -341,6 +341,18 @@ Bu sıra asla değişmez:
   başına 3 madde, genel bakış 3) kodda da uygulanır çünkü istem sınırı
   tutmuyor. **Aksiyonlar her uzunlukta aynıdır** — not, "bana ne düştü"yü
   kısaltarak kısalmaz.
+- **Toplantılar arası sohbet yerel RAG'dır** (§4.10, `CrossMeetingSearch`,
+  `Intelligent.answer(question:across:)`): soru anahtar kelimelere indirgenir
+  (soru kalıpları ve "toplantı" atılır, uzun kelime kaba gövdelenir:
+  "teklifinde" → "teklif"), FTS5 ile en ilgili 20 satır (BM25) ve çevreleri
+  (−20/+40 sn) bulunur, yalnızca bunlar map-reduce'a girer. Bölüm başında
+  köşeli parantezde toplantı adı ve tarihi durur (konuşmacı öneki
+  sanılmasın); yanıt hangi toplantının adını anıyorsa kaynak odur, anmıyorsa
+  parçadaki hepsi. **Cihazdaki modelle yapılır** — bağlı sağlayıcı seçili olsa
+  bile: tek istek birden çok toplantı taşır ve "cihazdan çıkmasın" kilidi
+  toplantı başına denetlenir (Bağlantı Kuralları §6). Geçmiş
+  `chat_history`'de `meeting_id = NULL` ile, kaynaklar `sources`'ta.
+  Arama ve istem **ölçülmedi**.
 - Her map-reduce parçası için **yeni `LanguageModelSession`** aç; oturumu
   tekrar kullanırsan geçmiş bağlamı yiyip pencereyi taşırır.
 - **Noktalama istemine konuşmacı öneki ("Ben:", "Katılımcı:") EKLEME.**
@@ -778,7 +790,9 @@ action_items(id, meeting_id, person, task, context, deadline, status, created_at
 vocabulary(id, word, source, status, rejected_until, added_date)
   -- vocabulary.status: 'active' | 'pending' | 'rejected'
 corrections(id, mistake, correct, meeting_id, created_at)
-chat_history(id, meeting_id, question, answer, timestamp)
+chat_history(id, meeting_id, question, answer, timestamp, sources)
+  -- meeting_id NULL: toplantılar arası sohbet (v9). sources: yanıtın
+  --     dayandığı toplantıların JSON kimlik listesi; silinen toplantı düşer
 participants(id, name, email, meeting_count, last_seen)
   -- email: yalnızca kişi eşleştirme (dedupe) için; arayüzde gösterilmez,
   --        cihazdan çıkmaz. Takvim kapalıysa NULL
@@ -853,7 +867,8 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
 - SwiftUI; ikonlar SF Symbols
 - Düzen: `NavigationSplitView` kenar çubuğu 240-300pt + orta panel
   (sekmeler: **Özet | Transkript**). Sohbet, orta panelin **içinde** 320 pt'lik
-  katlanabilir bir bölmedir — `.inspector` **kullanılmaz**: üçüncü sütun
+  katlanabilir bir bölmedir; tepesinde "Bu toplantı | Tüm toplantılar"
+  kapsamı durur, toplantı seçili değilken kapsam her zaman tüm toplantılardır — `.inspector` **kullanılmaz**: üçüncü sütun
   açıldığında orta sütun ~655 pt'nin altına inmediği için SwiftUI kenar
   çubuğunu pencerenin dışına itiyordu (RESEARCH.md §26.2).
   "Konuşmacılar" sekmesi yoktur (DESIGN.md §4)

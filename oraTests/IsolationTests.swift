@@ -69,6 +69,18 @@ struct IsolationTests {
                 "sohbet yanıtı ana iş parçacığında üretildi — answer'daki @concurrent gitti")
     }
 
+    @Test
+    func toplantilarArasiSohbetAnaIsParcacigindaKosmaz() async throws {
+        let witness = ThreadWitness()
+        let h = try Harness(intelligence: WitnessIntelligence(witness: witness))
+        _ = try await h.seed(text: "bütçe onaylandı")
+
+        await h.controller.askAcross("bütçe?")
+
+        #expect(witness.onMain("crossAnswer") == false,
+                "toplantılar arası yanıt ana iş parçacığında üretildi — answer(question:across:)'daki @concurrent gitti")
+    }
+
     /// Not zenginleştirme özetten sonra, not başına bir model çağrısıdır.
     @Test
     func notZenginlestirmeAnaIsParcacigindaKosmaz() async throws {
@@ -164,6 +176,11 @@ private nonisolated struct WitnessIntelligence: Intelligent {
     func answer(question: String, over segments: [Segment]) async throws -> String {
         witness.record("answer")
         return "yanıt"
+    }
+
+    func answer(question: String, across passages: [MeetingPassage]) async throws -> CrossAnswer {
+        witness.record("crossAnswer")
+        return CrossAnswer(text: "yanıt", sources: [])
     }
 
     func generateTitle(from segments: [Segment]) async -> String? {

@@ -64,6 +64,15 @@ nonisolated struct CloudIntelligence: Intelligent {
 
     // MARK: - Cihazda kalanlar
 
+    /// Toplantılar arası sohbet cihazda kalır: tek istek birden çok toplantı
+    /// taşır ve "cihazdan çıkmasın" kilidi toplantı başına denetlenir
+    /// (Bağlantı Kuralları §6). Denetleyici bu yolu zaten cihazdaki motorla
+    /// çağırır; burası ikinci güvencedir.
+    @concurrent func answer(question: String,
+                            across passages: [MeetingPassage]) async throws -> CrossAnswer {
+        try await fallback.answer(question: question, across: passages)
+    }
+
     /// Not zenginleştirme cihazda kalır: not başına küçük bir pencere yeter,
     /// kullanıcının kendi notunu buluta taşımanın kazancı yok (kural 4).
     @concurrent func enrich(_ notes: [UserNote], over segments: [Segment],

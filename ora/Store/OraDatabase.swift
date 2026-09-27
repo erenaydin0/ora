@@ -277,6 +277,13 @@ nonisolated final class OraDatabase: Storing {
                 """)
         }
 
+        // Toplantılar arası sohbet (COMPETITION.md §4.10): `meeting_id` NULL
+        // olan turlar hiçbir toplantıya ait değildir; yanıtın dayandığı
+        // toplantılar `sources`'ta (JSON kimlik listesi) durur.
+        migrator.registerMigration("v9_cross_chat") { db in
+            try db.execute(sql: "ALTER TABLE chat_history ADD COLUMN sources TEXT")
+        }
+
         return migrator
     }
 }
