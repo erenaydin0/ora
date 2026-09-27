@@ -30,7 +30,7 @@ oturum başında oku ve varsayımları yeniden tartışma.
 | Konuşmacı ayrımı | pyannote community-1 (CoreML), **FluidAudio** `OfflineDiarizerManager` | Modeller **uygulamanın içinde** (21,6 MB), indirme ve ağ yok; varsayılan açık |
 | Özetleme / sohbet (isteğe bağlı, Faz 11) | Kullanıcının kendi sağlayıcısı (Anthropic · OpenAI · OpenRouter · yerel sunucu) | **Varsayılan kapalı.** Anahtar Keychain'de; `ora/Net/` tek kapı |
 | Çıkış entegrasyonları (isteğe bağlı, Faz 11) | Slack · Notion · Markdown klasörü | **Varsayılan kapalı.** Yalnızca özet/aksiyon gider, ses asla |
-| Veritabanı | SQLite + FTS5, **GRDB.swift** üzerinden | SwiftData'da tam metin arama yok; tek SPM bağımlılığı |
+| Veritabanı | SQLite + FTS5, **GRDB.swift** üzerinden | SwiftData'da tam metin arama yok |
 | PDF dışa aktarım | `ImageRenderer` / PDFKit | WeasyPrint yok |
 | İkonlar | SF Symbols | Lucide yok |
 
@@ -980,16 +980,15 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
          İzolasyon değişikliğinin arayüz akıcılığına etkisi de burada
          doğrulanacak: `IsolationTests` iş parçacığı kimliğini ölçüyor,
          **gerçek bir kayıtla göz denetimi yapılmadı** (§30.5).
-      3. **İmzalama ve notarizasyon** — makinede kod imzalama kimliği yok;
+      2. **İmzalama ve notarizasyon** — makinede kod imzalama kimliği yok;
          Apple Developer üyeliği gerekiyor. Betik hazır, ek kod gerekmiyor.
-      4. ~~Gerçek bir Teams/Zoom toplantısıyla algılama→kayıt akışı denenmedi.~~
+      3. ~~Gerçek bir Teams/Zoom toplantısıyla algılama→kayıt akışı denenmedi.~~
          **Tamamlandı (RESEARCH.md §28.3-28.5):** mikrofonu ve sesi Teams'in
          yardımcı süreçleri tutuyor; algılama ve tap hedefleme buna göre
          düzeltildi. Teams test aramasıyla uçtan uca doğrulandı — kapsamlı
          tap'ten ch1 tepe 0,69, kanal ayrımı ve iki kanallı transkripsiyon
          doğru, gözcü devreye girmedi. Zoom'la denenmedi.
-    - **Sparkle (otomatik güncelleme) kullanıcı kararıyla eklenmedi.** Tek
-      bağımlılık GRDB olarak kalıyor.
+    - **Sparkle (otomatik güncelleme) kullanıcı kararıyla eklenmedi.**
     - **Bilinen geliştirme engeli:** uygulama ad-hoc imzalı. İmza her derlemede
       değiştiği için TCC mikrofon iznini **her derlemede** yeniden soruyor,
       Dock/Cmd+Tab ikonu yer tutucu gösteriyor (RESEARCH.md §20) ve
