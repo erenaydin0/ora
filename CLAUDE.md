@@ -144,8 +144,8 @@ Bu sıra asla değişmez:
    tek kanalın kümeleri kelime düzeyinde satırlara dağıtılır. Başarısız
    olursa transkript kanal etiketleriyle kalır, hat durmaz.
 4. Foundation Models ile **noktalama restorasyonu** (zorunlu adım)
-5. Foundation Models ile map-reduce özetleme → konu blokları (başlık +
-   maddeler) ve aksiyonlar parça aşamasında; genel bakış ve kararlar
+5. Foundation Models ile map-reduce özetleme → parça aşamasında iki ayrı
+   çağrı (A: konu blokları, B: aksiyonlar); genel bakış ve kararlar
    birleştirme aşamasında
    5b. **Not zenginleştirme** (yalnızca kullanıcının notu varsa): her notun
    altına transkriptten en fazla üç madde ayrıntı (bkz. Not Defteri Kuralları)
@@ -276,10 +276,19 @@ Bu sıra asla değişmez:
   10.000 karakterlik parça 4.089 token ederek pencereyi taşırıyordu. Transkripti asla kırpma —
   önceki ora'da `MAX_TRANSCRIPT_CHARS = 14_000` yüzünden 60 dakikalık
   toplantının %75'i sessizce çöpe gidiyordu. **Bu hatayı tekrarlama.**
-- **Parça çıktısı `ParcaOzeti`'dir: konu blokları (başlık + maddeler) **ve**
-  o parçada üstlenilen aksiyonlar.** Konu yalnızca başlık değildir — gövdesi
+- **Parça aşaması iki çağrıdır, her biri kendi oturumunda** (RESEARCH.md §42):
+  **A** `KonuNotlari` — konu blokları (başlık + maddeler), aksiyon üretmez;
+  **B** `ParcaAksiyonlari` — o parçada üstlenilen işler, **ham parça
+  metninden** (A'nın notlarından değil — notlarda konuşmacı yok, §23). Eskiden
+  ikisi tek şemadaydı (`ParcaOzeti`); kaçağa giren bir parça ikisini birden
+  götürüyordu. B, A düşse de çalışır. Konu yalnızca başlık değildir — gövdesi
   notun kendisidir. Birleştirme adımı yalnızca genel bakış ve kararları üretir;
   **aksiyon üretmez**, çünkü konu notlarında konuşmacı bilgisi yoktur.
+- **Her parça çağrısının çıktı tavanı vardır** (`maximumResponseTokens`: A
+  1.500, B 600). Ölçüldü (§41.2): model bazı parçalarda transkripti kopyalayıp
+  pencereyi dolduruyordu (138 sn, sonra hata). Başarısız çağrı **bir kez,
+  serbest örneklemeyle** yeniden denenir — aynı istem aynı örneklemeyle aynı
+  kaçağı üretiyordu.
 - **Katılımcı listesi isteme yazılmaz.** A/B ölçüldü (RESEARCH.md §23): kapalı
   isim listesi verildiğinde model onu kısıt değil *menü* gibi kullanıyor,
   görevler belirsizleşiyor ve son tarihlere toplantı tarihi sızıyor. Liste
@@ -336,9 +345,10 @@ Bu sıra asla değişmez:
   kullanıcıya sorulur.
 - **Özet uzunluğu seçilebilir: Kısa · Dengeli · Ayrıntılı**
   (`SummaryDetail`, Ayarlar → Özetleme). **Dengeli ölçülmüş olandır ve
-  varsayılandır:** o seviyede iki motorun istem metni ve sınırları eskisiyle
-  bayt bayt aynıdır, `SummaryShapeTests` bunu denetler — değişirse §23-37
-  ölçümleri geçersizleşir. Kısa ve Ayrıntılı **ölçülmedi**; §35'in kapsama
+  varsayılandır:** o seviyede yerel motorun istemi ve Apple motorunun
+  birleştirme istemi ölçülen metinle bayt bayt aynıdır. Apple motorunun parça
+  istemi §42'de A/B'ye bölündü (A = eski istemin not kısmı, B = aksiyon
+  kısmı); §23-37 ölçümleri zaten macOS 26'nın modeline aitti (§41). Kısa ve Ayrıntılı **ölçülmedi**; §35'in kapsama
   puanıyla değerlendirilmeden varsayılan yapılmaz. Kısa'nın sınırı (konu
   başına 3 madde, genel bakış 3) kodda da uygulanır çünkü istem sınırı
   tutmuyor. **Aksiyonlar her uzunlukta aynıdır** — not, "bana ne düştü"yü
@@ -514,8 +524,9 @@ Bu sıra asla değişmez:
   müşteride talepler, mülakatta aday hakkında söylenenler — mülakatta model
   **kendi yargısını yazmaz**); Özet'te bölümün adı buna göre değişir.
   **Genel ölçülmüş olandır ve varsayılandır:** Apple istemleri
-  (`reducePrompt` / `chunkPrompt`) ve yerel istem o şablonda ölçülen metnin
-  bayt bayt aynısıdır (`TemplateTests`). Diğerleri **ölçülmedi**.
+  (`reducePrompt` / `topicPrompt`) ve yerel istem o şablonda ölçülen metnin
+  bayt bayt aynısıdır (`TemplateTests`; `topicPrompt` §42'den beri aksiyon
+  kurallarını taşımaz). Şablon odağı yalnızca A'ya eklenir. Diğerleri **ölçülmedi**.
 - Şablon başlıktaki çipten seçilir; özet varsa "bu şablonla yeniden
   oluşturulsun mu" diye sorulur. Bu yeniden üretim **varsayılan örneklemeyle**
   koşar (yeni istem, "başka bir özet" değil), başarısız olursa eldeki özet

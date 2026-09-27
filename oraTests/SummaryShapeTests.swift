@@ -20,6 +20,37 @@ struct SummaryShapeTests {
         #expect(TranscriptChunker.punctuationLimit(contextSize: 8192) == 7_000)
     }
 
+    // MARK: - A/B ayrımı
+
+    /// Konu notları ve aksiyonlar ayrı çağrılardır (RESEARCH.md §42): A'nın
+    /// isteminde aksiyon kuralı, B'ninkinde not yazma kuralı yoktur. İkisi de
+    /// ham parça metnini okur.
+    @Test
+    func konuVeAksiyonAyriIstemlerdir() {
+        let topic = FoundationIntelligence.topicPrompt(text: "METİN", target: 2, context: .empty)
+        let action = FoundationIntelligence.actionPrompt(text: "METİN", context: .empty)
+        #expect(!topic.contains("Action rules"))
+        #expect(!topic.contains("An action is work"))
+        #expect(action.contains("An action is work that will be done after the meeting."))
+        #expect(!action.contains("heading"))
+        #expect(topic.hasSuffix("\n\nMETİN"))
+        #expect(action.hasSuffix("\n\nMETİN"))
+        #expect(action.contains(FoundationIntelligence.selfLine(.empty)),
+                "\"Ben\" cümlesi olmadan kisi alanı boş geliyor (§15.2)")
+    }
+
+    /// Çıktı tavanı kaçağı keser ama örneklemeye dokunmaz: ilk geçiş
+    /// varsayılan örneklemede kalır.
+    @Test
+    func ciktiTavaniOrneklemeyiKorur() {
+        let plain = FoundationIntelligence.capped(FoundationIntelligence.options(variation: false), 600)
+        #expect(plain.maximumResponseTokens == 600)
+        #expect(plain.sampling == nil && plain.temperature == nil)
+        let varied = FoundationIntelligence.capped(FoundationIntelligence.options(variation: true), 1_500)
+        #expect(varied.maximumResponseTokens == 1_500)
+        #expect(varied.temperature == 0.9)
+    }
+
     // MARK: - Aksiyon süzgeci
 
     /// **Gövdeleme hatası:** `words(of:)` her kelimeyi 5 harfe kırpıyor ve

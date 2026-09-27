@@ -40,7 +40,7 @@ struct TemplateTests {
 
     @Test
     func genelParcaIstemineEkGirmez() {
-        let prompt = FoundationIntelligence.chunkPrompt(text: "METİN", target: 3,
+        let prompt = FoundationIntelligence.topicPrompt(text: "METİN", target: 3,
                                                         context: .empty)
         #expect(prompt.hasPrefix("""
             Turn this meeting excerpt into written notes. Produce at most
@@ -73,7 +73,7 @@ struct TemplateTests {
             var context = SummaryContext.empty
             context.template = template
             let reduce = FoundationIntelligence.reducePrompt(combined: "N", context: context)
-            let chunk = FoundationIntelligence.chunkPrompt(text: "T", target: 2, context: context)
+            let chunk = FoundationIntelligence.topicPrompt(text: "T", target: 2, context: context)
             let local = LocalIntelligence.prompt(body: "X", context: context)
             #expect(reduce.contains(template.reduceFocus), "\(template)")
             #expect(chunk.contains(template.chunkFocus), "\(template)")

@@ -13,14 +13,14 @@ import Foundation
 /// RESEARCH.md §3'teki "4 karakter ≈ 1 token" oranı **iyimserdi**: gerçek bir
 /// Türkçe toplantı transkriptinde (teknik terim, kesme işareti, yoğun ek)
 /// ölçülen oran **2,45 karakter/token** (RESEARCH.md §23). 4096'lık pencerede
-/// 10.000 karakterlik parça 4.089 token ediyor ve `ParcaOzeti` istemiyle
+/// 10.000 karakterlik parça 4.089 token ediyor ve parça istemiyle
 /// birlikte pencereyi taşırıyordu — 60 dakikalık bir toplantıda **her parça**
 /// düşüyordu.
 ///
 /// Sınırlar bu ölçülen orandan hesaplanır ve üretilecek çıktıya pay bırakır.
 ///
 /// macOS 27'de ölçülen bütçe (RESEARCH.md §41, `tokenCount(for:)`): talimat
-/// 161, `ParcaOzeti` şeması 482, istem gövdesi 458 token — sabit kısım
+/// 161, eski birleşik `ParcaOzeti` şeması 482, istem gövdesi 458 token — sabit kısım
 /// **~1.100 token**, parça ne olursa olsun. Yeni sürümün tokenizer'ı Türkçe'de
 /// daha verimli (**3,1–3,2 krk/token**); 12.000 krk ≈ 3.800 token. Sağlıklı
 /// bir parçanın çıktısı 400–770 token, toplam doluluk ~5.600 / 8.192.
@@ -37,7 +37,7 @@ nonisolated enum TranscriptChunker {
 
     /// `contextSize` token'lık pencereye göre özetleme parçası. İstem, girdi
     /// ve çıktı payı pencereyle **orantılı** büyür — büyüyen parça daha çok
-    /// konu ve daha uzun `ParcaOzeti` üretir, sabit bir çıktı payı yetmez.
+    /// konu ve daha uzun not üretir, sabit bir çıktı payı yetmez.
     static func summaryLimit(contextSize: Int) -> Int {
         scaled(summaryLimit, to: contextSize)
     }

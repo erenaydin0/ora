@@ -72,21 +72,31 @@ nonisolated struct KonuBasligi: Sendable {
     var baslik: String
 }
 
-/// Bir parçadan çıkan konular **ve aksiyonlar**. Parça sınırı bağlam
-/// penceresinden geliyor, konu sınırı konuşmadan — bu yüzden bir parça birden
-/// çok konu içerebilir. Zaman aralığı LLM'e sorulmaz; parçanın
-/// segmentlerinden bilinir.
+/// Parça aşamasının **A çağrısı**: bir parçadan çıkan konu notları. Parça
+/// sınırı bağlam penceresinden geliyor, konu sınırı konuşmadan — bu yüzden
+/// bir parça birden çok konu içerebilir. Zaman aralığı LLM'e sorulmaz;
+/// parçanın segmentlerinden bilinir.
 ///
-/// **Aksiyonlar neden burada:** ölçüldü (RESEARCH.md §23) — aksiyonlar
-/// birleştirme aşamasında konu notlarından çıkarıldığında sorumlu kişi
-/// yanlış atanıyordu; notlarda konuşmacı bilgisi yok, model de kapalı isim
-/// listesini bir menü gibi kullanıyordu. Parça metninde konuşma sırası ve
-/// adlar duruyor; aksiyon oradan çıkarılmalı.
+/// **Aksiyon üretmez.** Konular ve aksiyonlar eskiden tek şemadaydı
+/// (`ParcaOzeti`); 3B model iki işi birlikte kötü yapıyordu — ölçüldü
+/// (RESEARCH.md §41.2, §42): not kuralları ile aksiyon kuralları aynı istemde
+/// yarışıyor, aksiyonlar sahipsiz ve belirsiz kalıyordu, bir parça kopyalama
+/// kaçağına girince ikisi birden kayboluyordu.
 @Generable
-nonisolated struct ParcaOzeti: Sendable, Equatable {
+nonisolated struct KonuNotlari: Sendable, Equatable {
     @Guide(description: "Bu bölümde ele alınan ayrı konular", .maximumCount(4))
     var konular: [KonuBlogu]
+}
 
+/// Parça aşamasının **B çağrısı**: o parçada üstlenilen işler.
+///
+/// **Ham parça metninden çıkarılır, A'nın notlarından değil.** Ölçüldü
+/// (RESEARCH.md §23) — aksiyonlar konu notlarından çıkarıldığında sorumlu
+/// kişi yanlış atanıyordu; notlarda konuşmacı bilgisi yok, model de kapalı
+/// isim listesini bir menü gibi kullanıyordu. Parça metninde konuşma sırası
+/// ve adlar duruyor.
+@Generable
+nonisolated struct ParcaAksiyonlari: Sendable, Equatable {
     /// Tavan 3: gerçek bir toplantıda çoğu bölümde aksiyon **yoktur**
     /// (RESEARCH.md §23.9 — ekran paylaşımı anlatımında model 12 aksiyon
     /// uydurdu). Yüksek tavan modeli doldurmaya itiyor.
@@ -106,7 +116,7 @@ nonisolated struct NotAyrintisi: Sendable, Equatable {
 }
 
 /// Birleştirme aşamasının çıktısı: yalnızca genel bakış ve kararlar.
-/// Aksiyonlar `ParcaOzeti`'nden gelir.
+/// Aksiyonlar parça aşamasının B çağrısından (`ParcaAksiyonlari`) gelir.
 @Generable
 nonisolated struct ToplantiOzeti: Sendable, Equatable {
     @Guide(description: "Toplantının en önemli sonuçları; her madde tek cümle "

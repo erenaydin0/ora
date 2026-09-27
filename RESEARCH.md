@@ -2683,3 +2683,43 @@ verdi ("SSK matrahı, %14 oranında…"); oradaki üç aksiyonun üçü de sahip
 
 Sonuç: parça sınırından bağımsız bir hata. `chunkTopics` aynı istemi aynı
 örneklemeyle ikinci kez denediği için kaçak parça ~4,5 dk harcayıp atlanıyor.
+
+## 42. Parça aşaması ikiye bölündü: konu notları (A) ve aksiyonlar (B)
+
+**Tarih:** 2026-09-27 · **Ortam:** §41 ile aynı
+
+**Neden.** §41.2: tek `ParcaOzeti` çağrısında not kuralları ile aksiyon
+kuralları aynı istemde yarışıyordu; kaçağa giren bir parça konuları **ve**
+aksiyonları birlikte götürüyordu ve aynı istemle yapılan ikinci deneme aynı
+kaçağı üretiyordu.
+
+**Değişiklik.**
+- A `topicPrompt` → `KonuNotlari`: eski parça isteminin not kısmı, aksiyon
+  kuralları çıkarıldı. Talimat `summaryInstructions`.
+- B `actionPrompt` → `ParcaAksiyonlari`: eski aksiyon kuralları +
+  konuşmacı ve tarih satırı, **ham parça metni**. Talimat temel `instructions`.
+- Çıktı tavanı: A 1.500, B 600 token. İkinci deneme serbest örneklemeyle
+  (`options(variation: true)`); ilk deneme varsayılan örneklemede kalır.
+
+**Ölçüm** (`probes/bordro_toplanti.json`, 18.001 krk, 2 parça, gerçek model,
+`FoundationIntelligence.summarize` uçtan uca):
+
+| | Birleşik (§41.2) | A/B |
+|---|---|---|
+| Atlanan parça | 1 / 2 | **0 / 2** |
+| Süre | ~29 sn + kaçak parça ~275 sn (2 deneme) | **67,8 sn** (tümü, birleştirme ve son kontrol dahil) |
+| Konu | yalnızca 1. parçadan | 6 (iki parçadan) |
+| Aksiyon | 3, üçü sahipsiz | 3, üçü sahipsiz |
+
+Kaçak parça bu koşuda **ilk denemede** bitti; tavan ve ikinci deneme
+devreye girmedi — aksiyon bloğunu istemden çıkarmak kopyalama davranışını
+bu parçada kesti. O parçanın notları yine de zayıf: bir kısmı transkriptten
+birinci şahısla kopya ("Arşiv 26 nerede… ay sonlarına bakayım").
+
+**Aksiyonlar düzelmedi.** B'nin üç aksiyonu da "belirtilmedi" ve belirsiz
+("İncele", "Kontrol et"). Bu toplantı Zerrin'in Eren'e bordro kontrolünü
+anlattığı bir eğitim; açıkça üstlenilmiş iş yok denecek kadar az, doğru
+çıktı 0–1 aksiyondur. "Most excerpts contain none" kuralına model ayrı
+çağrıda da uymuyor. Tek toplantılık bir örnek; aksiyon kalitesi hakkında
+karar vermeye yetmez.
+

@@ -228,23 +228,23 @@ nonisolated struct FoundationIntelligence: Intelligent {
         Log.info(.intelligence, "Özetleme: \(chunks.count) parça, "
                  + "\(segments.count) segment, parça başına \(target) konu hedefi")
 
-        // MAP — her parça kendi oturumunda konularına ayrılır.
-        //
-        // Eskiden burada **iki** çağrı vardı (serbest metin özet + ayrı başlık)
-        // ve özet metni birleştirmeden sonra çöpe gidiyordu. Tek yapılandırılmış
-        // çağrı hem daha ucuz hem de konu gövdesini kalıcı kılıyor.
+        // MAP — her parça iki çağrıdan geçer, her biri kendi oturumunda:
+        //  A. konu notları (`KonuNotlari`) — aksiyon üretmez
+        //  B. aksiyonlar (`ParcaAksiyonlari`) — ham parça metninden
+        // Eskiden ikisi tek şemadaydı; 3B model iki işi birlikte kötü yapıyordu
+        // ve kaçağa giren bir parça ikisini birden götürüyordu (RESEARCH.md §42).
         var topics: [TopicSegment] = []
         var aksiyonlar: [Ozet.Aksiyon] = []
         var skipped = 0
         for (index, chunk) in chunks.enumerated() {
-            if let parca = await chunkTopics(of: TranscriptChunker.render(chunk),
-                                             target: target, context: context,
-                                             options: options),
-               let first = chunk.first, let last = chunk.last {
+            let text = TranscriptChunker.render(chunk)
+            let notlar = await topicNotes(of: text, target: target, context: context,
+                                          options: options)
+            if let notlar, let first = chunk.first, let last = chunk.last {
                 // `@Guide(.maximumCount:)` derleme zamanı sabiti; istemdeki
                 // "en fazla N konu" ölçümde tutmadı (23 bölüm çıktı, hedef 5-7).
                 // Kesin sınır kodda uygulanır.
-                for konu in parca.konular.prefix(target) {
+                for konu in notlar.konular.prefix(target) {
                     let baslik = konu.baslik.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !baslik.isEmpty else { continue }
                     topics.append(TopicSegment(title: baslik,
@@ -252,17 +252,22 @@ nonisolated struct FoundationIntelligence: Intelligent {
                                                                      speakers: speakers),
                                                start: first.start, end: last.end))
                 }
-                aksiyonlar.append(contentsOf: parca.aksiyonlar
-                    .filter { !Self.isStatusNotTask($0.gorev) }
-                    .map {
-                        Self.validated($0, topicTitles: parca.konular.map(\.baslik),
-                                       context: context)
-                    })
             } else {
                 // Sessiz yutma yok: eskiden ham 600 karakter birleştirmeye
                 // giriyordu ve kullanıcı bunu hiç görmüyordu.
                 skipped += 1
-                Log.warning(.intelligence, "Parça \(index + 1) özetlenemedi, atlandı")
+                Log.warning(.intelligence, "Parça \(index + 1) konu notları üretilemedi, atlandı")
+            }
+            progress((Double(index) + 0.5) / Double(chunks.count) * 0.75)
+
+            // B, A'dan bağımsızdır: notlar düşse de parçanın aksiyonları kalır.
+            let titles = notlar?.konular.map(\.baslik) ?? []
+            if let bulunan = await chunkActions(of: text, context: context, options: options) {
+                aksiyonlar.append(contentsOf: bulunan.aksiyonlar
+                    .filter { !Self.isStatusNotTask($0.gorev) }
+                    .map { Self.validated($0, topicTitles: titles, context: context) })
+            } else {
+                Log.warning(.intelligence, "Parça \(index + 1) aksiyonları çıkarılamadı")
             }
             // Birleştirme ve son kontrol için pay bırakılır.
             progress(Double(index + 1) / Double(chunks.count) * 0.75)
@@ -335,9 +340,9 @@ nonisolated struct FoundationIntelligence: Intelligent {
         """
     }
 
-    /// Parça istemi. Genel şablon, Dengeli uzunluk ve işaretsiz parçada metin
-    /// ölçülen istemin bayt bayt aynısıdır (`TemplateTests`).
-    static func chunkPrompt(text: String, target: Int, context: SummaryContext) -> String {
+    /// A çağrısının istemi: konu notları. Eski birleşik parça isteminin not
+    /// kısmıdır; **aksiyon kuralları B'ye taşındı** (RESEARCH.md §42).
+    static func topicPrompt(text: String, target: Int, context: SummaryContext) -> String {
         """
         Turn this meeting excerpt into written notes. Produce at most
         \(target) topics. For each topic write a 2-6 word Turkish heading
@@ -363,7 +368,21 @@ nonisolated struct FoundationIntelligence: Intelligent {
           "ediyorum", "bahsedeceğim"); the notes are written by an
           observer.
         \(Self.speakerLine(context))
-        Action rules:
+        \(Self.dateLine(context))\(Self.markLine(context, chunk: text))
+
+        \(text)
+        """
+    }
+
+    /// B çağrısının istemi: yalnızca aksiyonlar, **ham parça metninden**.
+    /// Kurallar eski birleşik istemin aksiyon bloğudur; not yazma kuralları
+    /// burada yoktur — model tek bir işe bakar.
+    static func actionPrompt(text: String, context: SummaryContext) -> String {
+        """
+        From this meeting excerpt, list the work that someone committed to
+        do after the meeting. Write in Turkish.
+
+        Rules:
         - An action is work that will be done after the meeting.
         - Write the task as a command: the work first, the verb last.
         - Leave the list empty unless someone clearly committed to work;
@@ -373,29 +392,68 @@ nonisolated struct FoundationIntelligence: Intelligent {
         - In the context field write which part of the conversation the
           work came from.
         - Write a due date only if the text states one.
-        \(Self.dateLine(context))\(Self.markLine(context, chunk: text))
+        \(Self.speakerLine(context))
+        \(Self.dateLine(context))
 
         \(text)
         """
     }
 
-    /// Bir parçayı konularına ayırır. Başarısız olursa **bir kez** daha denenir.
-    private func chunkTopics(of text: String, target: Int,
-                             context: SummaryContext,
-                             options: GenerationOptions) async -> ParcaOzeti? {
-        let prompt = Self.chunkPrompt(text: text, target: target, context: context)
-        for attempt in 1 ... 2 {
+    /// Çağrı başına çıktı tavanı. Ölçüldü (RESEARCH.md §41.2): model bazı
+    /// parçalarda not yazmak yerine transkripti kopyalıyor ve **pencereyi
+    /// dolduruyor** — 138 sn sonra `exceededContextWindowSize`. Sağlıklı konu
+    /// notları 400–770 token; tavan kaçağı erken keser.
+    static let topicTokenCap = 1_500
+    /// Üç aksiyonun dört alanı ~300 token eder.
+    static let actionTokenCap = 600
+
+    /// A çağrısı. Başarısız olursa **bir kez, farklı örneklemeyle** daha
+    /// denenir: aynı istem aynı örneklemeyle aynı kaçağı üretiyordu.
+    private func topicNotes(of text: String, target: Int,
+                            context: SummaryContext,
+                            options: GenerationOptions) async -> KonuNotlari? {
+        await Self.twoAttempts(label: "Konu notları", options: options,
+                               cap: Self.topicTokenCap) { options in
             let session = LanguageModelSession(instructions: Self.summaryInstructions)
+            return try await session.respond(
+                to: Self.topicPrompt(text: text, target: target, context: context),
+                generating: KonuNotlari.self, options: options).content
+        }
+    }
+
+    /// B çağrısı. Not yazma talimatı (`summaryInstructions`) burada gereksiz;
+    /// temel talimat yeter.
+    private func chunkActions(of text: String, context: SummaryContext,
+                              options: GenerationOptions) async -> ParcaAksiyonlari? {
+        await Self.twoAttempts(label: "Aksiyon", options: options,
+                               cap: Self.actionTokenCap) { options in
+            let session = LanguageModelSession(instructions: Self.instructions)
+            return try await session.respond(
+                to: Self.actionPrompt(text: text, context: context),
+                generating: ParcaAksiyonlari.self, options: options).content
+        }
+    }
+
+    /// İlk deneme çağıranın örneklemesiyle, ikincisi yeniden üretimin
+    /// serbest örneklemesiyle koşar; ikisi de `cap` token'la sınırlıdır.
+    private static func twoAttempts<T>(label: String, options: GenerationOptions, cap: Int,
+                                       _ call: (GenerationOptions) async throws -> T) async -> T? {
+        let attempts = [capped(options, cap), capped(Self.options(variation: true), cap)]
+        for (number, attempt) in attempts.enumerated() {
             do {
-                return try await session.respond(to: prompt,
-                                                 generating: ParcaOzeti.self,
-                                                 options: options).content
+                return try await call(attempt)
             } catch {
-                Log.warning(.intelligence, "Konu ayrıştırma denemesi \(attempt) "
+                Log.warning(.intelligence, "\(label) denemesi \(number + 1) "
                             + "başarısız: \(error.localizedDescription)")
             }
         }
         return nil
+    }
+
+    static func capped(_ options: GenerationOptions, _ cap: Int) -> GenerationOptions {
+        var result = options
+        result.maximumResponseTokens = cap
+        return result
     }
 
     /// Model, gerçek içeriği olmayan alanı **istemdeki en yakın metinle**
