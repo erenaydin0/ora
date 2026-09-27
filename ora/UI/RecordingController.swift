@@ -506,6 +506,9 @@ final class RecordingController {
     func setSpeaker(_ segment: Segment, to speaker: String) async {
         await library.setSpeaker(segment, to: speaker)
     }
+    func setSpeaker(_ segments: [Segment], to speaker: String) async {
+        await library.setSpeaker(segments, to: speaker)
+    }
     func setSpeaker(allLabeled label: String, in channel: Channel,
                     to speaker: String) async {
         await library.setSpeaker(allLabeled: label, in: channel, to: speaker)

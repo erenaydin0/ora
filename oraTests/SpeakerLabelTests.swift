@@ -169,4 +169,40 @@ struct SpeakerLabelTests {
         #expect(candidates.filter { $0 == "Merve Sarı" }.count == 1, "aday tekil")
         #expect(library.lineCount(label: Channel.system.speaker, in: .system) == 1)
     }
+
+    /// Seçim kapsamı: yalnızca seçilen satırlar değişir — aynı etiketi taşıyan
+    /// seçilmemiş satır ve farklı kanal olduğu gibi kalır.
+    @Test
+    func seciliSatirlarTekHamledeAtanir() async throws {
+        let (_, store, library) = make()
+        let id = try await seed(store)
+        await select(library, id)
+
+        // Farklı kanallardan iki satır seçildi; ortadaki "Katılımcı" seçilmedi.
+        let picked = [library.transcript[0], library.transcript[2]]
+        await library.setSpeaker(picked, to: "Ahmet")
+
+        await waitUntil("iki satır Ahmet") {
+            library.transcript.filter { $0.speaker == "Ahmet" }.count == 2
+        }
+        #expect(library.transcript.first { $0.start == 4 }?.speaker
+                    == Channel.system.speaker, "seçilmeyen satır değişmedi")
+        #expect(library.transcript.first { $0.start == 0 }?.channel == .mic,
+                "kanal fiziksel gerçektir, değişmedi")
+        #expect(library.speakingParticipants == ["Ahmet"])
+    }
+
+    /// Mağaza değişen satır sayısını döner; boş seçim hiçbir şeye dokunmaz.
+    @Test
+    func seciliAtamaSayiDonerBosSecimDokunmaz() async throws {
+        let (_, store, _) = make()
+        let id = try await seed(store)
+        let segments = try #require(try await store.load(id)).segments
+
+        let none = try await store.setSpeaker(meetingID: id, segments: [], speaker: "X")
+        #expect(none == 0)
+        let two = try await store.setSpeaker(meetingID: id, segments: Array(segments.suffix(2)),
+                                             speaker: "Ayşe")
+        #expect(two == 2)
+    }
 }

@@ -359,9 +359,12 @@ Bu sıra asla değişmez:
   ayrımı yalnızca "Ben" ve "Katılımcı" verir; `kisi` çoğu zaman
   "belirtilmedi" olur. Bu bilinçlidir — kendinden emin yanlış bir ad, boş bir
   alandan kötüdür.
-- **Konuşmacı adı elle verilir, tahmin edilmez.** Transkript satırının
-  bağlam menüsü iki kapsam sunar: yalnızca o satır, ya da aynı kanaldaki aynı
-  etiketli tüm satırlar (sayısı menüde yazar). Adaylar kanal etiketleri,
+- **Konuşmacı adı elle verilir, tahmin edilmez.** Üç kapsam vardır: yalnızca
+  o satır, kullanıcının **seçtiği satırlar** (⌘-tık ekler, ⇧-tık aralık seçer;
+  yüzen seçim çubuğu ve bağlam menüsü atar) ya da aynı kanaldaki aynı
+  etiketli tüm satırlar (sayısı menüde yazar). Seçim kanal sınırı tanımaz,
+  ama atama yalnızca **etiketi** değiştirir — kanal fiziksel gerçektir.
+  Tek tık bilerek boştur: metin seçilebilir kalmalı. Adaylar kanal etiketleri,
   takvim katılımcıları, o toplantıda kullanılmış adlar ve bilinen kişilerdir;
   atama her zaman kullanıcının işidir. Verilen ad `meeting_participants
   (source='transcript')` ile **eşitlenir** (ekleme değil: geri alınınca satır

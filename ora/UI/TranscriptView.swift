@@ -22,6 +22,11 @@ struct TranscriptView: View {
     /// bağlıdır (kayıt ve işlem sürerken kapalı).
     var onDelete: ((Segment) -> Void)?
     var onRelabel: ((Segment, String) -> Void)?
+    /// ⌘ / ⇧ ile seçilen satırlara tek hamlede ad verir. "Satır" ile "o
+    /// etiketin tümü" arasındaki kapsam: çok kişili toplantıda karşı taraftaki
+    /// herkes aynı etiketi taşır, doğru atama satır grubudur. Nil ise seçim
+    /// kapalıdır (canlı mod, kayıt ve işlem sürerken).
+    var onRelabelSelection: (([Segment], String) -> Void)?
     /// Aynı kanalda aynı etiketli **tüm** satırlar — birebir görüşmede karşı
     /// tarafı tek hamlede adlandırmak için. Nil ise yalnızca satır atanır.
     var onRelabelAll: ((_ label: String, _ channel: Channel, _ speaker: String) -> Void)?
@@ -41,6 +46,9 @@ struct TranscriptView: View {
     @State private var naming: NameTarget?
     @State private var nameDraft = ""
     @State private var matchIndex = 0
+    /// Toplu atama için seçilen satırlar ve ⇧ aralığının başlangıcı.
+    @State private var selected: Set<Segment.ID> = []
+    @State private var selectionAnchor: Segment.ID?
     @FocusState private var findFocused: Bool
 
     var body: some View {
@@ -57,15 +65,22 @@ struct TranscriptView: View {
             transcript
                 // Arama **yüzen** bir paneldir: sayfa genişliğinde bir şerit
                 // okuma alanını bölüyordu, oysa arama geçici bir araçtır.
+                // Seçim çubuğu da yüzer ve arama panelinin altına dizilir —
+                // ikisi aynı anda açık olabilir, üst üste binmemeli.
                 .overlay(alignment: .topTrailing) {
-                    if isFinding.wrappedValue {
-                        findPanel
-                            .padding(.top, 12)
-                            .padding(.trailing, 16)
-                            .transition(.opacity)
+                    VStack(alignment: .trailing, spacing: 8) {
+                        if isFinding.wrappedValue {
+                            findPanel.transition(.opacity)
+                        }
+                        if !selected.isEmpty, onRelabelSelection != nil {
+                            selectionBar.transition(.opacity)
+                        }
                     }
+                    .padding(.top, 12)
+                    .padding(.trailing, 16)
                 }
                 .animation(OraStyle.transition, value: isFinding.wrappedValue)
+                .animation(OraStyle.transition, value: selected.isEmpty)
         }
     }
 
@@ -148,6 +163,7 @@ struct TranscriptView: View {
                                 SegmentRow(segment: segment,
                                            isActive: segment.id == activeID
                                                || segment.id == currentMatch,
+                                           isSelected: selected.contains(segment.id),
                                            highlight: isFinding.wrappedValue
                                                ? find.wrappedValue : "",
                                            onPlay: playback.map { player in
@@ -159,9 +175,25 @@ struct TranscriptView: View {
                                         draft = segment.text
                                         editing = segment.id
                                     }
+                                    // Tek tık bilerek boş: metin seçilebilir
+                                    // kalsın. Seçim ancak değiştiriciyle.
+                                    .gesture(TapGesture().modifiers(.command).onEnded {
+                                        toggleSelection(segment)
+                                    })
+                                    .gesture(TapGesture().modifiers(.shift).onEnded {
+                                        extendSelection(to: segment)
+                                    })
                                     .help(onCorrect == nil ? ""
                                           : "Düzeltmek için çift tıklayın")
                                     .contextMenu {
+                                        if onRelabelSelection != nil,
+                                           selected.count > 1,
+                                           selected.contains(segment.id) {
+                                            selectionMenu(
+                                                title: "Seçili \(selected.count) satırın konuşmacısı")
+                                            Button("Seçimi kaldır") { clearSelection() }
+                                            Divider()
+                                        }
                                         if onCorrect != nil {
                                             Button("Düzelt") {
                                                 draft = segment.text
@@ -170,6 +202,12 @@ struct TranscriptView: View {
                                         }
                                         if onRelabel != nil {
                                             speakerMenu(for: segment)
+                                        }
+                                        if onRelabelSelection != nil,
+                                           !selected.contains(segment.id) {
+                                            Button(selected.isEmpty ? "Seç" : "Seçime ekle") {
+                                                toggleSelection(segment)
+                                            }
                                         }
                                         if let onDelete {
                                             Divider()
@@ -189,6 +227,16 @@ struct TranscriptView: View {
                     .padding(.vertical, 20)
                     .frame(maxWidth: OraStyle.readableWidth, alignment: .leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                // Başka toplantıya geçilince ya da satır silinince seçim
+                // yalnızca hâlâ ekranda olan satırlarda kalır.
+                .onChange(of: segments) { _, current in
+                    guard !selected.isEmpty else { return }
+                    let ids = Set(current.map(\.id))
+                    selected.formIntersection(ids)
+                    if let anchor = selectionAnchor, !ids.contains(anchor) {
+                        selectionAnchor = nil
+                    }
                 }
                 .onChange(of: segments.count) { _, _ in
                     // Canlı akışta en alta yapış; konuya atlarken bunu ezme.
@@ -262,9 +310,13 @@ struct TranscriptView: View {
     }
 
     private func startNaming(_ segment: Segment, all: Bool) {
+        startNaming(segment, scope: all ? .allLabeled : .line)
+    }
+
+    private func startNaming(_ segment: Segment, scope: NameTarget.Scope) {
         editing = nil
         nameDraft = ""
-        naming = NameTarget(segment: segment, all: all)
+        naming = NameTarget(segment: segment, scope: scope)
     }
 
     private func commitName(_ target: NameTarget) {
@@ -272,20 +324,125 @@ struct TranscriptView: View {
         naming = nil
         nameDraft = ""
         guard !name.isEmpty else { return }
-        if target.all {
-            onRelabelAll?(target.segment.speaker, target.segment.channel, name)
-        } else {
+        switch target.scope {
+        case .line:
             onRelabel?(target.segment, name)
+        case .allLabeled:
+            onRelabelAll?(target.segment.speaker, target.segment.channel, name)
+        case .selection:
+            assignSelection(to: name)
         }
     }
 
     /// Satır içi ad kutusunun hedefi.
     private struct NameTarget: Identifiable {
+        enum Scope {
+            /// Yalnızca bu satır.
+            case line
+            /// Aynı kanalda bu etiketi taşıyan bütün satırlar.
+            case allLabeled
+            /// Kullanıcının seçtiği satırlar — kutu ilk seçili satırın yerinde açılır.
+            case selection
+        }
+
         let segment: Segment
-        /// Atama bu etiketi taşıyan bütün satırlara mı uygulanacak?
-        let all: Bool
+        let scope: Scope
 
         var id: Segment.ID { segment.id }
+    }
+
+    // MARK: - Toplu seçim
+
+    /// Seçili satırlar, transkriptteki sırasıyla.
+    private var selectedSegments: [Segment] {
+        segments.filter { selected.contains($0.id) }
+    }
+
+    /// ⌘-tık: satırı seçime ekler ya da çıkarır; ⇧ aralığının yeni başı olur.
+    private func toggleSelection(_ segment: Segment) {
+        guard onRelabelSelection != nil else { return }
+        if selected.remove(segment.id) == nil { selected.insert(segment.id) }
+        selectionAnchor = segment.id
+    }
+
+    /// ⇧-tık: son seçilen satırdan buna kadar olan aralığı seçime ekler.
+    /// Başlangıç yoksa yalnızca bu satır seçilir.
+    private func extendSelection(to segment: Segment) {
+        guard onRelabelSelection != nil else { return }
+        guard let anchor = selectionAnchor,
+              let from = segments.firstIndex(where: { $0.id == anchor }),
+              let to = segments.firstIndex(where: { $0.id == segment.id }) else {
+            toggleSelection(segment)
+            return
+        }
+        for index in min(from, to) ... max(from, to) {
+            selected.insert(segments[index].id)
+        }
+    }
+
+    private func clearSelection() {
+        selected = []
+        selectionAnchor = nil
+    }
+
+    /// Atama yapılınca seçim biter — iş tamamlandı, satırlar yeni adıyla görünür.
+    private func assignSelection(to name: String) {
+        let targets = selectedSegments
+        guard !targets.isEmpty else { return }
+        onRelabelSelection?(targets, name)
+        clearSelection()
+    }
+
+    /// Seçili satırlar için aday listesi. Adaylar tek satırdaki menüyle aynı;
+    /// seçimdeki satırların **hepsinin** zaten taşıdığı ad listeden düşer.
+    @ViewBuilder
+    private func selectionMenu(title: String) -> some View {
+        let current = Set(selectedSegments.map(\.speaker))
+        let names = speakerCandidates.filter { !(current.count == 1 && current.contains($0)) }
+        Menu(title) {
+            ForEach(names, id: \.self) { name in
+                Button(name) { assignSelection(to: name) }
+            }
+            if !names.isEmpty { Divider() }
+            Button("Yeni kişi…") {
+                guard let first = selectedSegments.first else { return }
+                startNaming(first, scope: .selection)
+            }
+        }
+    }
+
+    /// Seçim çubuğu. Arama paneliyle aynı dil: yüzer, Escape kapatır.
+    private var selectionBar: some View {
+        HStack(spacing: 10) {
+            Text("\(selected.count) satır seçili")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.oraInk)
+                .monospacedDigit()
+            selectionMenu(title: "Konuşmacıyı ata")
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            Text("⌘ ekle · ⇧ aralık")
+                .font(.system(size: 11))
+                .foregroundStyle(Color.oraInkMuted)
+            Button { clearSelection() } label: { Image(systemName: "xmark") }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.oraInkMuted)
+                // Arama paneli de açıksa Escape önce onu kapatır.
+                .keyboardShortcut(isFinding.wrappedValue ? nil : .cancelAction)
+                .help("Seçimi kaldır")
+        }
+        .font(.system(size: 12))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color.oraSurface)
+        .clipShape(RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous)
+                .stroke(Color.oraBorder, lineWidth: 1))
+        .oraShadow()
+        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(selected.count) satır seçili")
     }
 
     // MARK: - Toplantı içi arama
@@ -338,6 +495,9 @@ private struct SegmentRow: View {
     let segment: Segment
     /// Ses bu satırı çalıyor ya da odaklı arama eşleşmesi burada.
     var isActive = false
+    /// Toplu atama için seçili. Çalınan satırın krem zemininden ayrı kalsın
+    /// diye **çerçeveyle** işaretlenir — ikisi aynı anda olabilir.
+    var isSelected = false
     /// Toplantı içi aramanın terimi — metinde kalın ve Carmine görünür.
     var highlight: String = ""
     /// Ses varsa saat etiketi "buradan çal" düğmesine dönüşür.
@@ -350,6 +510,13 @@ private struct SegmentRow: View {
             HStack(spacing: 8) {
                 // Konuşmacı ayrımı ağırlıkla kurulur, renkle değil: mavi bir
                 // etiket transkriptte gereksiz bir vurgu kaynağı oluyordu.
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 11))
+                        .symbolRenderingMode(.monochrome)
+                        .foregroundStyle(Color.oraCarmine)
+                        .accessibilityLabel("Seçili")
+                }
                 Text(segment.speaker)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(segment.channel == .mic ? Color.oraInk : Color.oraInkMuted)
@@ -388,6 +555,10 @@ private struct SegmentRow: View {
         .background {
             RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous)
                 .fill(isActive ? Color.oraChrome : Color.clear)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous)
+                .stroke(isSelected ? Color.oraCarmine : Color.clear, lineWidth: 1.5)
         }
         .padding(.horizontal, -8)
         .onHover { isHovered = $0 }

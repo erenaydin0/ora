@@ -156,13 +156,30 @@ nonisolated struct MeetingStore: Sendable {
     /// Konuşmacı etiketini değiştirir. Yalnız-mikrofon modunda her şey "Ben"
     /// damgalanıyor; kanal fiziksel gerçektir, **etiket** düzeltilebilir olmalı.
     func setSpeaker(meetingID: Int64, segment: Segment, speaker: String) async throws {
+        try await setSpeaker(meetingID: meetingID, segments: [segment], speaker: speaker)
+    }
+
+    /// Kullanıcının **seçtiği** satırların etiketini tek işlemde değiştirir.
+    ///
+    /// "Satır" ile "o etiketin tümü" arasındaki kapsam: çok kişili toplantıda
+    /// karşı taraftaki beş satır Ayşe'nin, üçü Mehmet'indir ve ikisi de
+    /// "Katılımcı" etiketini taşır. Satırlar farklı kanallardan gelebilir;
+    /// kanal yine değişmez (kural #11), yalnızca etiket. Tek transaction —
+    /// yarısı yazılmış bir atama bırakılmaz.
+    @discardableResult
+    func setSpeaker(meetingID: Int64, segments: [Segment], speaker: String) async throws -> Int {
         try await database.write { db in
-            try db.execute(sql: """
-                UPDATE transcripts SET speaker = ?
-                WHERE meeting_id = ? AND start_time = ? AND channel = ?
-                """,
-                arguments: [speaker, meetingID, segment.start,
-                            segment.channel.databaseValue])
+            var changed = 0
+            for segment in segments {
+                try db.execute(sql: """
+                    UPDATE transcripts SET speaker = ?
+                    WHERE meeting_id = ? AND start_time = ? AND channel = ?
+                    """,
+                    arguments: [speaker, meetingID, segment.start,
+                                segment.channel.databaseValue])
+                changed += db.changesCount
+            }
+            return changed
         }
     }
 

@@ -146,6 +146,11 @@ struct MeetingDetail: View {
                                 Task { await recorder.setSpeaker(segment, to: speaker) }
                               }
                             : nil,
+                        onRelabelSelection: recorder.canCorrect
+                            ? { segments, speaker in
+                                Task { await recorder.setSpeaker(segments, to: speaker) }
+                              }
+                            : nil,
                         onRelabelAll: recorder.canCorrect
                             ? { label, channel, speaker in
                                 Task {

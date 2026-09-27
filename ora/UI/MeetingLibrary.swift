@@ -337,6 +337,18 @@ final class MeetingLibrary {
         }
     }
 
+    /// Seçili satırları tek hamlede adlandırır.
+    func setSpeaker(_ segments: [Segment], to speaker: String) async {
+        guard let meetingID = selection, !segments.isEmpty else { return }
+        do {
+            try await store.setSpeaker(meetingID: meetingID, segments: segments,
+                                       speaker: speaker)
+            await finishRelabel(meetingID, name: speaker)
+        } catch {
+            Log.error(.store, "Seçili satırların konuşmacısı değiştirilemedi", error)
+        }
+    }
+
     /// Aynı kanalda aynı etiketli **tüm** satırları adlandırır.
     func setSpeaker(allLabeled label: String, in channel: Channel,
                     to speaker: String) async {
