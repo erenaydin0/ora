@@ -149,6 +149,14 @@ nonisolated struct MeetingListItem: Identifiable, Hashable, FetchableRecord, Dec
     var template: String?
 
     var meetingTemplate: MeetingTemplate { MeetingTemplate(stored: template) }
+    /// Etiketler, `MeetingStore.tagSeparator` ile birleşik (tek sorgu).
+    var tagList: String?
+
+    var tags: [String] {
+        tagList?.split(separator: MeetingStore.tagSeparator).map(String.init).sorted {
+            $0.compare($1, locale: Locale(identifier: "tr_TR")) == .orderedAscending
+        } ?? []
+    }
 
     var dateLabel: String {
         date.formatted(date: .abbreviated, time: .shortened)

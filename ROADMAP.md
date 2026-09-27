@@ -312,6 +312,10 @@ karar versin.
 - [x] Kanal başına dil — mikrofon tr, sistem en (§4.8) — Ayarlar → Genel →
       "Karşı tarafın dili"; canlı akışta ve tam geçişte
 
+## Faz 12 — Toplantılar arası (COMPETITION.md §7)
+Faz 11 (Bağlantılar) bundan önce yapıldı; numara sırası iş sırasını izliyor.
+- [x] Etiketler + kenar çubuğunda etikete göre süzme (§4.16) — v8
+
 ## Kapsam Dışı — bilerek yapılmayacaklar
 - Windows / Linux desteği
 - Bulut senkronizasyonu, hesap sistemi, telemetri

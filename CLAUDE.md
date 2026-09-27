@@ -792,6 +792,12 @@ summaries(id, meeting_id UNIQUE, overview JSON, decisions JSON, created_at)
 transcripts_fts -- FTS5 virtual table (text, speaker), insert/delete/update trigger'ları
 meetings.local_only
   -- v6: "Bu toplantı cihazdan çıkmasın" (Bağlantı Kuralları §6), varsayılan 0
+tags(id, name UNIQUE)
+meeting_tags(meeting_id, tag_id)
+  -- v8: etiketler (§4.16). PRIMARY KEY(meeting_id, tag_id), ikisi de cascade.
+  --     Aynılık Türkçe küçük harfle denetlenir ("İş" = "iş"; SQLite NOCASE
+  --     İ'yi katlamaz), ilk yazılan biçim korunur. Hiçbir toplantıda
+  --     kalmayan etiket silinir
 notes(id, meeting_id, kind, text, at_time, details JSON, created_at)
   -- v7: kullanıcının notları. kind: 'note' | 'mark' (önemli an; metni boş
   --     olabilir). at_time: kayıttaki saniye, sonradan yazılan notta NULL.
@@ -864,7 +870,8 @@ Yolu asla sabit yazma — `FileManager.default.urls(for:.applicationSupportDirec
   Bu olmadan `NavigationSplitView` + `.inspector` sığmadığında kenar çubuğunu
   pencerenin dışına taşıyıp kırpıyor (§24.5)
 - **Kenar çubuğu araması bir simgedir**, sürekli duran alan kutusu değil;
-  tıklanınca açılır, Escape kapatır. Toplantı kartı: başlık üstte, altında
+  tıklanınca açılır, Escape kapatır. Etiket varsa yanında süzgeç simgesi
+  durur; etkin süzgeç aramanın altında kapatılabilir bir çip olur. Toplantı kartı: başlık üstte, altında
   tarih-saat, sağ uçta süre
 - **Oynatıcı ve ⌘F arama paneli yüzer** — kenardan kenara şerit çizmezler.
   Oynatıcıda kanal seçici yoktur; oynatma karışımdır

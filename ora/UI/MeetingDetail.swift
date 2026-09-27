@@ -351,6 +351,9 @@ private struct MeetingHeader: View {
                 TemplateChip(current: meeting.meetingTemplate, choose: onTemplate)
             }
             Chip(icon: "calendar", text: meeting?.dateLabel ?? "")
+            if showsStatus, let tags = meeting?.tags, !tags.isEmpty {
+                Chip(icon: "tag", text: tags.joined(separator: ", "))
+            }
             if showsDuration, let duration = meeting?.duration, duration > 0 {
                 Chip(icon: "clock", text: meeting?.durationLabel ?? "")
             }

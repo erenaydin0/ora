@@ -288,27 +288,41 @@ nonisolated struct MeetingStore: Sendable {
 
     /// Toplantı listesi. `search` boşsa tümü; doluysa başlık **ve** FTS5 transkript
     /// araması birleştirilir.
-    func list(search: String = "") async throws -> [MeetingListItem] {
+    ///
+    /// `tag` verilirse yalnızca o etiketi taşıyan toplantılar (§4.16).
+    func list(search: String = "", tag: String? = nil) async throws -> [MeetingListItem] {
         let term = search.trimmingCharacters(in: .whitespacesAndNewlines)
         return try await database.read { db in
-            guard !term.isEmpty else {
-                return try MeetingListItem.fetchAll(db, sql: """
-                    SELECT id, title, date, duration, status, local_only AS localOnly, template
-                    FROM meetings ORDER BY date DESC
+            var clauses: [String] = []
+            var arguments: StatementArguments = []
+            if !term.isEmpty {
+                clauses.append("""
+                    (m.title LIKE ?
+                     OR m.id IN (
+                         SELECT t.meeting_id FROM transcripts_fts f
+                         JOIN transcripts t ON t.id = f.rowid
+                         WHERE transcripts_fts MATCH ?))
                     """)
+                arguments += ["%\(term)%", Self.ftsPattern(term)]
             }
-            let pattern = Self.ftsPattern(term)
+            if let tag {
+                clauses.append("""
+                    m.id IN (SELECT mt.meeting_id FROM meeting_tags mt
+                             JOIN tags g ON g.id = mt.tag_id WHERE g.name = ?)
+                    """)
+                arguments += [tag]
+            }
+            let filter = clauses.isEmpty ? "" : "WHERE " + clauses.joined(separator: " AND ")
             return try MeetingListItem.fetchAll(db, sql: """
-                SELECT id, title, date, duration, status, local_only AS localOnly, template
-                FROM meetings
-                WHERE title LIKE ?
-                   OR id IN (
-                        SELECT t.meeting_id FROM transcripts_fts f
-                        JOIN transcripts t ON t.id = f.rowid
-                        WHERE transcripts_fts MATCH ?
-                      )
-                ORDER BY date DESC
-                """, arguments: ["%\(term)%", pattern])
+                SELECT m.id, m.title, m.date, m.duration, m.status,
+                       m.local_only AS localOnly, m.template,
+                       (SELECT group_concat(g.name, char(31)) FROM meeting_tags mt
+                        JOIN tags g ON g.id = mt.tag_id
+                        WHERE mt.meeting_id = m.id) AS tagList
+                FROM meetings m
+                \(filter)
+                ORDER BY m.date DESC
+                """, arguments: arguments)
         }
     }
 
@@ -484,6 +498,7 @@ nonisolated struct MeetingStore: Sendable {
             let path = try String.fetchOne(db, sql: "SELECT audio_path FROM meetings WHERE id = ?",
                                            arguments: [meetingID])
             try db.execute(sql: "DELETE FROM meetings WHERE id = ?", arguments: [meetingID])
+            try Self.dropUnusedTags(db)
             return path
         }
         if let audioPath {

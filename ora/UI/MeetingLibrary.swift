@@ -25,6 +25,10 @@ final class MeetingLibrary {
     /// parçacık. Arama boşken boştur.
     private(set) var searchSnippets: [Int64: String] = [:]
     var searchText = "" { didSet { scheduleRefresh() } }
+    /// Etiket süzgeci (§4.16). `nil` = tüm toplantılar.
+    var tagFilter: String? { didSet { if tagFilter != oldValue { scheduleRefresh() } } }
+    /// Kullanılan etiketler ve toplantı sayıları — süzgeç menüsü.
+    private(set) var tags: [MeetingStore.TagCount] = []
 
     /// Tüm toplantıların aksiyonları — pano bunu gösterir. Toplantı seçiminden
     /// bağımsızdır; liste her tazelemede yenilenir.
@@ -102,8 +106,14 @@ final class MeetingLibrary {
     // MARK: - Liste
 
     func refresh() async {
+        tags = (try? await store.allTags()) ?? tags
+        // Süzülen etiket artık yoksa (son toplantıdan da kaldırıldı) süzgeç
+        // boşa düşmesin.
+        if let tagFilter, !tags.contains(where: { $0.name == tagFilter }) {
+            self.tagFilter = nil
+        }
         do {
-            meetings = try await store.list(search: searchText)
+            meetings = try await store.list(search: searchText, tag: tagFilter)
         } catch {
             Log.error(.store, "Toplantı listesi okunamadı", error)
         }
@@ -269,6 +279,26 @@ final class MeetingLibrary {
         } catch {
             Log.error(.store, "Toplantı silinemedi: \(meetingID)", error)
         }
+    }
+
+    /// Etiketi toplantıya ekler ya da kaldırır.
+    func setTag(_ meetingID: Int64, _ name: String, on: Bool) async {
+        do {
+            try await store.setTag(meetingID, name, on: on)
+        } catch {
+            Log.error(.store, "Etiket yazılamadı", error)
+        }
+        await refresh()
+    }
+
+    func deleteTag(_ name: String) async {
+        do {
+            try await store.deleteTag(name)
+        } catch {
+            Log.error(.store, "Etiket silinemedi", error)
+        }
+        if tagFilter == name { tagFilter = nil }
+        await refresh()
     }
 
     func rename(_ meetingID: Int64, to title: String) async {

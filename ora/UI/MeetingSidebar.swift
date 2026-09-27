@@ -12,10 +12,17 @@ struct MeetingSidebar: View {
     /// Arama kutusu kapalıyken yalnızca bir simgedir; liste kendi alanını
     /// sürekli bir alan kutusuna kaptırmaz.
     @State private var isSearching = false
+    /// "Yeni etiket…" sayfasının hedef toplantısı.
+    @State private var tagging: Int64?
+    @State private var draftTag = ""
 
     var body: some View {
         VStack(spacing: 0) {
-            SidebarSearch(text: $recorder.searchText, isOpen: $isSearching)
+            SidebarSearch(text: $recorder.searchText, isOpen: $isSearching,
+                          tags: recorder.tags, tagFilter: $recorder.tagFilter)
+            if let tag = recorder.tagFilter {
+                TagFilterChip(name: tag) { recorder.tagFilter = nil }
+            }
             list
         }
     }
@@ -69,6 +76,22 @@ struct MeetingSidebar: View {
                                         }
                                     }
                                 }
+                                // Etiketler (§4.16): var olanlar işaretlenir,
+                                // yenisi ada sorularak eklenir.
+                                Menu("Etiketler") {
+                                    ForEach(recorder.tags) { tag in
+                                        Toggle(tag.name, isOn: Binding(
+                                            get: { meeting.tags.contains(tag.name) },
+                                            set: { on in
+                                                Task { await recorder.setTag(meeting.id, tag.name, on: on) }
+                                            }))
+                                    }
+                                    if !recorder.tags.isEmpty { Divider() }
+                                    Button("Yeni etiket…") {
+                                        draftTag = ""
+                                        tagging = meeting.id
+                                    }
+                                }
                                 // Bağlantı Kuralları §6: işaretli toplantıya hiçbir
                                 // sağlayıcı ve entegrasyon dokunamaz.
                                 Toggle("Bu toplantı cihazdan çıkmasın", isOn: Binding(
@@ -110,11 +133,13 @@ struct MeetingSidebar: View {
         .overlay {
             if recorder.meetings.isEmpty {
                 EmptyState(
-                    icon: recorder.searchText.isEmpty ? "waveform" : "magnifyingglass",
-                    title: recorder.searchText.isEmpty ? "Henüz toplantı yok" : "Sonuç yok",
-                    detail: recorder.searchText.isEmpty
-                        ? "Kaydettiğiniz toplantılar burada listelenir."
-                        : "Başka bir kelime deneyin."
+                    icon: isFiltering ? "magnifyingglass" : "waveform",
+                    title: isFiltering ? "Sonuç yok" : "Henüz toplantı yok",
+                    detail: !recorder.searchText.isEmpty
+                        ? "Başka bir kelime deneyin."
+                        : recorder.tagFilter != nil
+                            ? "Bu etikette toplantı yok."
+                            : "Kaydettiğiniz toplantılar burada listelenir."
                 )
                 .padding(.horizontal, 24)
                 // Boş durum yalnızca bilgi verir; altındaki pano satırı
@@ -153,6 +178,17 @@ struct MeetingSidebar: View {
                  + "yeniden işlenemez.")
         }
         .sheet(item: Binding(
+            get: { tagging.map { RenameTarget(id: $0) } },
+            set: { if $0 == nil { tagging = nil } })) { target in
+            NameSheet(title: "Yeni etiket", placeholder: "Etiket adı",
+                      confirm: "Ekle", text: $draftTag) { name in
+                Task { await recorder.setTag(target.id, name, on: true) }
+                tagging = nil
+            } cancel: {
+                tagging = nil
+            }
+        }
+        .sheet(item: Binding(
             get: { renaming.map { RenameTarget(id: $0) } },
             set: { if $0 == nil { renaming = nil } })) { target in
             RenameSheet(title: $draftTitle) { newTitle in
@@ -162,6 +198,10 @@ struct MeetingSidebar: View {
                 renaming = nil
             }
         }
+    }
+
+    private var isFiltering: Bool {
+        !recorder.searchText.isEmpty || recorder.tagFilter != nil
     }
 
     /// Ok tuşuyla komşu toplantıya geç.
@@ -201,6 +241,9 @@ private struct SidebarSearch: View {
 
     @Binding var text: String
     @Binding var isOpen: Bool
+    /// Etiket süzgeci — etiket yoksa simgesi de yok.
+    var tags: [MeetingStore.TagCount] = []
+    var tagFilter: Binding<String?> = .constant(nil)
 
     @FocusState private var focused: Bool
     @State private var isHovered = false
@@ -242,6 +285,44 @@ private struct SidebarSearch: View {
                 }
             }
             Spacer(minLength: 0)
+            if !tags.isEmpty {
+                Menu {
+                    Button {
+                        tagFilter.wrappedValue = nil
+                    } label: {
+                        if tagFilter.wrappedValue == nil {
+                            Label("Tüm toplantılar", systemImage: "checkmark")
+                        } else {
+                            Text("Tüm toplantılar")
+                        }
+                    }
+                    Divider()
+                    ForEach(tags) { tag in
+                        Button {
+                            tagFilter.wrappedValue = tag.name
+                        } label: {
+                            if tagFilter.wrappedValue == tag.name {
+                                Label("\(tag.name) (\(tag.count))", systemImage: "checkmark")
+                            } else {
+                                Text("\(tag.name) (\(tag.count))")
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: tagFilter.wrappedValue == nil ? "tag" : "tag.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(tagFilter.wrappedValue == nil
+                                         ? Color.oraInkMuted : Color.oraCarmine)
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Etikete göre süz")
+                .accessibilityLabel("Etikete göre süz")
+            }
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
@@ -266,6 +347,40 @@ private struct SidebarSearch: View {
         withAnimation(OraStyle.transition) { isOpen = false }
         text = ""
         focused = false
+    }
+}
+
+/// Etkin etiket süzgeci. Kapatınca tüm toplantılar döner.
+private struct TagFilterChip: View {
+    let name: String
+    let clear: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "tag.fill")
+                .font(.system(size: 10))
+                .foregroundStyle(Color.oraCarmine)
+            Text(name)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.oraInk)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            Button(action: clear) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.oraInkMuted)
+            }
+            .buttonStyle(.plain)
+            .help("Süzgeci kaldır")
+            .accessibilityLabel("\(name) süzgecini kaldır")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: OraStyle.cornerRadius, style: .continuous)
+                .fill(Color.oraChrome))
+        .padding(.horizontal, 10)
+        .padding(.bottom, 4)
     }
 }
 
@@ -438,6 +553,38 @@ private struct MeetingGroup: Identifiable {
 }
 
 private struct RenameTarget: Identifiable { let id: Int64 }
+
+/// Tek alanlı ad sayfası (yeni etiket). Escape kapatır.
+private struct NameSheet: View {
+    let title: String
+    let placeholder: String
+    let confirm: String
+    @Binding var text: String
+    let save: (String) -> Void
+    let cancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Color.oraInk)
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { if MeetingStore.tagName(text) != nil { save(text) } }
+            HStack {
+                Spacer()
+                Button("Vazgeç", role: .cancel, action: cancel)
+                Button(confirm) { save(text) }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(MeetingStore.tagName(text) == nil)
+            }
+        }
+        .padding(20)
+        .frame(width: 320)
+        .background(Color.oraPaper)
+        .onExitCommand(perform: cancel)
+    }
+}
 
 private struct RenameSheet: View {
     @Binding var title: String

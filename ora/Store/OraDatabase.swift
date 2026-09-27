@@ -259,6 +259,24 @@ nonisolated final class OraDatabase: Storing {
                 """)
         }
 
+        // Etiketler (COMPETITION.md §4.16): toplantıya etiket + kenar
+        // çubuğunda etikete göre süzme. Hiçbir toplantıda kalmayan etiket
+        // silinir (`MeetingStore.setTag`); tablo kendiliğinden temiz kalır.
+        migrator.registerMigration("v8_tags") { db in
+            try db.execute(sql: """
+                CREATE TABLE tags (
+                    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE
+                );
+                CREATE TABLE meeting_tags (
+                    meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+                    tag_id     INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+                    PRIMARY KEY (meeting_id, tag_id)
+                );
+                CREATE INDEX idx_meeting_tags_tag ON meeting_tags(tag_id);
+                """)
+        }
+
         return migrator
     }
 }

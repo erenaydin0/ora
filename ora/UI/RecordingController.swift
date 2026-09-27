@@ -36,6 +36,11 @@ final class RecordingController {
         get { library.selection }
         set { library.selection = newValue }
     }
+    var tagFilter: String? {
+        get { library.tagFilter }
+        set { library.tagFilter = newValue }
+    }
+    var tags: [MeetingStore.TagCount] { library.tags }
     var showsActionBoard: Bool {
         get { library.showsActionBoard }
         set { library.showsActionBoard = newValue }
@@ -654,6 +659,10 @@ final class RecordingController {
     func rename(_ meetingID: Int64, to title: String) async {
         await library.rename(meetingID, to: title)
     }
+    func setTag(_ meetingID: Int64, _ name: String, on: Bool) async {
+        await library.setTag(meetingID, name, on: on)
+    }
+    func deleteTag(_ name: String) async { await library.deleteTag(name) }
     func correct(_ segment: Segment, to text: String) async {
         await library.correct(segment, to: text)
     }
