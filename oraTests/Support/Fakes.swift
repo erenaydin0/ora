@@ -217,3 +217,47 @@ struct FakeDiarizer: Diarizing {
         return perChannel[channel] ?? Diarization(turns: turns, embeddings: embeddings)
     }
 }
+
+/// Keychain yerine bellek.
+nonisolated final class InMemorySecrets: SecretStoring, @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [ConnectionKind: String] = [:]
+
+    func secret(for kind: ConnectionKind) -> String? { lock.withLock { values[kind] } }
+
+    func setSecret(_ value: String?, for kind: ConnectionKind) throws {
+        lock.withLock {
+            let trimmed = value?.trimmingCharacters(in: .whitespaces) ?? ""
+            values[kind] = trimmed.isEmpty ? nil : trimmed
+        }
+    }
+}
+
+/// Sahte ağ. Varsayılan olarak her isteği reddeder — bir test yanlışlıkla
+/// ağa çıkmaya kalkarsa sessizce geçmesin. Yanıtlar sırayla verilir.
+nonisolated final class FakeTransport: HTTPTransport, @unchecked Sendable {
+    private let lock = NSLock()
+    private var queue: [(status: Int, body: Data)]
+    private var _requests: [URLRequest] = []
+
+    init(_ responses: [(status: Int, body: String)] = []) {
+        queue = responses.map { ($0.status, Data($0.body.utf8)) }
+    }
+
+    var requests: [URLRequest] { lock.withLock { _requests } }
+
+    func enqueue(status: Int, body: String) {
+        lock.withLock { queue.append((status, Data(body.utf8))) }
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let next: (status: Int, body: Data)? = lock.withLock {
+            _requests.append(request)
+            return queue.isEmpty ? nil : queue.removeFirst()
+        }
+        guard let next else { throw URLError(.notConnectedToInternet) }
+        let response = HTTPURLResponse(url: request.url!, statusCode: next.status,
+                                       httpVersion: nil, headerFields: nil)!
+        return (next.body, response)
+    }
+}

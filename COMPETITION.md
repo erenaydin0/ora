@@ -422,7 +422,7 @@ Granola'nın kazandığı yer burası, ve ora bunu bulutsuz yapabilir.*
 4.10 çapraz sohbet (FTS-RAG) · 4.11 kişi sayfası + hazırlık · 4.12'nin yerel
 kısmı (App Intents + Hatırlatıcılar + Markdown klasörü) · 4.16 etiketler.
 
-**Faz 11 — "Bağlantılar" (kural #3'ün yerine Bağlantı Kuralları)**
+**Faz 11 — "Bağlantılar" (kural #3'ün yerine Bağlantı Kuralları)** ✅
 Kullanıcının kendi AI sağlayıcısı (Anthropic · OpenAI · OpenRouter · yerel
 sunucu) özetleme ve sohbet motoru olarak seçilebilir; 4.12'nin bağlantılı
 kısmı (Slack · Notion) açılır. *Bu faz ora'yı bulut ürünü yapmaz:* varsayılan

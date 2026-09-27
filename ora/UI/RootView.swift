@@ -11,6 +11,8 @@ struct RootView: View {
     @State private var pastedText = ""
     /// Pencerenin üstünde bir dosya duruyor mu — sürükle-bırak ipucu.
     @State private var isDropTargeted = false
+    /// Slack/Notion'a gidecek metnin ön izlemesi (Bağlantı Kuralları §5).
+    @State private var sharePreview: SharePreview?
 
     /// Kenar çubuğu (240) + okunabilir bir orta panel. Sohbet açılınca bu
     /// **değişmez**: panel pencereyi büyütmez, orta panelin içinden yer alır.
@@ -77,6 +79,14 @@ struct RootView: View {
         .onChange(of: lock.isLocked) { _, locked in
             if locked { isPasting = false }
         }
+        .sheet(item: $sharePreview) { preview in
+            SharePreviewSheet(preview: preview) {
+                sharePreview = nil
+                Task { await recorder.share(preview.kind) }
+            } cancel: {
+                sharePreview = nil
+            }
+        }
         .frame(minWidth: isChatShown ? Self.minWidthWithChat : Self.minWidth,
                minHeight: 560)
         .animation(OraStyle.transition, value: isChatShown)
@@ -125,6 +135,21 @@ struct RootView: View {
                         if let payload = recorder.exportPayload { MeetingExport.copyEmailDraft(payload) }
                     }
                     .disabled(recorder.exportPayload == nil)
+                    // Bağlı hedefler yalnızca kuruluysa görünür; gönderim
+                    // her zaman gidecek metnin ön izlemesinden geçer.
+                    let targets = [ConnectionKind.slack, .notion]
+                        .filter { recorder.connections.isConfigured($0) }
+                    if !targets.isEmpty {
+                        Divider()
+                        ForEach(targets) { kind in
+                            Button(kind.sendLabel) {
+                                guard let payload = recorder.exportPayload else { return }
+                                sharePreview = SharePreview(
+                                    kind: kind, text: ConnectionCenter.shareText(payload))
+                            }
+                            .disabled(recorder.exportPayload == nil || recorder.selectedIsLocalOnly)
+                        }
+                    }
                 } label: {
                     Label("Dışa aktar", systemImage: "square.and.arrow.up")
                 }
@@ -296,7 +321,9 @@ private struct RecordingView: View {
                 }
 
                 if OraSettings.shared.announceRecording, !announcementDismissed {
-                    AnnouncementNote { announcementDismissed = true }
+                    AnnouncementNote(sendsText: recorder.sendsTranscripts) {
+                        announcementDismissed = true
+                    }
                 }
 
                 if let reason = recorder.micOnlyReason {
@@ -329,6 +356,8 @@ private struct RecordingView: View {
 /// açılır ve tamamen yereldir: kimseye bildirim gönderilmez, yalnızca
 /// söyleyeceğiniz cümle panoya kopyalanır.
 private struct AnnouncementNote: View {
+    /// Özet bağlı bir sağlayıcıya gidiyor mu — anons buna göre doğru kalır.
+    let sendsText: Bool
     let dismiss: () -> Void
 
     var body: some View {
@@ -341,7 +370,8 @@ private struct AnnouncementNote: View {
             Spacer()
             Button("Metni kopyala") {
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(OraSettings.announcement, forType: .string)
+                NSPasteboard.general.setString(OraSettings.announcement(sendsText: sendsText),
+                                               forType: .string)
             }
             .buttonStyle(.link)
             Button("Tamam", action: dismiss)
@@ -465,6 +495,50 @@ private struct StopSuggestionBanner: View {
         .padding(.vertical, 10)
         .background(Color.oraChrome)
         .overlay(alignment: .bottom) { Divider().overlay(Color.oraBorder) }
+    }
+}
+
+/// Gönderilecek metnin kendisi — neyin gideceği tahmin edilmez, gösterilir.
+struct SharePreview: Identifiable {
+    let kind: ConnectionKind
+    let text: String
+    var id: String { kind.rawValue }
+}
+
+private struct SharePreviewSheet: View {
+    let preview: SharePreview
+    let send: () -> Void
+    let cancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("\(preview.kind.displayName) hedefine gidecek metin")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.oraInk)
+            Text("Yalnızca not ve aksiyonlar gider; transkript ve ses gönderilmez.")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraInkMuted)
+            ScrollView {
+                Text(preview.text)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(Color.oraInk)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+            }
+            .frame(height: 320)
+            .oraCard()
+            HStack {
+                Spacer()
+                Button("Vazgeç", role: .cancel, action: cancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("Gönder", action: send)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 520)
+        .background(Color.oraPaper)
     }
 }
 

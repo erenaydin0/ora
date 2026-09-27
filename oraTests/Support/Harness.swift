@@ -16,12 +16,18 @@ final class Harness {
     let capture: FakeCapture
     let settings: OraSettings
     let controller: RecordingController
+    /// Bağlantılar: anahtarlar bellekte, ağ sahte — hiçbir test gerçek bir
+    /// hizmete istek atmaz.
+    let secrets: InMemorySecrets
+    let transport: FakeTransport
+    let outboundLog: OutboundLog
     private let suiteName: String
 
     init(intelligence: any Intelligent,
          localIntelligence: (any Intelligent)? = nil,
          transcription: any Transcribing = FakeTranscription(),
          diarizer: any Diarizing = FakeDiarizer(),
+         transport: FakeTransport = FakeTransport(),
          deferReason: @escaping @Sendable () -> PowerState.DeferReason? = { nil },
          stopURL: URL = URL(fileURLWithPath: "/dev/null")) throws {
 
@@ -39,11 +45,18 @@ final class Harness {
         database = try OraDatabase(path: ":memory:")
         store = MeetingStore(database: database)
         capture = FakeCapture(stopURL: stopURL)
+        secrets = InMemorySecrets()
+        self.transport = transport
+        outboundLog = OutboundLog(url: URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("ora-outbound-\(UUID().uuidString).jsonl"))
         controller = RecordingController(capture: capture,
                                          transcription: transcription,
                                          intelligence: intelligence,
                                          localIntelligence: localIntelligence,
                                          diarizer: diarizer,
+                                         secrets: secrets,
+                                         transport: transport,
+                                         outboundLog: outboundLog,
                                          database: database,
                                          settings: settings,
                                          deferReason: deferReason,

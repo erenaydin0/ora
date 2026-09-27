@@ -7,6 +7,10 @@ nonisolated enum SummaryEngine: String, CaseIterable, Sendable, Identifiable {
     case apple
     /// İndirilen yerel model — daha iyi not, daha ağır bedel.
     case local
+    /// Kullanıcının bağladığı AI sağlayıcısı (Bağlantı Kuralları). Metin
+    /// cihazdan çıkar; kurulu ve onaylı değilse ya da toplantı kilitliyse
+    /// Apple modeline düşülür.
+    case cloud
 
     var id: String { rawValue }
 
@@ -14,6 +18,7 @@ nonisolated enum SummaryEngine: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .apple: "Apple modeli"
         case .local: "İndirilen model"
+        case .cloud: "Bağlı sağlayıcı"
         }
     }
 }
@@ -94,6 +99,38 @@ final class OraSettings {
     /// Yeni ve yeniden üretilen özetlere uygulanır; eski notlar değişmez.
     var summaryDetail: SummaryDetail { didSet { store(summaryDetail.rawValue, .summaryDetail) } }
 
+    // MARK: - Bağlantılar (Faz 11)
+
+    /// "Bağlı sağlayıcı" motoru hangi hizmeti kullanır.
+    var cloudProvider: ConnectionKind {
+        didSet { store(cloudProvider.rawValue, .cloudProvider) }
+    }
+
+    /// Sağlayıcı başına model adı. Boşsa `ConnectionKind.defaultModel`.
+    var providerModels: [String: String] { didSet { store(providerModels, .providerModels) } }
+
+    func model(for kind: ConnectionKind) -> String {
+        let chosen = providerModels[kind.rawValue]?.trimmingCharacters(in: .whitespaces) ?? ""
+        return chosen.isEmpty ? kind.defaultModel : chosen
+    }
+
+    /// Ollama / LM Studio adresi.
+    var localServerURL: String { didSet { store(localServerURL, .localServerURL) } }
+
+    /// İlk gönderimden önce ön izlemesi gösterilip onaylanan bağlantılar
+    /// (kural 5). Onaysız bağlantıya toplantı verisi gitmez.
+    var consentedConnections: Set<String> {
+        didSet { store(Array(consentedConnections), .consentedConnections) }
+    }
+
+    /// Özet hazır olunca kendiliğinden gönderilen paylaşım hedefleri.
+    var autoShareConnections: Set<String> {
+        didSet { store(Array(autoShareConnections), .autoShareConnections) }
+    }
+
+    /// Notion'da notların altına yazılacağı sayfanın kimliği.
+    var notionPageID: String { didSet { store(notionPageID, .notionPageID) } }
+
     // MARK: - Takvim
 
     /// Opt-in, varsayılan kapalı. Kapalıyken EventKit'e hiç dokunulmaz.
@@ -118,12 +155,22 @@ final class OraSettings {
     /// tamamen yerel bir hatırlatmadır — kimseye bir şey gönderilmez.
     var announceRecording: Bool { didSet { store(announceRecording, .announceRecording) } }
 
-    /// Panoya kopyalanan Türkçe anons. Cümlenin ikinci yarısı ora için
-    /// **doğrudur** ve öyle kalmalıdır: hiçbir veri cihazı terk etmiyor.
-    static let announcement =
-        "Bu görüşmeyi not almak için kaydediyorum. Kayıt ve çözümleme yalnızca "
-        + "kendi bilgisayarımda yapılıyor, hiçbir yere gönderilmiyor. "
-        + "İtirazı olan var mı?"
+    /// Panoya kopyalanan Türkçe anons. **Doğru olmak zorunda:** özet bağlı
+    /// bir AI sağlayıcısına gidiyorsa "hiçbir yere gönderilmiyor" denmez.
+    static func announcement(sendsText: Bool) -> String {
+        sendsText
+            ? "Bu görüşmeyi not almak için kaydediyorum. Ses kaydı yalnızca kendi "
+              + "bilgisayarımda kalıyor; not çıkarmak için konuşmanın metni seçtiğim "
+              + "bir yapay zekâ hizmetine gönderiliyor. İtirazı olan var mı?"
+            : "Bu görüşmeyi not almak için kaydediyorum. Kayıt ve çözümleme yalnızca "
+              + "kendi bilgisayarımda yapılıyor, hiçbir yere gönderilmiyor. "
+              + "İtirazı olan var mı?"
+    }
+
+    /// Kayıtların metni varsayılan olarak bir sağlayıcıya gidiyor mu?
+    var sendsTranscripts: Bool {
+        summaryEngine == .cloud && consentedConnections.contains(cloudProvider.rawValue)
+    }
 
     // MARK: - Uygulama kilidi
 
@@ -196,6 +243,17 @@ final class OraSettings {
         summaryEngine = defaults.string(forKey: Key.summaryEngine.rawValue)
             .flatMap(SummaryEngine.init(rawValue:)) ?? .apple
         localModelID = defaults.string(forKey: Key.localModelID.rawValue) ?? LocalModel.qwen35_9B.id
+        cloudProvider = defaults.string(forKey: Key.cloudProvider.rawValue)
+            .flatMap(ConnectionKind.init(rawValue:)) ?? .anthropic
+        providerModels = defaults.dictionary(forKey: Key.providerModels.rawValue)
+            as? [String: String] ?? [:]
+        localServerURL = defaults.string(forKey: Key.localServerURL.rawValue)
+            ?? ConnectionKind.localServer.defaultBaseURL ?? ""
+        consentedConnections = Set(defaults.stringArray(
+            forKey: Key.consentedConnections.rawValue) ?? [])
+        autoShareConnections = Set(defaults.stringArray(
+            forKey: Key.autoShareConnections.rawValue) ?? [])
+        notionPageID = defaults.string(forKey: Key.notionPageID.rawValue) ?? ""
         summaryDetail = defaults.string(forKey: Key.summaryDetail.rawValue)
             .flatMap(SummaryDetail.init(rawValue:)) ?? .balanced
     }
@@ -215,6 +273,8 @@ final class OraSettings {
         case transcriptionLanguage
         case summaryEngine, localModelID, summaryDetail
         case speakerSeparationEnabled, echoCancellationEnabled, voiceMemoryEnabled
+        case cloudProvider, providerModels, localServerURL, consentedConnections
+        case autoShareConnections, notionPageID
     }
 
     private let defaults: UserDefaults

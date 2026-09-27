@@ -127,6 +127,8 @@ final class RecordingController {
     /// Kayıt bittikten sonra: tam geçiş, noktalama, özet, depolama
     /// (REFACTOR.md Adım 1-2).
     private let pipeline: MeetingPipeline
+    /// Bağlantılar (Faz 11): AI sağlayıcısı, Slack, Notion ve tek ağ kapısı.
+    let connections: ConnectionCenter
     /// Dışarıdan gelen ses ve transkript → toplantı. Hattı **koşturmaz**,
     /// nereden devam edileceğini söyler (`ora/Import/`).
     private let importer: MeetingImporter
@@ -143,6 +145,9 @@ final class RecordingController {
          intelligence: any Intelligent = FoundationIntelligence(),
          localIntelligence: (any Intelligent)? = nil,
          diarizer: (any Diarizing)? = nil,
+         secrets: (any SecretStoring)? = nil,
+         transport: (any HTTPTransport)? = nil,
+         outboundLog: OutboundLog? = nil,
          database: OraDatabase? = nil,
          settings: OraSettings = .shared,
          detector: MeetingDetector? = nil,
@@ -203,6 +208,16 @@ final class RecordingController {
                                         deferReason: deferReason,
                                         prepareLocale: prepareLocale)
         self.importer = MeetingImporter(store: self.store, settings: settings)
+        let connections = ConnectionCenter(settings: settings, store: self.store,
+                                           onDevice: intelligence,
+                                           secrets: secrets ?? KeychainSecrets(),
+                                           transport: transport ?? URLSessionTransport(),
+                                           log: outboundLog ?? .standard)
+        self.connections = connections
+        pipeline.cloudEngine = { [connections] meetingID in
+            await connections.cloudEngine(meetingID: meetingID)
+        }
+        pipeline.cloudReady = { [connections] in connections.isCloudReady }
 
         // Hattın **tek** tüketicisi burası. Süzme `apply(_:)` içinde yapılır;
         // hat hangi toplantının ekranda olduğunu bilmez.
@@ -215,6 +230,7 @@ final class RecordingController {
         }
         library.onError = { [weak self] error in self?.error = error }
         library.learnsVoices = { [settings] in settings.voiceMemoryEnabled }
+        connections.onError = { [weak self] error in self?.error = error }
         // Düzeltmeden çıkan özel isimler sözlüğe **aday** olur; kullanıcı
         // onaylamadan transkripsiyona verilmez. Kütüphane sözlüğe dokunmaz.
         library.onCorrection = { [weak self] mistake, correct in
@@ -427,6 +443,40 @@ final class RecordingController {
         return message
     }
 
+    // MARK: - Bağlantılar
+
+    /// Kayıtların metni varsayılan olarak bir sağlayıcıya gidiyor mu — kayıt
+    /// anonsu buna göre doğru kalır.
+    var sendsTranscripts: Bool { settings.sendsTranscripts }
+
+    /// Seçili toplantı "cihazdan çıkmasın" işaretli mi?
+    var selectedIsLocalOnly: Bool { selectedMeeting?.localOnly ?? false }
+
+    func setLocalOnly(_ meetingID: Int64, _ localOnly: Bool) async {
+        do {
+            try await store.setLocalOnly(meetingID, localOnly)
+            Log.info(.net, "Toplantı \(meetingID) "
+                     + (localOnly ? "cihazdan çıkmasın olarak işaretlendi" : "kilidi kaldırıldı"))
+        } catch {
+            Log.error(.store, "Toplantı kilidi yazılamadı", error)
+        }
+        await library.refresh()
+    }
+
+    /// Seçili toplantıyı paylaşım hedefine gönderir. Ön izleme ve onay
+    /// arayüzde — buraya ancak kullanıcı "Gönder" deyince gelinir.
+    func share(_ kind: ConnectionKind) async {
+        guard let meetingID = selection, let payload = exportPayload else { return }
+        connections.grantConsent(kind)
+        do {
+            try await connections.share(kind, meetingID: meetingID, payload: payload)
+        } catch let error as OraError {
+            self.error = error
+        } catch {
+            self.error = .connectionFailed(reason: error.localizedDescription)
+        }
+    }
+
     // MARK: - Ses izleri
 
     func voiceprintPeopleCount() async -> Int {
@@ -456,7 +506,10 @@ final class RecordingController {
         isAnswering = true
         defer { isAnswering = false }
         do {
-            let answer = try await intelligence.answer(question: trimmed, over: transcript)
+            // Sohbet de seçili motora gider; bulut seçiliyse ve toplantı
+            // kilitli değilse bağlı sağlayıcıya.
+            let engine = await pipeline.engine(for: selection)
+            let answer = try await engine.answer(question: trimmed, over: transcript)
             await library.appendChat(question: trimmed, answer: answer)
         } catch let error as OraError {
             self.error = error
@@ -802,6 +855,9 @@ final class RecordingController {
             library.scheduleRefresh()
         case .finished(let title):
             Task { await self.notifications.summaryReady(title: title) }
+            // Otomatik paylaşım yalnızca kurulu, açık ve onaylı hedeflere.
+            let meetingID = event.meetingID
+            Task { await self.connections.autoShare(meetingID: meetingID) }
 
         // Geri kalanı **arayüz içeriğidir**. Süzme kütüphanede: "ekranda ne
         // var" bilgisinin sahibi orası. Veritabanına her hâlükârda yazıldı;

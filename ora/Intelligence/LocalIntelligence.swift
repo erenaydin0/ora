@@ -79,6 +79,18 @@ nonisolated struct LocalIntelligence: Intelligent {
             throw OraError.modelUnavailable(reason: "Model beklenen biçimde yanıt vermedi")
         }
 
+        let result = try Self.summaryResult(from: payload, segments: segments, context: context)
+        progress(1)
+        Log.info(.intelligence, "Yerel motor bitti — \(result.topics.count) konu, "
+                 + "\(result.ozet.aksiyonlar.count) aksiyon")
+        return result
+    }
+
+    /// Tek geçişli JSON çıktısından özet: temizleme, konuları transkripte
+    /// demirleme, aksiyon doğrulama ve sıralama. Bağlı bir bulut sağlayıcısı
+    /// da aynı istemi ve aynı işlemeyi kullanır (`CloudIntelligence`).
+    static func summaryResult(from payload: Payload, segments: [Segment],
+                              context: SummaryContext) throws -> SummaryResult {
         let speakers = Set(segments.map(\.speaker))
         let index = TranscriptIndex(segments)
         let topics = payload.topics.compactMap { topic -> TopicSegment? in
@@ -110,9 +122,6 @@ nonisolated struct LocalIntelligence: Intelligent {
                                  sonTarih: raw.sonTarih.isEmpty ? "belirtilmedi" : raw.sonTarih),
                     topicTitles: topics.map(\.title), context: context)
             }))
-        progress(1)
-        Log.info(.intelligence, "Yerel motor bitti — \(topics.count) konu, "
-                 + "\(ozet.aksiyonlar.count) aksiyon")
         return context.detail.shaped(
             SummaryResult(ozet: FoundationIntelligence.deduplicated(ozet),
                           topics: FoundationIntelligence.deduplicatedTopics(topics),
@@ -179,7 +188,7 @@ nonisolated struct LocalIntelligence: Intelligent {
 
     // MARK: - İstem
 
-    private static let instructions = """
+    static let instructions = """
         Sen bir toplantı asistanısın. Toplantı Türkçe; her çıktıyı Türkçe yaz. \
         Yalnızca metinde geçen bilgiyi kullan, çıkarım yapma, uydurma. Sayıları, \
         tarihleri ve özel isimleri metindeki gibi koru.

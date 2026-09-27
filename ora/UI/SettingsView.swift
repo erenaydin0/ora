@@ -19,6 +19,8 @@ struct SettingsView: View {
                 .tabItem { Label("Takvim", systemImage: "calendar") }
             VocabularySettings(recorder: recorder)
                 .tabItem { Label("Sözlük", systemImage: "text.book.closed") }
+            ConnectionsSettings(connections: recorder.connections, settings: settings)
+                .tabItem { Label("Bağlantılar", systemImage: "link") }
             StorageSettings(recorder: recorder, settings: settings)
                 .tabItem { Label("Depolama", systemImage: "internaldrive") }
         }
@@ -124,14 +126,14 @@ private struct GeneralSettings: View {
                     .foregroundStyle(Color.oraInkMuted)
                 if settings.announceRecording {
                     HStack(alignment: .top, spacing: 8) {
-                        Text("“\(OraSettings.announcement)”")
+                        Text("“\(OraSettings.announcement(sendsText: settings.sendsTranscripts))”")
                             .font(.system(size: 12))
                             .foregroundStyle(Color.oraInk)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
                         Button("Kopyala") {
                             NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(OraSettings.announcement,
+                            NSPasteboard.general.setString(OraSettings.announcement(sendsText: settings.sendsTranscripts),
                                                            forType: .string)
                         }
                         .buttonStyle(.link)
@@ -175,6 +177,23 @@ private struct SummarySettings: View {
 
     private var model: LocalModel { recorder.localModel }
 
+    static func engineNote(_ engine: SummaryEngine, cloudReady: Bool) -> String {
+        switch engine {
+        case .apple:
+            "Sıfır indirme, iki kat hızlı. Toplantı notunun daha kısa ve "
+                + "daha genel olmasını göze alırsınız."
+        case .local:
+            "Daha ayrıntılı not: ölçümde yakalanan bilgi iki katına çıkıyor. "
+                + "Karşılığında indirme, bellek ve süre."
+        case .cloud:
+            cloudReady
+                ? "Transkript metni bağladığınız sağlayıcıya gider; ses gitmez. "
+                  + "Ulaşılamazsa özet cihazda üretilir."
+                : "Önce Ayarlar → Bağlantılar'dan bir sağlayıcı bağlayıp onaylayın; "
+                  + "o zamana kadar Apple modeli kullanılır."
+        }
+    }
+
     var body: some View {
         Form {
             Section("Özeti hangi model üretsin") {
@@ -187,11 +206,8 @@ private struct SummarySettings: View {
                 .pickerStyle(.radioGroup)
                 .labelsHidden()
 
-                Text(recorder.summaryEngine == .apple
-                     ? "Sıfır indirme, iki kat hızlı. Toplantı notunun daha kısa ve "
-                       + "daha genel olmasını göze alırsınız."
-                     : "Daha ayrıntılı not: ölçümde yakalanan bilgi iki katına çıkıyor. "
-                       + "Karşılığında indirme, bellek ve süre.")
+                Text(Self.engineNote(recorder.summaryEngine,
+                                     cloudReady: recorder.connections.isCloudReady))
                     .font(.system(size: 12))
                     .foregroundStyle(Color.oraInkMuted)
                     .fixedSize(horizontal: false, vertical: true)

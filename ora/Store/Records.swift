@@ -143,6 +143,8 @@ nonisolated struct MeetingListItem: Identifiable, Hashable, FetchableRecord, Dec
     var date: Date
     var duration: Int
     var status: String
+    /// "Bu toplantı cihazdan çıkmasın" işaretli mi (Bağlantı Kuralları §6).
+    var localOnly: Bool
 
     var dateLabel: String {
         date.formatted(date: .abbreviated, time: .shortened)

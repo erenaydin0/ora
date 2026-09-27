@@ -299,8 +299,10 @@ Bu sıra asla değişmez:
   seçenek**. Gemma 4 12B elendi (%12, en yavaş, 10,2 GB), Qwen3.5-4B güvenilir
   değil (iki toplantının birinde hiç çıktı vermedi).
 - **Uydurma sayı dört modelde de sıfır.** ora'nın en değerli özelliği bu ve
-  motor değişince de korunuyor; yeni bir motor eklenirse §35'in puanlama
-  betiğiyle **bu ölçülmeden** kabul edilmez.
+  motor değişince de korunuyor; ora'nın **kendi sunduğu** yeni bir motor
+  §35'in puanlama betiğiyle **bu ölçülmeden** kabul edilmez. Kullanıcının
+  bağladığı sağlayıcı (Faz 11) bunun dışındadır: modeli kullanıcı seçer, ora
+  onu varsayılan yapmaz ve ölçüm iddiasında bulunmaz.
 - **Daha güçlü bir cihaz üstü model yok** (§24.1). `.contentTagging` daha büyük
   bir model değil, aynı modelin başka kullanım biçimi.
 - **`SystemLanguageModel.Adapter` (LoRA) bir yol değil — ölçüldü (§36).**
@@ -641,6 +643,39 @@ bekleyen bir gönderim kaydı bloke etmez (kural #2'nin aynı mantığı).
 **10. Kullanıcıya görünen her metin Türkçe** (kural #6 aynen geçerli);
 sağlayıcı adları özel isimdir, çevrilmez.
 
+**Uygulama (Faz 11, yapıldı):**
+- **Kapı:** `Outbound.send` her isteği önce `ConnectionCenter.denial` ile
+  sorgular — sıra: kurulu mu → onaylı mı → toplantı kilitli mi. "Bağlantıyı
+  dene" (`purpose: .test`) toplantı verisi taşımadığı için onay istemez.
+  Tek `URLSession` kullanan tip `URLSessionTransport`; `ConnectionsTests`
+  kaynak ağacını `\bURLSession\b` ile tarar.
+- **AI sağlayıcısı** (`SummaryEngine.cloud`, `CloudIntelligence`): Anthropic
+  Messages API (varsayılan `claude-opus-5`; Opus 5 / Fable'da sunucu tarafı
+  yedek model `fallbacks: "default"` açık) ya da OpenAI uyumlu Chat
+  Completions (OpenAI, OpenRouter, Ollama/LM Studio — model adı kullanıcıdan).
+  Swift için resmi SDK yok, ham HTTP. **Yalnızca özet ve sohbeti devralır**;
+  noktalama ve başlık cihazda kalır. Özet, yerel motorun tek geçişli istemini
+  ve çıktı işlemesini paylaşır (`LocalIntelligence.prompt` / `summaryResult`).
+  Motor toplantı başına seçilir (`MeetingPipeline.engine(for:)`); kilitli
+  toplantı ya da hazır olmayan bağlantı cihazdaki motoru kullanır; sağlayıcı
+  hata verirse özet cihazda üretilir ve not düşülür. Metnin buluta gitmeye
+  başladığı an bir onay ekranından geçer (ne gider, ne gitmez).
+- **Paylaşım:** Slack (gelen webhook, mrkdwn'a çevrilmiş) ve Notion (sayfa
+  altına alt sayfa; 100 blokluk parçalar, 2.000 karakterlik metin parçaları —
+  **kırpılmaz**). İçerik dışa aktarımın **transkriptsiz** Markdown'ı. Elle
+  gönderim her zaman gidecek metnin tam ön izlemesinden geçer ve onayı o an
+  verir; **otomatik gönderim ancak bir kez elle onaylandıktan sonra**
+  açılabilir ve `.finished` olayında çalışır.
+- **Kilit:** `meetings.local_only` (v6); kenar çubuğu bağlam menüsü ve kartta
+  kilit simgesi.
+- **Künye:** `{base}/logs/outbound.jsonl` + `ora.log` (`.net` kategorisi).
+- **Kayıt anonsu doğru kalır:** özet bir sağlayıcıya gidiyorsa
+  (`OraSettings.sendsTranscripts`) panoya kopyalanan cümle "hiçbir yere
+  gönderilmiyor" demez.
+- Anahtarlar `KeychainSecrets`'ta (servis `com.orameetings.ora.connections`).
+  Ad-hoc imzalı geliştirme derlemesinde imza her derlemede değiştiği için
+  macOS Keychain erişimini yeniden sorabilir.
+
 ## Güç ve Termal
 Ayrı bir "Low Power Mode" alt sistemi **yoktur** — eski ora'da bu özellik
 WhisperX+LLM'in dakikalarca CPU'yu meşgul etmesi yüzünden vardı. Yeni ölçümlerle
@@ -681,6 +716,8 @@ topic_segments(id, meeting_id, title, bullets JSON, start_time, end_time)
 summaries(id, meeting_id UNIQUE, overview JSON, decisions JSON, created_at)
   -- overview: madde listesi (v4 öncesi düz metin; tek maddelik listeye düşer)
 transcripts_fts -- FTS5 virtual table (text, speaker), insert/delete/update trigger'ları
+meetings.local_only
+  -- v6: "Bu toplantı cihazdan çıkmasın" (Bağlantı Kuralları §6), varsayılan 0
 speaker_embeddings(meeting_id, label, channel, embedding BLOB)
   -- v5: bu toplantının kümeleri, o anki etiketleriyle. PRIMARY KEY(meeting_id, label),
   --     toplantıyla cascade silinir
@@ -1021,6 +1058,11 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       öğrenilir, sonraki toplantılarda kişi adıyla gelir (v5 şeması: iki tablo);
       küme adlandırılınca aksiyonların sahibi de değişir; mikrofonda hoparlör
       yankısı bastırılır (kulaklıkta kapalı).
+      **Faz 11 — Bağlantılar yapıldı:** `ora/Net/` tek kapı, kendi AI
+      sağlayıcını (Anthropic · OpenAI · OpenRouter · yerel sunucu) özet ve
+      sohbet motoru olarak bağlama, Slack ve Notion'a ön izlemeli gönderim ve
+      onaydan sonra otomatik gönderim, toplantı bazlı "cihazdan çıkmasın"
+      kilidi (v6), giden istek künyesi.
     - Bekleyen:
       1. **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
@@ -1085,6 +1127,8 @@ ora/Transcribe/        — SpeechTranscription (tam geçiş),
                          TranscriptIndex (özet maddesi → transkript eşleştirme)
 ora/Intelligence/      — FoundationIntelligence (noktalama + map-reduce özet),
                          Ozet (@Generable şemalar), TranscriptChunker, Intelligent,
+                         CloudIntelligence (bağlı sağlayıcı — yalnızca özet ve
+                         sohbet; noktalama ve başlık cihazda),
                          LocalModel + LocalModelStore (indirilebilir model
                          kataloğu ve diskteki hâli), LocalIntelligence
                          (isteğe bağlı ikinci motor — **yalnızca özetlemeyi**
@@ -1099,11 +1143,14 @@ ora/Pipeline/          — RecordingSession (kayıt sürerken: ses yazımı + ca
                          `meetingID` taşıyan olay olarak yayar. Capture ile
                          Transcribe'ı birlikte kullandığı için `ora/Capture/`
                          altında değil — alt modüller birbirini çağırmaz
-ora/Net/               — **ağa çıkan tek modül** (Faz 11). Outbound (izin kapısı:
-                         bağlantı açık mı, toplantı kilitli mi, ne gidiyor),
-                         sağlayıcı istemcileri ve çıkış entegrasyonları.
-                         Kimlik bilgisi Keychain'de; giden her istek loglanır.
-                         Başka hiçbir dosyada `URLSession` geçmez — test tarar
+ora/Net/               — **ağa çıkan tek modül** (Faz 11). Outbound (kapı +
+                         URLSessionTransport — tek URLSession), ConnectionCenter
+                         (politika: kurulu/onaylı/kilitli; anahtar, onay,
+                         deneme, paylaşım, otomatik paylaşım), Connection
+                         (ConnectionKind, OutboundPurpose), Secrets (Keychain),
+                         OutboundLog (künye), ProviderClient (Anthropic +
+                         OpenAI uyumlu), ShareTargets (Slack, Notion). Başka
+                         hiçbir dosyada `URLSession` geçmez — test tarar
 ora/Diarize/           — SpeakerSeparation (politika: hangi kanal, kelime düzeyi
                          atama, küme adları; saf ve motordan bağımsız),
                          VoiceMatcher (ses izi eşleştirme, tutucu eşikler),
@@ -1126,6 +1173,8 @@ ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          AudioPlayback (+ PlaybackBar), MeetingExport, SettingsView,
                          MeetingNotifications, ChatInspector,
                          ImportView (dosya seçiciler + yapıştırma sayfası),
+                         ConnectionsSettings (Ayarlar → Bağlantılar, onay
+                         ekranı, giden istek listesi),
                          EmptyState (+ ProcessingState), CurveLoader, FlowLayout,
                          LockScreen (+ `.lockable(_:)` — ana pencere ve Ayarlar)
 ora/Resources/Assets.xcassets/Colors    — BRAND paletinin tek kaynağı

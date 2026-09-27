@@ -11,6 +11,8 @@ nonisolated enum LogCategory: String {
     case store        = "store"
     case pipeline     = "pipeline"
     case ui           = "ui"
+    /// Giden ağ istekleri (Bağlantı Kuralları §5) — içerik değil, künye.
+    case net          = "net"
 }
 
 nonisolated enum LogLevel: String {

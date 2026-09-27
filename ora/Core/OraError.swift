@@ -30,6 +30,8 @@ nonisolated enum OraError: Error {
     case importFailed(reason: String)
     /// Konuşmacı ayrımı yapılamadı. Hattı durdurmaz: transkript tek etiketle kalır.
     case diarizationFailed(reason: String)
+    /// Bağlı bir hizmete istek yapılamadı ya da Bağlantı Kuralları izin vermedi.
+    case connectionFailed(reason: String)
 }
 
 nonisolated extension OraError {
@@ -55,6 +57,8 @@ nonisolated extension OraError {
             "Dosya içe aktarılamadı"
         case .diarizationFailed:
             "Konuşmacılar ayrılamadı"
+        case .connectionFailed:
+            "Bağlantı kurulamadı"
         }
     }
 
@@ -88,6 +92,8 @@ nonisolated extension OraError {
             reason
         case .diarizationFailed(let reason):
             "Transkript tek konuşmacı etiketiyle kaldı. (\(reason))"
+        case .connectionFailed(let reason):
+            reason
         }
     }
 }

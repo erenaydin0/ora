@@ -69,6 +69,13 @@ struct MeetingSidebar: View {
                                         }
                                     }
                                 }
+                                // Bağlantı Kuralları §6: işaretli toplantıya hiçbir
+                                // sağlayıcı ve entegrasyon dokunamaz.
+                                Toggle("Bu toplantı cihazdan çıkmasın", isOn: Binding(
+                                    get: { meeting.localOnly },
+                                    set: { on in
+                                        Task { await recorder.setLocalOnly(meeting.id, on) }
+                                    }))
                                 Divider()
                                 // Ses en büyük dosyadır; notu tutup yalnızca onu
                                 // atabilmek gerekiyor (COMPETITION.md §4.5).
@@ -338,10 +345,20 @@ private struct MeetingRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(meeting.title)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(titleColor)
-                .lineLimit(1)
+            HStack(spacing: 4) {
+                if meeting.localOnly {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 9))
+                        .symbolRenderingMode(.monochrome)
+                        .foregroundStyle(metaColor)
+                        .accessibilityLabel("Cihazdan çıkmaz")
+                        .help("Bu toplantı cihazdan çıkmaz")
+                }
+                Text(meeting.title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(titleColor)
+                    .lineLimit(1)
+            }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {

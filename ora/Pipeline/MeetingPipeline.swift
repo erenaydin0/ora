@@ -78,9 +78,29 @@ final class MeetingPipeline {
     /// toplantıya dönüldüğünde animasyon kayboluyordu (RESEARCH.md §27).
     private var running: Set<Int64> = []
 
+    /// Bağlı sağlayıcı (Faz 11). Hat ayarları ve anahtarları tanımaz;
+    /// denetleyici `ConnectionCenter`'a bağlar. nil dönerse (seçili değil,
+    /// hazır değil, toplantı kilitli) cihazdaki motor kullanılır.
+    var cloudEngine: ((Int64) async -> (any Intelligent)?)?
+    /// Bağlı sağlayıcı kurulu ve onaylı mı — arayüz kapıları için.
+    var cloudReady: () -> Bool = { false }
+
+    /// Bu toplantının özetini ve sohbetini hangi motor üretecek?
+    func engine(for meetingID: Int64?) async -> any Intelligent {
+        if settings.summaryEngine == .cloud, let meetingID,
+           let cloud = await cloudEngine?(meetingID) {
+            return cloud
+        }
+        return engine
+    }
+
     /// Arayüz kapıları seçili motorun durumuna bakar.
     var modelAvailability: ModelAvailability {
-        settings.summaryEngine == .local ? localIntelligence.availability : intelligence.availability
+        switch settings.summaryEngine {
+        case .local: localIntelligence.availability
+        case .cloud: cloudReady() ? .available : intelligence.availability
+        case .apple: intelligence.availability
+        }
     }
 
     /// Hat **herhangi bir** toplantı için koşuyor mu. Yetki kapıları buna bakar:
@@ -281,6 +301,9 @@ final class MeetingPipeline {
         }
         emit(.deferCleared, meetingID)
 
+        // Motor toplantı başına seçilir: bağlı sağlayıcı kilitli toplantıyı
+        // hiç görmez (Bağlantı Kuralları §6).
+        let engine = await engine(for: meetingID)
         let availability = engine.availability
         guard availability.isAvailable else {
             emit(.notice(availability.turkishMessage + ". " + availability.turkishDetail),
@@ -334,9 +357,23 @@ final class MeetingPipeline {
                 },
                 hasRecorderLines: working.contains { $0.speaker == Channel.mic.speaker },
                 detail: settings.summaryDetail)
-            let result = try await engine.summarize(
-                working, context: context, variation: variation) { [weak self] value in
-                Task { @MainActor in self?.stage(.summarizing(value), meetingID) }
+            let result: SummaryResult
+            do {
+                result = try await engine.summarize(
+                    working, context: context, variation: variation) { [weak self] value in
+                    Task { @MainActor in self?.stage(.summarizing(value), meetingID) }
+                }
+            } catch let error as OraError
+                        where engine is CloudIntelligence && intelligence.availability.isAvailable {
+                // Kural 9: sağlayıcıya ulaşılamazsa iş cihazda yapılır ve
+                // kullanıcıya söylenir.
+                emit(.notice(error.turkishDetail + " Özet cihazda üretildi."), meetingID)
+                Log.warning(.intelligence, "Bağlı sağlayıcı başarısız, cihaza düşüldü: "
+                            + error.turkishDetail)
+                result = try await intelligence.summarize(
+                    working, context: context, variation: variation) { [weak self] value in
+                    Task { @MainActor in self?.stage(.summarizing(value), meetingID) }
+                }
             }
             produced = result.ozet
             producedTopics = result.topics

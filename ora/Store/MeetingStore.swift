@@ -236,6 +236,22 @@ nonisolated struct MeetingStore: Sendable {
         }
     }
 
+    // MARK: - Cihazdan çıkmasın (Bağlantı Kuralları §6)
+
+    func setLocalOnly(_ meetingID: Int64, _ localOnly: Bool) async throws {
+        try await database.write { db in
+            try db.execute(sql: "UPDATE meetings SET local_only = ? WHERE id = ?",
+                           arguments: [localOnly, meetingID])
+        }
+    }
+
+    func isLocalOnly(_ meetingID: Int64) async throws -> Bool {
+        try await database.read { db in
+            try Bool.fetchOne(db, sql: "SELECT local_only FROM meetings WHERE id = ?",
+                              arguments: [meetingID]) ?? false
+        }
+    }
+
     /// Kanal etiketi mi, gerçek bir kişi adı mı?
     ///
     /// `Ben` ve `Katılımcı` kanalın adıdır, kişi değil: katılımcı olarak
@@ -268,12 +284,13 @@ nonisolated struct MeetingStore: Sendable {
         return try await database.read { db in
             guard !term.isEmpty else {
                 return try MeetingListItem.fetchAll(db, sql: """
-                    SELECT id, title, date, duration, status FROM meetings ORDER BY date DESC
+                    SELECT id, title, date, duration, status, local_only AS localOnly
+                    FROM meetings ORDER BY date DESC
                     """)
             }
             let pattern = Self.ftsPattern(term)
             return try MeetingListItem.fetchAll(db, sql: """
-                SELECT id, title, date, duration, status FROM meetings
+                SELECT id, title, date, duration, status, local_only AS localOnly FROM meetings
                 WHERE title LIKE ?
                    OR id IN (
                         SELECT t.meeting_id FROM transcripts_fts f

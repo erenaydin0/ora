@@ -231,6 +231,14 @@ nonisolated final class OraDatabase: Storing {
                 """)
         }
 
+        // Bağlantı Kuralları §6: "Bu toplantı cihazdan çıkmasın". İşaretli
+        // toplantıya hiçbir sağlayıcı ve entegrasyon dokunamaz.
+        migrator.registerMigration("v6_local_only") { db in
+            try db.execute(sql: """
+                ALTER TABLE meetings ADD COLUMN local_only INTEGER NOT NULL DEFAULT 0;
+                """)
+        }
+
         return migrator
     }
 }
