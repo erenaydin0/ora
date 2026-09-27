@@ -123,7 +123,10 @@ struct DiarizationTests {
         #expect(MeetingStore.isChannelLabel("katılımcı 12"))
         #expect(!MeetingStore.isChannelLabel("Ayşe 2"))
         #expect(!MeetingStore.isChannelLabel("Ayşe"))
-        #expect(FoundationIntelligence.resolvedPerson("Katılımcı 2", context: .empty)
+        // Küme bir ad değil ama iz: aksiyon kümeye bağlı kalır, kanonik biçimde.
+        #expect(FoundationIntelligence.resolvedPerson("katılımcı 2", context: .empty)
+                    == "Katılımcı 2")
+        #expect(FoundationIntelligence.resolvedPerson("Katılımcı", context: .empty)
                     == "belirtilmedi")
         #expect(FoundationIntelligence.withoutSpeakerPrefix("Katılımcı 2: rapor hazırlanacak")
                     == "Rapor hazırlanacak")
@@ -236,5 +239,57 @@ struct DiarizationTests {
             right[index] = Float(0.3 * sin(2 * .pi * pitch * t))
         }
         try file.write(from: buffer)
+    }
+
+    // MARK: - Adlandırınca aksiyonlar
+
+    private func seedClustered(_ store: MeetingStore) async throws -> Int64 {
+        let id = try await store.createMeeting()
+        try await store.replaceTranscript(id, segments: [
+            Segment(channel: .system, speaker: "Katılımcı 1", text: "bütçe onaylandı",
+                    start: 0, end: 4, confidence: 0.9, words: []),
+            Segment(channel: .system, speaker: "Katılımcı 2", text: "raporu ben hazırlarım",
+                    start: 4, end: 8, confidence: 0.9, words: []),
+            Segment(channel: .system, speaker: "Katılımcı 2", text: "cumaya kadar",
+                    start: 8, end: 10, confidence: 0.9, words: []),
+        ])
+        try await store.saveSummary(id, ozet: Ozet(
+            genelBakis: ["Bütçe onaylandı."], kararlar: [],
+            aksiyonlar: [Ozet.Aksiyon(kisi: "Katılımcı 2", gorev: "Raporu hazırla",
+                                      baglam: "", sonTarih: "Cuma")]),
+            topics: [])
+        try await store.markReady(id)
+        return id
+    }
+
+    /// Kümenin bütün satırları adlandırılınca ona düşen aksiyon da yeni ada
+    /// geçer — yeniden özetlemeden.
+    @Test
+    func kumeAdlandirilincaAksiyonSahibiDegisir() async throws {
+        let store = MeetingStore(database: try OraDatabase(path: ":memory:"))
+        let id = try await seedClustered(store)
+
+        try await store.setSpeaker(meetingID: id, channel: .system,
+                                   from: "Katılımcı 2", to: "Ayşe")
+
+        let actions = try #require(try await store.load(id)).actions
+        #expect(actions.map(\.person) == ["Ayşe"])
+    }
+
+    /// Etiketin bir satırı bile kaldıysa aksiyon kime ait bilinmiyor —
+    /// dokunulmaz. Kalan satır da adlandırılınca taşınır.
+    @Test
+    func etiketKalirsaAksiyonaDokunulmaz() async throws {
+        let store = MeetingStore(database: try OraDatabase(path: ":memory:"))
+        let id = try await seedClustered(store)
+        let segments = try #require(try await store.load(id)).segments
+        let second = try #require(segments.first { $0.start == 4 })
+        let third = try #require(segments.first { $0.start == 8 })
+
+        try await store.setSpeaker(meetingID: id, segments: [second], speaker: "Ayşe")
+        #expect(try #require(try await store.load(id)).actions.map(\.person) == ["Katılımcı 2"])
+
+        try await store.setSpeaker(meetingID: id, segments: [third], speaker: "Ayşe")
+        #expect(try #require(try await store.load(id)).actions.map(\.person) == ["Ayşe"])
     }
 }

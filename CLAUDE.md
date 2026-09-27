@@ -378,8 +378,12 @@ Bu sıra asla değişmez:
 - **Konuşmacı ayrımı kümeler, adlandırmaz** (RESEARCH.md §39). Kümeler
   "Katılımcı 1", "Katılımcı 2" olur (ilk konuşma sırası); `MeetingStore.
   isChannelLabel` numaralı etiketi de **etiket** sayar — katılımcı listesine,
-  sözlüğe ve `hasNamedSpeakers`'a girmez, `resolvedPerson` onu "belirtilmedi"ye
-  çevirir. Kullanıcı kümeyi adlandırıp yeniden özetleyince ad gelir. Kendinden
+  sözlüğe ve `hasNamedSpeakers`'a girmez. Ama aksiyon sahibi olarak **iz**
+  sayılır: `resolvedPerson` onu kanonik biçimde tutar ("Katılımcı 2"; çıplak
+  "Katılımcı" hâlâ "belirtilmedi"). Kullanıcı kümeyi adlandırıp etiket
+  transkriptten **tamamen kalkınca** o etiketin aksiyonları aynı transaction'da
+  yeni ada geçer (`MeetingStore.moveActions`) — yeniden özetleme gerekmez,
+  işaretli aksiyon korunur. Etiketin tek satırı kalsa bile dokunulmaz. Kendinden
   emin yanlış bir ad, numaralı bir etiketten kötüdür. Kurallar
   `SpeakerSeparation`'da:
   - **Hangi kanal kanıtla seçilir:** sistem kanalında konuşma varsa o

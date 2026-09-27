@@ -372,6 +372,8 @@ final class MeetingLibrary {
         }
         if !MeetingStore.isChannelLabel(name) { onSpeakerNamed?(name) }
         await load(meetingID)
+        // Etiket kalktıysa aksiyonların sahibi değişti; pano da görsün.
+        boardActions = (try? await store.allActions()) ?? boardActions
     }
 
     /// Aksiyonu tamamlandı olarak işaretler. Ekran hemen güncellenir, yazma

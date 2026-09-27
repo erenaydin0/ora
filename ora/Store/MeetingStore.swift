@@ -179,7 +179,29 @@ nonisolated struct MeetingStore: Sendable {
                                 segment.channel.databaseValue])
                 changed += db.changesCount
             }
+            try Self.moveActions(db, meetingID: meetingID,
+                                 from: Set(segments.map(\.speaker)), to: speaker)
             return changed
+        }
+    }
+
+    /// Transkriptten **tamamen kalkan** etiketin aksiyonları yeni ada geçer.
+    ///
+    /// "Katılımcı 2"nin bütün satırları "Ayşe" olunca ona düşen işler de
+    /// Ayşe'nindir — yeniden özetlemek gerekmez, işaretli aksiyonlar da
+    /// korunur. Etiketin bir tek satırı bile kaldıysa dokunulmaz: o durumda
+    /// aksiyonun hangi kişiye ait olduğu bilinmiyor. Aynı transaction'da,
+    /// transkriptle birlikte yazılır.
+    static func moveActions(_ db: Database, meetingID: Int64,
+                            from labels: Set<String>, to speaker: String) throws {
+        for label in labels where label != speaker {
+            let remaining = try Int.fetchOne(db, sql: """
+                SELECT COUNT(*) FROM transcripts WHERE meeting_id = ? AND speaker = ?
+                """, arguments: [meetingID, label]) ?? 0
+            guard remaining == 0 else { continue }
+            try db.execute(sql: """
+                UPDATE action_items SET person = ? WHERE meeting_id = ? AND person = ?
+                """, arguments: [speaker, meetingID, label])
         }
     }
 
@@ -198,7 +220,9 @@ nonisolated struct MeetingStore: Sendable {
                 WHERE meeting_id = ? AND channel = ? AND speaker = ?
                 """,
                 arguments: [speaker, meetingID, channel.databaseValue, label])
-            return db.changesCount
+            let changed = db.changesCount
+            try Self.moveActions(db, meetingID: meetingID, from: [label], to: speaker)
+            return changed
         }
     }
 

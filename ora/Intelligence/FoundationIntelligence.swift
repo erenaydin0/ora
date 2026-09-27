@@ -599,8 +599,15 @@ nonisolated struct FoundationIntelligence: Intelligent {
         if key == normalized("Ben") {
             return context.userName?.isEmpty == false ? context.userName! : "Ben"
         }
-        // Konuşmacı etiketi bir kişi adı değil — numaralı küme ("Katılımcı 2")
-        // de. Kullanıcı kümeyi adlandırınca yeniden özetlemede ad gelir.
+        // Numaralı küme ("Katılımcı 2") bir ad değil ama **iz**: aksiyon o
+        // kümeye bağlı kalır ve kullanıcı kümeyi adlandırdığında sahibi de
+        // yeniden özetlemeden değişir (`MeetingStore.setSpeaker`). Transkriptteki
+        // etiketle birebir eşleşsin diye kanonik biçime çevrilir.
+        if MeetingStore.isChannelLabel(trimmed),
+           let number = Int(trimmed.filter(\.isNumber)) {
+            return SpeakerSeparation.numbered(number)
+        }
+        // Çıplak kanal etiketi ("Katılımcı") kimseyi göstermez.
         if MeetingStore.isChannelLabel(trimmed) { return "belirtilmedi" }
 
         // Takvimden gelen tam ada eşle: model "Merve" derse "Merve Sarı" olsun.
