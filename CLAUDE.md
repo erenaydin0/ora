@@ -27,6 +27,7 @@ oturum başında oku ve varsayımları yeniden tartışma.
 | Transkripsiyon | `Speech.DictationTranscriber` + `SpeechAnalyzer` | tr_TR destekli, cihaz üstü |
 | Özetleme / sohbet (varsayılan) | `FoundationModels` (Apple yerel ~3B LLM) | tr-Latn-TR destekli, indirme yok |
 | Özetleme (isteğe bağlı, Faz 9) | Yerel model — Qwen3.5-9B, MLX | Kullanıcı seçerse ilk kullanımda indirilir; ölçüm §37 |
+| Konuşmacı ayrımı | pyannote community-1 (CoreML), **FluidAudio** `OfflineDiarizerManager` | Modeller **uygulamanın içinde** (21,6 MB), indirme ve ağ yok; varsayılan açık |
 | Özetleme / sohbet (isteğe bağlı, Faz 11) | Kullanıcının kendi sağlayıcısı (Anthropic · OpenAI · OpenRouter · yerel sunucu) | **Varsayılan kapalı.** Anahtar Keychain'de; `ora/Net/` tek kapı |
 | Çıkış entegrasyonları (isteğe bağlı, Faz 11) | Slack · Notion · Markdown klasörü | **Varsayılan kapalı.** Yalnızca özet/aksiyon gider, ses asla |
 | Veritabanı | SQLite + FTS5, **GRDB.swift** üzerinden | SwiftData'da tam metin arama yok; tek SPM bağımlılığı |
@@ -34,11 +35,17 @@ oturum başında oku ve varsayımları yeniden tartışma.
 | İkonlar | SF Symbols | Lucide yok |
 
 **Doğrudan bağımlılıklar: GRDB.swift, mlx-swift-lm, swift-transformers,
-swift-huggingface.** Başka SPM paketi eklemeden önce sor. Son üçü Faz 9'un
-(isteğe bağlı yerel özetleme motoru) bedelidir ve geçişlileriyle birlikte
-grafiği 1 paketten **14**'e çıkarır — bilinçli, ölçülmüş (§37) ve tek
-istisnadır. Yerel motor kapalıyken hiçbiri çalışma zamanında iş yapmaz.
-Python yok, Node yok, Electron yok.
+swift-huggingface, FluidAudio.** Başka SPM paketi eklemeden önce sor. MLX
+üçlüsü Faz 9'un (isteğe bağlı yerel özetleme motoru) bedelidir ve
+geçişlileriyle birlikte grafiği 1 paketten **14**'e çıkarır — bilinçli ve
+ölçülmüş (§37); yerel motor kapalıyken hiçbiri çalışma zamanında iş yapmaz.
+**FluidAudio** konuşmacı ayrımının bedelidir (RESEARCH.md §39): kendi SPM
+bağımlılığı yoktur ve projeye doğrudan değil, **yerel sarmalayıcı**
+`Packages/OraDiarizationKit` üzerinden girer — o manifest FluidAudio'yu
+`traits: []` ile bağlar, böylece yalnızca metin-konuşma tarafının kullandığı
+önceden derlenmiş Rust kütüphanesi (NemoTextProcessing, dilim başına ~8 MB)
+uygulamaya girmez. Xcode projesi bir paketin trait'ini seçemiyor; sarmalayıcı
+bu yüzden var, silinmez. Python yok, Node yok, Electron yok.
 
 **"Model dosyası indirme yok" kuralı kalktı** (Faz 9 kararı, ölçüm §37). Sınır
 şu: uygulama **modelsiz tam çalışır** ve indirme yalnızca kullanıcı isteğe bağlı
@@ -107,7 +114,8 @@ kurallarında da aynen geçerlidir.
       `PowerState`, `Transcribe`, `Intelligence`, `Store`, `LiveRoute`).
       **Extension'lar tipin izolasyonunu devralmaz**, ayrıca işaretlenir.
     - Ağır asenkron adım `@concurrent` işaretlenir ve işaret **sözleşmede**
-      durur: `Transcribing.transcribe`, `Intelligent.restorePunctuation` /
+      durur: `Transcribing.transcribe`, `Diarizing.turns`,
+      `Intelligent.restorePunctuation` /
       `summarize` / `answer` / `generateTitle`, `AudioArchive.compress`.
       `nonisolated async` olmak **yetmez** — SE-0461 ile böyle bir gövde
       çağıranın aktöründe koşuyor, hat `@MainActor` olduğu için ana iş
@@ -132,6 +140,9 @@ Bu sıra asla değişmez:
 3. Kayıt sonrası tam transkripsiyon geçişi — canlı geçişte kaçan/geri kalan
    bölümleri kapatır ve güncel vocabulary'yi uygular. Canlı sonuç zaten
    tamsa bu adım hızla biter.
+   3b. **Konuşmacı ayrımı** (en iyi çaba, `OraSettings.speakerSeparationEnabled`):
+   tek kanalın kümeleri kelime düzeyinde satırlara dağıtılır. Başarısız
+   olursa transkript kanal etiketleriyle kalır, hat durmaz.
 4. Foundation Models ile **noktalama restorasyonu** (zorunlu adım)
 5. Foundation Models ile map-reduce özetleme → konu blokları (başlık +
    maddeler) ve aksiyonlar parça aşamasında; genel bakış ve kararlar
@@ -364,10 +375,30 @@ Bu sıra asla değişmez:
 - Özetleme isteminde **"'Ben' bu kaydı tutan kişidir"** cümlesi bulunmalı;
   yoksa `kisi` alanı hep "belirtilmedi" geliyor. Kullanıcı adını ayarlardan
   verdiyse cümleye eklenir (`OraSettings.userDisplayName`).
-- **Diarization olmadığı için uzaktaki katılımcılar ayırt edilemez.** Kanal
-  ayrımı yalnızca "Ben" ve "Katılımcı" verir; `kisi` çoğu zaman
-  "belirtilmedi" olur. Bu bilinçlidir — kendinden emin yanlış bir ad, boş bir
-  alandan kötüdür.
+- **Konuşmacı ayrımı kümeler, adlandırmaz** (RESEARCH.md §39). Kümeler
+  "Katılımcı 1", "Katılımcı 2" olur (ilk konuşma sırası); `MeetingStore.
+  isChannelLabel` numaralı etiketi de **etiket** sayar — katılımcı listesine,
+  sözlüğe ve `hasNamedSpeakers`'a girmez, `resolvedPerson` onu "belirtilmedi"ye
+  çevirir. Kullanıcı kümeyi adlandırıp yeniden özetleyince ad gelir. Kendinden
+  emin yanlış bir ad, numaralı bir etiketten kötüdür. Kurallar
+  `SpeakerSeparation`'da:
+  - **Hangi kanal kanıtla seçilir:** sistem kanalında konuşma varsa o
+    ayrılır (mikrofon kullanıcının kendisidir; ayırmak hoparlör sızıntısını
+    sahte konuşmacıya çevirir). Sistem sessizse yüz yüze toplantıdır,
+    mikrofon ayrılır ve **en çok konuşan küme "Ben" kalır**.
+  - **Atama kelime düzeyinde:** segment 5–10 sn'dir ve iki turu kapsayabilir;
+    konuşmacı değişiminde bölünür. 3 kelimeden ve 1 sn'den kısa sıçrama
+    komşusuna katılır; 3 sn'den az konuşan küme gürültü sayılır. Tek küme
+    çıkarsa hiçbir şey değişmez.
+  - **Modeller uygulamanın içinde ve elle yüklenir** (`FluidDiarizer.
+    loadModels`): FluidAudio'nun `ModelHub`'ı HuggingFace'ten indirebilir, o
+    yol hiç çağrılmaz ve `ModelHub.offlineMode` ayrıca açılır. Model dosyaları
+    FluidAudio'nun sabitlediği revizyondan (`df2625ac`) alındı ve
+    `provenance.json` SHA-256'larıyla doğrulandı; lisans CC BY 4.0, atıf
+    Ayarlar → Genel'de ve paketteki `NOTICE.md`'de.
+  - **Kanallar karıştırılmaz:** `ChannelSampleSource` tek şeridi 16 kHz
+    Float32 geçici dosyaya yazıp bellek eşlemeyle okur — FluidAudio'nun kendi
+    dosya kaynağı stereoyu monoya indirirdi.
 - **Konuşmacı adı elle verilir, tahmin edilmez.** Üç kapsam vardır: yalnızca
   o satır, kullanıcının **seçtiği satırlar** (⌘-tık ekler, ⇧-tık aralık seçer;
   yüzen seçim çubuğu ve bağlam menüsü atar) ya da aynı kanaldaki aynı
@@ -489,9 +520,10 @@ Kurallar:
    (stereo, ch0 mikrofon / ch1 sistem) **ora'nın kendi kaydı** içindir; içe
    aktarılan dosyada böyle bir fiziksel gerçek yok. İki kanalı da çözmek aynı
    konuşmayı transkripte iki kez yazardı.
-3. **Tek akış `Channel.system` ("Katılımcı") olarak çözülür.** Diarization
-   yok; hepsini "Ben" saymak bütün aksiyonları kullanıcının üstüne yıkardı.
+3. **Tek akış `Channel.system` ("Katılımcı") olarak çözülür**; hepsini "Ben"
+   saymak bütün aksiyonları kullanıcının üstüne yıkardı.
    `SpeechTranscription.channels(in:from:)` mono kaynakta bu kararı verir.
+   Ardından konuşmacı ayrımı bu akışı "Katılımcı 1", "Katılımcı 2"… diye böler.
 4. **Transkriptte kaynaktaki gerçek ad korunur.** Kullanıcının kendi adı
    (`OraSettings.userDisplayName`) ya da "Ben" mikrofon kanalına, geri kalan
    herkes sistem kanalına yazılır. Bu, içe aktarmanın kendi kaydımıza göre
@@ -787,7 +819,8 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
 
 ## Ne YAPILMAMALI
 - Gereksiz SPM paketi ekleme (GRDB dışında bir şey eklemeden önce sor —
-  Faz 9'un MLX bağımlılığı bu kuralın bilinçli ve tek istisnasıdır)
+  Faz 9'un MLX bağımlılığı ve konuşmacı ayrımının FluidAudio'su bu kuralın
+  bilinçli istisnalarıdır)
 - Kullanıcının açıkça bağlamadığı bir hizmete istek atma; `ora/Net/` dışında
   `URLSession` kullanma; ses dosyasını cihazdan çıkarma
 - Telemetri, kullanım analitiği, çökme raporu ya da "anonim istatistik" ekleme
@@ -931,15 +964,22 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       109 test. **Gerçek modelle uçtan uca denenmedi** — indirme ve üretim
       yolu yalnızca sahtelerle test edildi; ilk gerçek indirme kullanıcı
       makinesinde doğrulanacak.
+      **Küçük işler (Eylül 2026, COMPETITION.md Anarlog incelemesi):** transkriptte
+      toplu satır seçimi (⌘/⇧-tık) ve tek hamlede konuşmacı atama, özet uzunluğu
+      (Kısa · Dengeli · Ayrıntılı — Dengeli ölçülmüş olan, bayt bayt korunuyor),
+      sözlük girdisini yerinde düzenleme, Touch ID / parola ile uygulama kilidi
+      (opt-in).
+      **Konuşmacı ayrımı eklendi (RESEARCH.md §39):** pyannote community-1,
+      FluidAudio'nun CoreML dönüşümü, modeller uygulamada (21,6 MB), indirme ve
+      ağ yok. Tam geçişten sonra tek kanal ayrılır, satırlar kelime düzeyinde
+      "Katılımcı 1/2…" diye bölünür; kullanıcı "o etiketin tümü" ile kümeyi tek
+      hamlede adlandırır. Karar ölçüm beklemeden kullanıcı isteğiyle alındı.
     - Bekleyen:
       1. **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
          İzolasyon değişikliğinin arayüz akıcılığına etkisi de burada
          doğrulanacak: `IsolationTests` iş parçacığı kimliğini ölçüyor,
          **gerçek bir kayıtla göz denetimi yapılmadı** (§30.5).
-      2. **Diarization kararı ölçüm bekliyor** — gerçek bir Teams kaydının
-         sistem kanalında DER/konuşmacı sayısı ölçülmeden ikinci bir SPM
-         bağımlılığı ve model dosyası eklenmez (COMPETITION.md §4.13).
       3. **İmzalama ve notarizasyon** — makinede kod imzalama kimliği yok;
          Apple Developer üyeliği gerekiyor. Betik hazır, ek kod gerekmiyor.
       4. ~~Gerçek bir Teams/Zoom toplantısıyla algılama→kayıt akışı denenmedi.~~
@@ -1016,6 +1056,11 @@ ora/Net/               — **ağa çıkan tek modül** (Faz 11). Outbound (izin 
                          sağlayıcı istemcileri ve çıkış entegrasyonları.
                          Kimlik bilgisi Keychain'de; giden her istek loglanır.
                          Başka hiçbir dosyada `URLSession` geçmez — test tarar
+ora/Diarize/           — SpeakerSeparation (politika: hangi kanal, kelime düzeyi
+                         atama, küme adları; saf ve motordan bağımsız),
+                         Diarizing protokolü + SpeakerTurn, FluidDiarizer
+                         (FluidAudio offline VBx; modeller paketten, ağ yok) +
+                         ChannelSampleSource (tek kanal, bellek eşlemeli)
 ora/Import/            — TranscriptParser (VTT · SRT · düz metin · yapıştırma),
                          AudioImport (her biçimden 16 kHz mono WAV),
                          MeetingImporter (içe aktarma politikası: başlık, tarih,
@@ -1036,6 +1081,10 @@ ora/UI/                — Color+Ora (palet belgesi + OraStyle), RootView,
                          LockScreen (+ `.lockable(_:)` — ana pencere ve Ayarlar)
 ora/Resources/Assets.xcassets/Colors    — BRAND paletinin tek kaynağı
 ora/Resources/Assets.xcassets/AppIcon   — scripts/make-icon.swift üretir
+ora/Resources/Diarization.bundle        — konuşmacı ayrımı modelleri (21,6 MB,
+                         CC BY 4.0; LICENSE + NOTICE + provenance içinde)
+Packages/OraDiarizationKit — FluidAudio'yu `traits: []` ile bağlayan yerel
+                         sarmalayıcı (tek satır: `@_exported import`)
 scripts/               — make-icon.swift (ikon), build-release.sh (arşiv → .dmg)
 oraTests/              — swift-testing hedefi. `Support/Fakes.swift` yalnızca
                          **dış dünyaya dokunan** katmanları sahteler (ses

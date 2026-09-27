@@ -196,3 +196,18 @@ struct UnavailableIntelligence: Intelligent {
     func generateTitle(from segments: [Segment]) async -> String? { nil }
     func generateTitle(from segments: [Segment], topics: [TopicSegment]) async -> String? { nil }
 }
+
+/// Konuşmacı ayrımı sahtesi. Varsayılan hiç tur döndürmez — hattın geri
+/// kalanını ölçen testlerde ayrım hiçbir şeyi değiştirmesin.
+struct FakeDiarizer: Diarizing {
+    var turns: [SpeakerTurn] = []
+    var error: OraError?
+    var isAvailable = true
+
+    func turns(url: URL, channel: Channel,
+               progress: @Sendable @escaping (Double) -> Void) async throws -> [SpeakerTurn] {
+        if let error { throw error }
+        progress(1)
+        return turns
+    }
+}

@@ -70,7 +70,7 @@ toplantı sohbeti, FTS5 arama, takvim eşleştirme, otomatik algılama, vocabula
 | 10 | Toplantılar arası sohbet (FTS ile daraltılmış) | ★★★ | M | yok |
 | 11 | Kişi sayfası + tekrarlayan toplantı hazırlığı | ★★ | M | yok |
 | 12 | Hatırlatıcılar / Kısayollar (App Intents) çıkışı | ★★ | M | yok |
-| 13 | Diarization | ★★★ | L | **karar gerek** |
+| 13 | ✅ Diarization — pyannote community-1, FluidAudio (§4.13) | ★★★ | L | FluidAudio |
 | 14 | Ses dosyası içe aktarma | ★★ | M | yapıldı (ses + transkript) |
 | 15 | Kayıt öncesi tampon ("başlatmayı unuttum") | ★★ | M | **karar gerek** |
 
@@ -230,7 +230,34 @@ gider, ses asla).
 Tetikleyici "toplantı bitti" ya da "özet hazır"; ön izleme + onay zorunlu,
 giden istek loglanır, toplantı kilidi bunu da keser.
 
-### 4.13 Diarization — **seçenek 3 yapıldı, 1 ölçüm bekliyor**
+### 4.13 Diarization — **yapıldı: seçenek 1 (FluidAudio, offline VBx)**
+
+**Karar (27 Eylül 2026, kullanıcı isteğiyle ölçüm beklemeden):** pyannote
+community-1 (powerset segmentasyon + WeSpeaker ResNet34 + PLDA/VBx), FluidAudio
+`OfflineDiarizerManager` ile, kayıt bittikten sonra. Modeller uygulamanın içinde
+(21,6 MB), indirme yok. Rakipler ne yapıyor:
+
+| Uygulama | Diarization | Ders |
+|---|---|---|
+| **Anarlog** (eski Hyprnote) | Açık kaynak kodunda `crates/pyannote-local`: pyannote 3.1 yapısında segmentation-3.0 (ONNX, CoreML EP) + gömme + aglomeratif kümeleme, **kayıt sonrası toplu**; ses izi (voiceprint) ile bilinen kişiyi adlandırma; aynı mikrofonu paylaşanları ayırma (v1.4.17-18) | Aynı model ailesi, aynı yer (hattın sonu). ora'nın seçimi bunun Swift/CoreML karşılığı |
+| **Granola** | Masaüstünde **yok** — yalnızca "Me / Them"; iPhone'da yüz yüze toplantıda var | Masaüstünde karşı tarafı ayırmak zor bulunmuş; ora'nın kanal ayrımı + küme ayrımı burada Granola'nın önünde |
+| **Spokenly, Whisper Mate** | FluidAudio | Kütüphanenin üretimde kullanıldığının kanıtı |
+| **Argmax SpeakerKit** | pyannote paritesi, ~10 MB | Lisans belirsizliği sürüyor — seçilmedi |
+
+**Neden FluidAudio:** Apache 2.0, kendi SPM bağımlılığı yok (tek ikili hedefi
+trait'le kapatıldı), aktif bakım (v0.17.4, 25 Eylül 2026), AMI'de DER %10,6,
+offline hattı her PR'da AMI ile sınanıyor. Kendi CoreML dönüşümü aynı modeli
+verirdi ama powerset çözme + VBx kümelemeyi baştan yazmak demekti.
+
+**Uygulama biçimi (RESEARCH.md §39):** kanal kanıtla seçilir (sistem sesi
+varsa o, yoksa mikrofon), atama kelime düzeyinde, kümeler "Katılımcı N";
+adlandırma seçenek 3'ün arayüzüyle kullanıcının işi olarak kalır.
+
+**Açık kalanlar:** ses izi ile kullanıcının kendi sesini öğrenmek ve bilinen
+kişileri toplantılar arasında adlandırmak (Anarlog v1.4.18) — FluidAudio'nun
+`speakerDatabase` gömmeleri buna hazır; mikrofon kanalında yankı bastırma yok.
+
+#### Önceki durum (seçenek 3)
 **Durum:** ora'nın en büyük kalite açığı. Kanal ayrımı yalnızca
 "Ben / Katılımcı" veriyor; uzak taraftaki 4 kişi tek isim altında.
 Bu yüzden aksiyonlardaki `kisi` çoğunlukla "belirtilmedi" ve ürünün en

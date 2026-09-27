@@ -12,6 +12,8 @@ nonisolated enum PipelineStage: Equatable, Sendable {
     case preparingLanguage
     case downloadingLanguage(Double)
     case transcribing(Double)
+    /// Tam geçişten sonra, noktalamadan önce: kim ne zaman konuştu.
+    case separatingSpeakers(Double)
     case punctuating(Double)
     case summarizing(Double)
     case done

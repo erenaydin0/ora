@@ -54,6 +54,16 @@ final class OraSettings {
         didSet { store(transcriptionLanguage.rawValue, .transcriptionLanguage) }
     }
 
+    // MARK: - Konuşmacı ayrımı
+
+    /// Tam geçişten sonra konuşmacılar ayrılsın mı ("Katılımcı 1", "Katılımcı
+    /// 2"…). **Varsayılan açık:** modeller uygulamanın içinde, indirme ve ağ
+    /// yok, 60 dakikalık kanal saniyeler sürer. Kapalıyken kanal ayrımı
+    /// ("Ben" / "Katılımcı") eskisi gibi kalır.
+    var speakerSeparationEnabled: Bool {
+        didSet { store(speakerSeparationEnabled, .speakerSeparationEnabled) }
+    }
+
     // MARK: - Özetleme motoru
 
     /// Özeti hangi model üretsin? Varsayılan Apple'ın cihaz üstü modeli:
@@ -160,6 +170,8 @@ final class OraSettings {
         announceRecording = defaults.bool(forKey: Key.announceRecording.rawValue)
         compressAudio = defaults.bool(forKey: Key.compressAudio.rawValue)
         appLockEnabled = defaults.bool(forKey: Key.appLockEnabled.rawValue)
+        speakerSeparationEnabled = defaults.object(
+            forKey: Key.speakerSeparationEnabled.rawValue) as? Bool ?? true
         audioRetentionDays = defaults.integer(forKey: Key.audioRetentionDays.rawValue)
         transcriptionLanguage = defaults.string(forKey: Key.transcriptionLanguage.rawValue)
             .flatMap(TranscriptionLanguage.init(rawValue:)) ?? .turkish
@@ -184,6 +196,7 @@ final class OraSettings {
         case compressAudio, audioRetentionDays, announceRecording, appLockEnabled
         case transcriptionLanguage
         case summaryEngine, localModelID, summaryDetail
+        case speakerSeparationEnabled
     }
 
     private let defaults: UserDefaults

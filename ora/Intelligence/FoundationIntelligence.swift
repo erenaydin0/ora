@@ -586,10 +586,10 @@ nonisolated struct FoundationIntelligence: Intelligent {
     /// toplantı tarihi sızıyor (4/4 aksiyonda). Liste yalnızca **doğrulamada**
     /// kullanılır: model bir ad döndürdüyse listeye göre eşleştirilir.
     ///
-    /// Sonuç, atıf yapamadığında "belirtilmedi" demek oluyor. Kanal ayrımı
-    /// yalnızca "Ben" ve "Katılımcı" verdiği için (diarization yok) uzaktaki
-    /// katılımcılar çoğu zaman ayırt edilemez; kendinden emin yanlış bir ad,
-    /// boş bir alandan kötüdür.
+    /// Sonuç, atıf yapamadığında "belirtilmedi" demek oluyor. Konuşmacı ayrımı
+    /// kümeleri yalnızca numaralar ("Katılımcı 2"); kullanıcı adlandırana kadar
+    /// uzaktaki katılımcının adı bilinmez. Kendinden emin yanlış bir ad, boş
+    /// bir alandan kötüdür.
     static func resolvedPerson(_ raw: String, context: SummaryContext) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let key = normalized(trimmed)
@@ -599,8 +599,9 @@ nonisolated struct FoundationIntelligence: Intelligent {
         if key == normalized("Ben") {
             return context.userName?.isEmpty == false ? context.userName! : "Ben"
         }
-        // Konuşmacı etiketi bir kişi adı değil.
-        if key == normalized("Katılımcı") { return "belirtilmedi" }
+        // Konuşmacı etiketi bir kişi adı değil — numaralı küme ("Katılımcı 2")
+        // de. Kullanıcı kümeyi adlandırınca yeniden özetlemede ad gelir.
+        if MeetingStore.isChannelLabel(trimmed) { return "belirtilmedi" }
 
         // Takvimden gelen tam ada eşle: model "Merve" derse "Merve Sarı" olsun.
         // Birden çok aday varsa **eşleştirme yapılmaz** — tahmin edilmez.
@@ -781,11 +782,28 @@ nonisolated struct FoundationIntelligence: Intelligent {
            head.count <= 15, labels.contains(normalized(head)) {
             rest = String(text[text.index(after: separator)...])
                 .trimmingCharacters(in: .whitespaces)
+        } else if let separator = text.firstIndex(where: { $0 == ":" || $0 == "," }),
+                  case let head = String(text[text.startIndex ..< separator]),
+                  head.count <= 15, MeetingStore.isChannelLabel(head),
+                  head.contains(where: \.isNumber) {
+            // Numaralı küme etiketi: "Katılımcı 2: …"
+            rest = String(text[text.index(after: separator)...])
+                .trimmingCharacters(in: .whitespaces)
         } else if let space = text.firstIndex(of: " "),
                   labels.contains(normalized(String(text[text.startIndex ..< space]))) {
             // Ayraçsız biçim: "Ben kazançların toplamı üzerinde çalışıyor."
             rest = String(text[text.index(after: space)...])
                 .trimmingCharacters(in: .whitespaces)
+            // Numaralı kümenin ayraçsız biçimi: "Katılımcı 2 raporu hazırlayacak."
+            // Yalnızca "Katılımcı"dan sonra ve iki haneye kadar — "Ben 2024
+            // bütçesini…" cümlesinin yılı kesilmesin.
+            if normalized(String(text[text.startIndex ..< space]))
+                   == normalized(Channel.system.speaker),
+               let next = rest.firstIndex(of: " "),
+               case let digits = rest[rest.startIndex ..< next],
+               digits.count <= 2, digits.allSatisfy(\.isNumber) {
+                rest = String(rest[rest.index(after: next)...])
+            }
         } else {
             return text
         }

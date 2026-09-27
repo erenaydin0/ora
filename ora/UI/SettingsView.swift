@@ -86,6 +86,23 @@ private struct GeneralSettings: View {
                 }
             }
 
+            Section("Konuşmacılar") {
+                Toggle("Konuşmacıları ayır", isOn: $settings.speakerSeparationEnabled)
+                Text("Kayıt bittikten sonra karşı taraftaki sesler ayrılır ve satırlar "
+                     + "“Katılımcı 1”, “Katılımcı 2” diye etiketlenir; yüz yüze "
+                     + "toplantıda odadaki kişiler de ayrılır. Kimin kim olduğunu "
+                     + "transkriptte satıra sağ tıklayıp “satırlarının tümü” ile "
+                     + "tek hamlede verirsiniz. Tamamen cihazda çalışır.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Model: pyannote community-1 (CC BY 4.0) — pyannote, WeSpeaker, "
+                     + "BUT Speech@FIT; Core ML dönüşümü Fluid Inference.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Section("Kayıt bildirimi") {
                 Toggle("Kaydı başlatınca beni uyar", isOn: $settings.announceRecording)
                 Text("Kayıt başladığında ekranda kısa bir hatırlatma çıkar ve "

@@ -206,11 +206,19 @@ nonisolated struct MeetingStore: Sendable {
     ///
     /// `Ben` ve `Katılımcı` kanalın adıdır, kişi değil: katılımcı olarak
     /// yazılmaz ve sözlüğe beslenmezler. `Bilinmeyen` şemanın varsayılanıdır.
+    /// Diarization'ın numaralı kümeleri ("Katılımcı 2") da kişi değildir —
+    /// kullanıcı adlandırana kadar etikettir.
     /// Karşılaştırma Türkçe locale ile yapılır — `I`/`İ` ayrımı.
     nonisolated static func isChannelLabel(_ name: String) -> Bool {
-        let key = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        var key = name.trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased(with: Locale(identifier: "tr_TR"))
         guard !key.isEmpty else { return true }
+        // "katılımcı 2" → "katılımcı"
+        if let space = key.lastIndex(of: " "),
+           !key[key.index(after: space)...].isEmpty,
+           key[key.index(after: space)...].allSatisfy(\.isNumber) {
+            key = String(key[..<space])
+        }
         let labels = Channel.allCases.map {
             $0.speaker.lowercased(with: Locale(identifier: "tr_TR"))
         } + ["bilinmeyen"]

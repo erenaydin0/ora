@@ -39,3 +39,6 @@ circleback-notes/
 probes/bordro_toplanti.json
 probes/bordro_toplanti.txt
 probes/gercek_toplanti.txt
+
+# Yerel paketlerin Xcode çalışma dosyaları
+Packages/*/.swiftpm/

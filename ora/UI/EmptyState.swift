@@ -86,7 +86,8 @@ struct ProcessingState: View {
     private var percent: Int? {
         switch stage {
         case .importing(let value), .downloadingLanguage(let value),
-             .transcribing(let value), .punctuating(let value), .summarizing(let value):
+             .transcribing(let value), .separatingSpeakers(let value),
+             .punctuating(let value), .summarizing(let value):
             Int((value * 100).rounded())
         case .preparingLanguage, .idle, .done:
             nil
@@ -108,6 +109,8 @@ struct ProcessingState: View {
             ["Dil paketi indiriliyor"]
         case .transcribing:
             ["Yazıya dökülüyor", "Ses çözümleniyor", "Kelimeler zamanlanıyor"]
+        case .separatingSpeakers:
+            ["Konuşmacılar ayrılıyor", "Sesler kümeleniyor", "Satırlar konuşmacılara bölünüyor"]
         case .punctuating:
             ["Noktalama ekleniyor", "Cümleler ayrılıyor", "Büyük harfler düzeltiliyor"]
         case .summarizing:

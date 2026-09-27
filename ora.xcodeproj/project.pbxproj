@@ -13,6 +13,7 @@
 		1A0000000000000000000038 /* MLXHuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0000000000000000000036 /* MLXHuggingFace */; };
 		1A0000000000000000000039 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0000000000000000000037 /* Tokenizers */; };
 		1A000000000000000000003C /* HuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 1A000000000000000000003B /* HuggingFace */; };
+		1A000000000000000000003F /* OraDiarizationKit in Frameworks */ = {isa = PBXBuildFile; productRef = 1A000000000000000000003E /* OraDiarizationKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +47,7 @@
 				1A0000000000000000000038 /* MLXHuggingFace in Frameworks */,
 				1A0000000000000000000039 /* Tokenizers in Frameworks */,
 				1A000000000000000000003C /* HuggingFace in Frameworks */,
+				1A000000000000000000003F /* OraDiarizationKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -113,6 +115,7 @@
 				1A0000000000000000000036 /* MLXHuggingFace */,
 				1A0000000000000000000037 /* Tokenizers */,
 				1A000000000000000000003B /* HuggingFace */,
+				1A000000000000000000003E /* OraDiarizationKit */,
 			);
 			productName = ora;
 			productReference = 1A0000000000000000000007 /* ora.app */;
@@ -175,6 +178,7 @@
 				1A000000000000000000002F /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
 				1A0000000000000000000035 /* XCRemoteSwiftPackageReference "swift-transformers" */,
 				1A000000000000000000003A /* XCRemoteSwiftPackageReference "swift-huggingface" */,
+				1A000000000000000000003D /* XCLocalSwiftPackageReference "Packages/OraDiarizationKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1A0000000000000000000003 /* Products */;
@@ -458,6 +462,13 @@
 		};
 /* End XCRemoteSwiftPackageReference section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		1A000000000000000000003D /* XCLocalSwiftPackageReference "Packages/OraDiarizationKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/OraDiarizationKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		1A0000000000000000000014 /* GRDB */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -488,6 +499,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1A000000000000000000003A /* XCRemoteSwiftPackageReference "swift-huggingface" */;
 			productName = HuggingFace;
+		};
+		1A000000000000000000003E /* OraDiarizationKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1A000000000000000000003D /* XCLocalSwiftPackageReference "Packages/OraDiarizationKit" */;
+			productName = OraDiarizationKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

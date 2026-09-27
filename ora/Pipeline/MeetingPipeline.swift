@@ -48,6 +48,8 @@ final class MeetingPipeline {
     /// testte de öyle — model indirilmediği için Apple yolu koşar.
     private let localIntelligence: any Intelligent
     private let settings: OraSettings
+    /// Konuşmacı ayrımı. Tam geçişten sonra, noktalamadan önce koşar.
+    private let diarizer: any Diarizing
 
     /// Özeti hangi motor üretecek?
     ///
@@ -90,6 +92,7 @@ final class MeetingPipeline {
          transcription: any Transcribing,
          intelligence: any Intelligent,
          localIntelligence: (any Intelligent)? = nil,
+         diarizer: (any Diarizing)? = nil,
          settings: OraSettings,
          deferReason: @escaping @Sendable () -> PowerState.DeferReason?
             = PowerState.deferReason,
@@ -100,6 +103,7 @@ final class MeetingPipeline {
         self.transcription = transcription
         self.intelligence = intelligence
         self.localIntelligence = localIntelligence ?? LocalIntelligence(fallback: intelligence)
+        self.diarizer = diarizer ?? FluidDiarizer()
         self.settings = settings
         self.deferReason = deferReason
         self.prepareLocale = prepareLocale ?? Self.defaultLocalePreparation
@@ -148,11 +152,14 @@ final class MeetingPipeline {
             stage(.transcribing(0), meetingID)
             let words = (try? await vocabularyStore.activeWords()) ?? []
             Log.debug(.transcribe, "Tam geçiş: \(words.count) sözlük terimi, ses açılıyor")
-            let segments = try await transcription.transcribe(
+            let transcribed = try await transcription.transcribe(
                 url: url, locale: locale, vocabulary: words
             ) { [weak self] value in
                 Task { @MainActor in self?.stage(.transcribing(value), meetingID) }
             }
+            // 3b — Konuşmacı ayrımı
+            let segments = await separateSpeakers(meetingID: meetingID, url: url,
+                                                  segments: transcribed)
             emit(.transcript(segments), meetingID)
             try? await store.replaceTranscript(meetingID, segments: segments)
             Log.info(.transcribe, "Tam geçiş bitti — \(segments.count) segment, "
@@ -165,6 +172,34 @@ final class MeetingPipeline {
             emit(.retryable(url), meetingID)
             emit(.failed(error as? OraError ?? .transcriptionFailed(underlying: error)),
                  meetingID)
+        }
+    }
+
+    // MARK: - Adım 3b: konuşmacı ayrımı
+
+    /// Tek kanalın konuşmacılarını ayırır ve satırları kelime düzeyinde böler.
+    ///
+    /// **En iyi çabadır**, noktalama gibi: başarısız olursa transkript kanal
+    /// etiketleriyle ("Ben" / "Katılımcı") olduğu gibi kalır, hat durmaz.
+    /// Hangi kanalın ayrılacağı ve kümelerin adı `SpeakerSeparation`'dadır;
+    /// burada yalnızca sıra yürütülür.
+    private func separateSpeakers(meetingID: Int64, url: URL,
+                                  segments: [Segment]) async -> [Segment] {
+        guard settings.speakerSeparationEnabled, diarizer.isAvailable,
+              let channel = SpeakerSeparation.channel(for: segments) else { return segments }
+        stage(.separatingSpeakers(0), meetingID)
+        do {
+            let turns = try await diarizer.turns(url: url, channel: channel) { [weak self] value in
+                Task { @MainActor in self?.stage(.separatingSpeakers(value), meetingID) }
+            }
+            let separated = SpeakerSeparation.apply(turns, to: segments, channel: channel)
+            let labels = Set(separated.filter { $0.channel == channel }.map(\.speaker))
+            Log.info(.transcribe, "Konuşmacılar ayrıldı — \(channel.databaseValue) kanalında "
+                     + "\(labels.count) etiket, \(segments.count) → \(separated.count) satır")
+            return separated
+        } catch {
+            Log.warning(.transcribe, "Konuşmacı ayrımı atlandı: \(error.localizedDescription)")
+            return segments
         }
     }
 

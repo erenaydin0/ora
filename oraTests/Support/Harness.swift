@@ -21,6 +21,7 @@ final class Harness {
     init(intelligence: any Intelligent,
          localIntelligence: (any Intelligent)? = nil,
          transcription: any Transcribing = FakeTranscription(),
+         diarizer: any Diarizing = FakeDiarizer(),
          deferReason: @escaping @Sendable () -> PowerState.DeferReason? = { nil },
          stopURL: URL = URL(fileURLWithPath: "/dev/null")) throws {
 
@@ -42,6 +43,7 @@ final class Harness {
                                          transcription: transcription,
                                          intelligence: intelligence,
                                          localIntelligence: localIntelligence,
+                                         diarizer: diarizer,
                                          database: database,
                                          settings: settings,
                                          deferReason: deferReason,

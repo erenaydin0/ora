@@ -28,6 +28,8 @@ nonisolated enum OraError: Error {
     case contextOverflow
     /// İçe aktarılan dosya okunamadı ya da içinde işlenecek bir şey yok.
     case importFailed(reason: String)
+    /// Konuşmacı ayrımı yapılamadı. Hattı durdurmaz: transkript tek etiketle kalır.
+    case diarizationFailed(reason: String)
 }
 
 nonisolated extension OraError {
@@ -51,6 +53,8 @@ nonisolated extension OraError {
             "Metin modele sığmadı"
         case .importFailed:
             "Dosya içe aktarılamadı"
+        case .diarizationFailed:
+            "Konuşmacılar ayrılamadı"
         }
     }
 
@@ -82,6 +86,8 @@ nonisolated extension OraError {
             "Bu bir hata göstergesidir; metin parçalanarak işlenmeliydi."
         case .importFailed(let reason):
             reason
+        case .diarizationFailed(let reason):
+            "Transkript tek konuşmacı etiketiyle kaldı. (\(reason))"
         }
     }
 }

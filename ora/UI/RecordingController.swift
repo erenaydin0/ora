@@ -142,6 +142,7 @@ final class RecordingController {
          transcription: any Transcribing = SpeechTranscription(),
          intelligence: any Intelligent = FoundationIntelligence(),
          localIntelligence: (any Intelligent)? = nil,
+         diarizer: (any Diarizing)? = nil,
          database: OraDatabase? = nil,
          settings: OraSettings = .shared,
          detector: MeetingDetector? = nil,
@@ -197,6 +198,7 @@ final class RecordingController {
                                         transcription: transcription,
                                         intelligence: intelligence,
                                         localIntelligence: localIntelligence,
+                                        diarizer: diarizer,
                                         settings: settings,
                                         deferReason: deferReason,
                                         prepareLocale: prepareLocale)

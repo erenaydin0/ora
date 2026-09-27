@@ -2520,3 +2520,65 @@ tccutil reset Microphone com.orameetings.ora
 tccutil reset AudioCapture com.orameetings.ora
 tccutil reset Calendar com.orameetings.ora
 ```
+
+---
+
+## 39. Konuşmacı ayrımı: pyannote community-1, FluidAudio, modeller uygulamada
+
+**Karar ölçüm beklemeden alındı** (kullanıcı isteği, 27 Eylül 2026). §4.13'teki
+"önce gerçek Teams kaydında DER ölç" planı atlandı; bu bölüm ölçüm değil,
+seçimin ve uygulama biçiminin kaydıdır.
+
+**Rakip incelemesi.** Anarlog'un (eski Hyprnote) açık kaynak deposunda
+diarization `crates/pyannote-local` altında: pyannote 3.1 yapısı —
+segmentation-3.0 (koda gömülü ONNX, CoreML yürütücüsüyle), maskelenmiş gömme,
+aglomeratif kümeleme, kayıt bittikten sonra toplu çalışma, ses izi ile bilinen
+konuşmacıyı adlandırma. Granola masaüstünde karşı tarafı ayırmıyor ("Me /
+Them"). Spokenly ve Whisper Mate FluidAudio kullanıyor.
+
+**Seçim.** FluidAudio `OfflineDiarizerManager` — pyannote **community-1**
+(powerset segmentasyon + WeSpeaker ResNet34 + PLDA/VBx), Anarlog'la aynı
+ailenin daha yeni sürümü. v0.17.4, Apache 2.0, SPM bağımlılığı yok.
+
+**Paketleme.**
+- Gereken dört model + PLDA parametresi **21,6 MB** (`Segmentation` 6,0 ·
+  `Embedding` 13,5 · `FBank` 1,8 · `PldaRho` 0,2). Uygulamaya gömüldü
+  (`ora/Resources/Diarization.bundle`) — varsayılan yol sıfır indirme kuralı
+  korunuyor ve özellik varsayılan açık olabiliyor.
+- Dosyalar FluidAudio'nun kodda sabitlediği HF revizyonundan (`df2625ac…`)
+  indirildi; modelle gelen `provenance.json`'daki 21 SHA-256'nın 21'i eşleşti.
+- Modeller `MLModel(contentsOf:)` ile **elle** yükleniyor ve
+  `OfflineDiarizerModels`'in açık init'ine veriliyor. FluidAudio'nun
+  `ModelHub`'ı (HuggingFace indiricisi, önbellek revizyon işareti) hiç
+  çağrılmıyor; `ModelHub.offlineMode = true` ayrıca açık.
+- FluidAudio'nun varsayılan `NemoTextProcessing` trait'i önceden derlenmiş bir
+  Rust kütüphanesi bağlıyor (xcframework 87 MB, dilim başına ~8 MB; yalnızca
+  metin-konuşma). Xcode projesi paket trait'i seçemediği için
+  `Packages/OraDiarizationKit` yerel sarmalayıcısı FluidAudio'yu `traits: []`
+  ile bağlıyor.
+- Lisans: community-1 artefaktları CC BY 4.0 (ticari kullanım serbest, atıf
+  şart). Atıf Ayarlar → Genel → Konuşmacılar'da; `LICENSE`, `NOTICE.md`,
+  `PROVENANCE.md` paketle birlikte dağıtılıyor.
+
+**Hattaki yeri.** Adım 3b: tam geçişten sonra, noktalamadan önce — noktalama
+satır başına çalıştığı için bölünmüş satırlar ayrı ayrı noktalanıyor.
+
+**Politika (`SpeakerSeparation`, testli).**
+- Kanal kanıtla seçilir: sistem kanalında konuşma varsa o (mikrofon kullanıcı;
+  ayırmak hoparlör sızıntısını sahte konuşmacı yapardı), yoksa mikrofon (yüz
+  yüze toplantı; en çok konuşan küme "Ben" kalır). İçe aktarılan mono ses
+  `.system` olarak çözüldüğü için sistem yolundan geçer.
+- Atama kelime düzeyinde (kelimenin ortasını içeren tur, yoksa en yakın).
+  3 kelime ve 1 sn'den kısa sıçrama komşusuna katılır; toplam konuşması
+  3 sn'nin altındaki küme gürültü sayılır; tek küme kalırsa hiçbir şey değişmez.
+- Küme adları "Katılımcı N" (ilk konuşma sırası). `isChannelLabel` numaralı
+  etiketi de etiket sayıyor: katılımcı listesine, sözlüğe, `hasNamedSpeakers`'a
+  girmiyor; `resolvedPerson` onu "belirtilmedi"ye çeviriyor.
+- Kanal ayrımı fiziksel gerçek olarak kalıyor: `ChannelSampleSource` tek şeridi
+  16 kHz Float32 geçici dosyaya yazıp bellek eşlemeyle okuyor (FluidAudio'nun
+  kendi dosya kaynağı stereoyu monoya indirir).
+
+**Bilinen sınırlar.** Doğruluk bu ses zincirinde (Teams codec'i, mixdown, AGC)
+ölçülmedi. Mikrofon kanalında yankı bastırma yok; kulaklıksız toplantıda karşı
+taraf ch0'a sızabilir ama sistem kanalı varken mikrofon ayrılmadığı için bu
+sahte küme üretmez. Ses izi ile kişi hatırlama yapılmadı.

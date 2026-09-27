@@ -30,7 +30,8 @@ struct IsolationTests {
                                 start: 0, end: 5, confidence: 0.8, words: [])]
         let h = try Harness(intelligence: WitnessIntelligence(witness: witness),
                             transcription: WitnessTranscription(witness: witness,
-                                                                segments: produced))
+                                                                segments: produced),
+                            diarizer: WitnessDiarizer(witness: witness))
         let id = try await h.store.createMeeting()
         try await h.store.markProcessing(id, audioPath: audio, duration: 5)
         await h.controller.refresh()
@@ -42,6 +43,8 @@ struct IsolationTests {
         #expect(h.controller.transcript.first?.text == "metin.", "hat gerçekten koştu")
         #expect(witness.onMain("transcribe") == false,
                 "tam geçiş ana iş parçacığında koştu — Transcribing.transcribe'daki @concurrent gitti")
+        #expect(witness.onMain("diarize") == false,
+                "konuşmacı ayrımı ana iş parçacığında koştu — Diarizing.turns'teki @concurrent gitti")
         #expect(witness.onMain("punctuate") == false,
                 "noktalama ana iş parçacığında koştu — restorePunctuation'daki @concurrent gitti")
         #expect(witness.onMain("summarize") == false,
@@ -84,6 +87,17 @@ private nonisolated final class ThreadWitness: @unchecked Sendable {
     func onMain(_ step: String) -> Bool? {
         lock.lock(); defer { lock.unlock() }
         return seen[step]
+    }
+}
+
+private nonisolated struct WitnessDiarizer: Diarizing {
+    let witness: ThreadWitness
+    var isAvailable: Bool { true }
+
+    func turns(url: URL, channel: Channel,
+               progress: @Sendable @escaping (Double) -> Void) async throws -> [SpeakerTurn] {
+        witness.record("diarize")
+        return []
     }
 }
 
