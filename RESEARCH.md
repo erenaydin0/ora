@@ -2582,3 +2582,44 @@ satır başına çalıştığı için bölünmüş satırlar ayrı ayrı noktala
 ölçülmedi. Mikrofon kanalında yankı bastırma yok; kulaklıksız toplantıda karşı
 taraf ch0'a sızabilir ama sistem kanalı varken mikrofon ayrılmadığı için bu
 sahte küme üretmez. Ses izi ile kişi hatırlama yapılmadı.
+
+---
+
+## 40. Konuşmacı hafızası: ses izleri, aksiyon taşıma, yankı bastırma
+
+Ölçüm değil, tasarım kaydı (kullanıcı isteği, 27 Eylül 2026).
+
+**Ses izi.** FluidAudio'nun `DiarizationResult.speakerDatabase`'i küme başına
+segment gömmelerinin toplamını veriyor (WeSpeaker ResNet34, 256 boyut);
+`VoiceMatcher` birim vektöre çevirip kosinüs benzerliğiyle karşılaştırıyor.
+Kişinin referansı örneklerinin birim ortalaması.
+
+**Eşikler Anarlog'dan alındı** (`crates/voiceprint/src/matching.rs`):
+`MIN_UNIQUE_SCORE = 0.62`, `MIN_UNIQUE_MARGIN = 0.08` ve iki yönlü tekil
+seçim (küme → kişi ve kişi → küme en iyileri birbirini göstermeli). Aynı
+gömme ailesi üzerinde çalışıyorlar; ora'nın ses zincirinde (Teams codec'i,
+mixdown) ayrıca ölçülmedi.
+
+**Öğrenme kuralı.** Örnek yalnızca kullanıcı bir etiketi tamamen bir ada
+çevirdiğinde eklenir (aksiyon taşımayla aynı "etiket kalktı" kuralı, aynı
+transaction). Otomatik tanıma örnek eklemez: yanlış bir eşleşme kendi
+kendini pekiştirirdi. Yanlış tanınan bir küme düzeltilince o toplantıdan eski
+kişiye yazılan örnek silinir.
+
+**Kendi ses.** Uzak toplantıda mikrofonda en çok konuşan küme (≥ 20 sn)
+"Ben" olarak öğrenilir; beş örnekten sonra ikinci ayrım koşmaz. Sistem
+kanalında "Ben" aday değildir (orada yalnızca yankı olabilir).
+
+**Şema v5.** `speaker_embeddings` (toplantının kümeleri, o anki etiketleriyle;
+cascade) ve `voiceprints` (kişi başına ≤ 10 örnek; toplantı silinince
+`meeting_id` NULL, iz kalır). İkisi de biyometrik veri: cihazdan çıkmaz,
+Ayarlar'dan tümü silinir.
+
+**Aksiyon taşıma.** `resolvedPerson` numaralı kümeyi artık "belirtilmedi"ye
+çevirmiyor, kanonik etiketi tutuyor; etiket transkriptten kalkınca
+`MeetingStore.moveActions` aksiyonları yeni ada taşıyor.
+
+**Yankı bastırma.** `AVAudioInputNode.setVoiceProcessingEnabled(true)`,
+yalnızca çıkış hoparlörse (`OutputRoute`); diğer uygulamaları kısma `.min`,
+işleme açıkken yalnızca 0. kanal. Apple'ın ses işlemesinin başka bir
+uygulamanın (Teams) çaldığı sesi ne ölçüde sildiği bu makinede ölçülmedi.

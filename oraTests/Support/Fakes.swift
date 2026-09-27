@@ -204,13 +204,16 @@ struct UnavailableIntelligence: Intelligent {
 /// kalanını ölçen testlerde ayrım hiçbir şeyi değiştirmesin.
 struct FakeDiarizer: Diarizing {
     var turns: [SpeakerTurn] = []
+    var embeddings: [String: [Float]] = [:]
+    /// Kanal başına farklı sonuç (kendi sesini öğrenme mikrofonu ayrıca ayırır).
+    var perChannel: [Channel: Diarization] = [:]
     var error: OraError?
     var isAvailable = true
 
     func turns(url: URL, channel: Channel,
-               progress: @Sendable @escaping (Double) -> Void) async throws -> [SpeakerTurn] {
+               progress: @Sendable @escaping (Double) -> Void) async throws -> Diarization {
         if let error { throw error }
         progress(1)
-        return turns
+        return perChannel[channel] ?? Diarization(turns: turns, embeddings: embeddings)
     }
 }

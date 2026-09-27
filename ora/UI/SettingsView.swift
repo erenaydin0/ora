@@ -107,6 +107,7 @@ private struct GeneralSettings: View {
                     .font(.system(size: 12))
                     .foregroundStyle(Color.oraInkMuted)
                     .fixedSize(horizontal: false, vertical: true)
+                VoiceMemoryControls(recorder: recorder, settings: settings)
                 Text("Model: pyannote community-1 (CC BY 4.0) — pyannote, WeSpeaker, "
                      + "BUT Speech@FIT; Core ML dönüşümü Fluid Inference.")
                     .font(.system(size: 11))
@@ -276,6 +277,48 @@ private struct SummarySettings: View {
         }
         .formStyle(.grouped)
         .task { recorder.refreshModelState() }
+    }
+}
+
+/// Kişileri toplantılar arasında tanıma. Ses izi biyometrik bir veridir:
+/// ne saklandığı sayısıyla görünür ve tek hamlede silinir.
+private struct VoiceMemoryControls: View {
+    let recorder: RecordingController
+    @Bindable var settings: OraSettings
+    @State private var people = 0
+    @State private var confirming = false
+
+    var body: some View {
+        Toggle("Kişileri sonraki toplantılarda tanı", isOn: $settings.voiceMemoryEnabled)
+            .disabled(!settings.speakerSeparationEnabled)
+        Text("Bir konuşmacıyı adlandırdığınızda sesinin izi saklanır; sonraki "
+             + "toplantılarda o kişinin satırları adıyla gelir. Uzak toplantılarda "
+             + "kendi sesiniz de öğrenilir. Emin olunamayan ses “Katılımcı” kalır. "
+             + "Ses izleri yalnızca bu Mac'te durur ve hiçbir bağlantıya gönderilmez.")
+            .font(.system(size: 12))
+            .foregroundStyle(Color.oraInkMuted)
+            .fixedSize(horizontal: false, vertical: true)
+        HStack {
+            Text(people == 0 ? "Kayıtlı ses izi yok" : "\(people) kişinin ses izi kayıtlı")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraInkMuted)
+            Spacer()
+            Button("Ses izlerini sil") { confirming = true }
+                .disabled(people == 0)
+        }
+        .task { people = await recorder.voiceprintPeopleCount() }
+        .confirmationDialog("Bütün ses izleri silinsin mi?", isPresented: $confirming) {
+            Button("Sil", role: .destructive) {
+                Task {
+                    await recorder.deleteAllVoiceprints()
+                    people = await recorder.voiceprintPeopleCount()
+                }
+            }
+            Button("Vazgeç", role: .cancel) {}
+        } message: {
+            Text("Transkriptlerdeki adlar kalır; yalnızca yeni toplantılarda "
+                 + "kişiler kendiliğinden tanınmaz.")
+        }
     }
 }
 

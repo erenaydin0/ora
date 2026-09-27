@@ -41,7 +41,7 @@ nonisolated final class FluidDiarizer: Diarizing {
 
     @concurrent func turns(url: URL, channel: Channel,
                            progress: @Sendable @escaping (Double) -> Void) async throws
-        -> [SpeakerTurn] {
+        -> Diarization {
         guard let modelsURL, isAvailable else {
             throw OraError.diarizationFailed(reason: "Konuşmacı ayrımı modelleri bulunamadı")
         }
@@ -70,7 +70,9 @@ nonisolated final class FluidDiarizer: Diarizing {
         Log.info(.transcribe, "Konuşmacı ayrımı bitti — \(Set(turns.map(\.speaker)).count) küme, "
                  + "\(turns.count) tur, "
                  + String(format: "%.1f sn", Date().timeIntervalSince(started)))
-        return turns
+        // Küme başına ortalama gömme — FluidAudio segment gömmelerinin
+        // toplamını tutar; `VoiceMatcher` birim vektöre çevirir.
+        return Diarization(turns: turns, embeddings: result.speakerDatabase ?? [:])
     }
 
     /// Dört modeli ve PLDA parametresini paketten yükler — `ModelHub`'a

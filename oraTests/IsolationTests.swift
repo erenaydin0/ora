@@ -95,9 +95,9 @@ private nonisolated struct WitnessDiarizer: Diarizing {
     var isAvailable: Bool { true }
 
     func turns(url: URL, channel: Channel,
-               progress: @Sendable @escaping (Double) -> Void) async throws -> [SpeakerTurn] {
+               progress: @Sendable @escaping (Double) -> Void) async throws -> Diarization {
         witness.record("diarize")
-        return []
+        return Diarization(turns: [])
     }
 }
 

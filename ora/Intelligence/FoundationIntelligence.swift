@@ -575,6 +575,7 @@ nonisolated struct FoundationIntelligence: Intelligent {
         context.hasNamedSpeakers
             ? "- Every line begins with the speaker's name; take owners and "
                 + "positions from those names."
+                + (context.hasRecorderLines ? " \(Self.selfLine(context))" : "")
             : "- Name whoever took something on. \(Self.selfLine(context))\n"
                 + "- Do not write speaker labels such as \"Ben\" or "
                 + "\"Katılımcı\" in a bullet."

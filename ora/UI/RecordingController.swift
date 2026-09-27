@@ -214,6 +214,7 @@ final class RecordingController {
             Task { @MainActor in await self?.start(signal: signal) }
         }
         library.onError = { [weak self] error in self?.error = error }
+        library.learnsVoices = { [settings] in settings.voiceMemoryEnabled }
         // Düzeltmeden çıkan özel isimler sözlüğe **aday** olur; kullanıcı
         // onaylamadan transkripsiyona verilmez. Kütüphane sözlüğe dokunmaz.
         library.onCorrection = { [weak self] mistake, correct in
@@ -424,6 +425,21 @@ final class RecordingController {
         }
         await refreshVocabulary()
         return message
+    }
+
+    // MARK: - Ses izleri
+
+    func voiceprintPeopleCount() async -> Int {
+        (try? await store.voiceprintPeopleCount()) ?? 0
+    }
+
+    func deleteAllVoiceprints() async {
+        do {
+            try await store.deleteAllVoiceprints()
+            Log.info(.store, "Ses izleri silindi")
+        } catch {
+            Log.error(.store, "Ses izleri silinemedi", error)
+        }
     }
 
     func addWord(_ word: String) async {

@@ -217,7 +217,10 @@ struct DiarizationTests {
         defer { source.cleanup() }
         #expect(source.sampleCount == 24 * 16_000, "kanal 16 kHz mono'ya çevrildi")
 
-        _ = try await FluidDiarizer().turns(url: url, channel: .system) { _ in }
+        let result = try await FluidDiarizer().turns(url: url, channel: .system) { _ in }
+        for embedding in result.embeddings.values {
+            #expect(embedding.count == 256, "WeSpeaker gömmesi")
+        }
     }
 
     /// 16 kHz · 16 bit · stereo (kural #11): ch0 sessiz, ch1'de iki ton sırayla.

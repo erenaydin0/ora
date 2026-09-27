@@ -73,6 +73,11 @@ final class OraSettings {
         didSet { store(speakerSeparationEnabled, .speakerSeparationEnabled) }
     }
 
+    /// Adlandırılan konuşmacıların sesi öğrenilsin ve sonraki toplantılarda
+    /// kendiliğinden tanınsın mı. **Varsayılan açık.** Ses izleri yalnızca bu
+    /// Mac'te durur; kapatmak mevcut izleri silmez (Ayarlar'da ayrı düğme).
+    var voiceMemoryEnabled: Bool { didSet { store(voiceMemoryEnabled, .voiceMemoryEnabled) } }
+
     // MARK: - Özetleme motoru
 
     /// Özeti hangi model üretsin? Varsayılan Apple'ın cihaz üstü modeli:
@@ -179,6 +184,8 @@ final class OraSettings {
         announceRecording = defaults.bool(forKey: Key.announceRecording.rawValue)
         compressAudio = defaults.bool(forKey: Key.compressAudio.rawValue)
         appLockEnabled = defaults.bool(forKey: Key.appLockEnabled.rawValue)
+        voiceMemoryEnabled = defaults.object(
+            forKey: Key.voiceMemoryEnabled.rawValue) as? Bool ?? true
         echoCancellationEnabled = defaults.object(
             forKey: Key.echoCancellationEnabled.rawValue) as? Bool ?? true
         speakerSeparationEnabled = defaults.object(
@@ -207,7 +214,7 @@ final class OraSettings {
         case compressAudio, audioRetentionDays, announceRecording, appLockEnabled
         case transcriptionLanguage
         case summaryEngine, localModelID, summaryDetail
-        case speakerSeparationEnabled, echoCancellationEnabled
+        case speakerSeparationEnabled, echoCancellationEnabled, voiceMemoryEnabled
     }
 
     private let defaults: UserDefaults

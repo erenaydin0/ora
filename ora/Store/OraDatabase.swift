@@ -205,6 +205,32 @@ nonisolated final class OraDatabase: Storing {
                 """)
         }
 
+        // Kişileri toplantılar arasında tanımak için ses izleri (RESEARCH.md §40).
+        // `speaker_embeddings`: bu toplantının kümeleri, **o anki etiketleriyle**
+        // — kullanıcı bir kümeyi adlandırınca izin kime ait olduğu buradan
+        // bilinir. `voiceprints`: kişi başına öğrenilmiş örnekler; toplantı
+        // silinse de kalır (düzeltmeler gibi, kişi bilgisi toplantıya bağlı
+        // değil) ve Ayarlar'dan tümüyle silinir. İkisi de cihazdan çıkmaz.
+        migrator.registerMigration("v5_voiceprints") { db in
+            try db.execute(sql: """
+                CREATE TABLE speaker_embeddings (
+                    meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+                    label      TEXT NOT NULL,
+                    channel    TEXT NOT NULL,
+                    embedding  BLOB NOT NULL,
+                    PRIMARY KEY (meeting_id, label)
+                );
+                CREATE TABLE voiceprints (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    person     TEXT NOT NULL,
+                    meeting_id INTEGER REFERENCES meetings(id) ON DELETE SET NULL,
+                    embedding  BLOB NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX voiceprints_person ON voiceprints(person);
+                """)
+        }
+
         return migrator
     }
 }

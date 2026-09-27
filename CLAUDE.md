@@ -412,6 +412,28 @@ Bu sıra asla değişmez:
   - **Kanallar karıştırılmaz:** `ChannelSampleSource` tek şeridi 16 kHz
     Float32 geçici dosyaya yazıp bellek eşlemeyle okur — FluidAudio'nun kendi
     dosya kaynağı stereoyu monoya indirirdi.
+- **Kişiler toplantılar arasında ses iziyle tanınır** (RESEARCH.md §40,
+  `OraSettings.voiceMemoryEnabled`, varsayılan açık). Ses izi = FluidAudio'nun
+  küme başına ortalama WeSpeaker gömmesi (256 boyut).
+  - **Tanıma tutucudur** (`VoiceMatcher`, eşikler Anarlog'dan, bizde
+    ölçülmedi): benzerlik ≥ 0,62, ikinci adaydan fark ≥ 0,08 ve eşleşme **iki
+    yönlü tekil** (kişinin de en iyi kümesi o). Tanınan küme adını alır — tek
+    küme olsa bile; geri kalanlar "Katılımcı N". Uzak (sistem) kanalında
+    kullanıcının kendi sesi aday değildir, orada yalnızca yankısı olabilir.
+  - **Öğrenme yalnızca kullanıcının eylemiyle:** bir etiket transkriptten
+    tamamen kalkıp bir ada geçince (`MeetingStore.learnVoice`, aksiyon
+    taşımayla aynı kural ve aynı transaction) o kümenin izi kişiye yazılır.
+    Otomatik tanıma kendi başına örnek eklemez — yanlış bir eşleşme kendini
+    pekiştirmesin. Eski etiket bir kişiyse (yanlış tanınmış küme) o
+    toplantıdan ona öğretilen iz geri alınır.
+  - **Kendi sesin:** uzak toplantıda mikrofonda en çok konuşan küme (≥ 20 sn)
+    "Ben" olarak öğrenilir, 5 örnekten sonra durur. Yüz yüze toplantıda
+    "Ben"in tanınması bununla olur; tanınmazsa en çok konuşan "Ben" kalır.
+  - Kişi başına en fazla 10 örnek (yenisi eskisini düşürür). Toplantı silinse
+    de iz kalır; Ayarlar → Genel → Konuşmacılar'da tek hamlede silinir.
+  - Adlı satırların yanında "Ben" satırları da varsa özet istemi "Ben"in kim
+    olduğunu yine söyler (`SummaryContext.hasRecorderLines`); tamamen adlı
+    içe aktarılan dökümün istemi değişmedi.
 - **Konuşmacı adı elle verilir, tahmin edilmez.** Üç kapsam vardır: yalnızca
   o satır, kullanıcının **seçtiği satırlar** (⌘-tık ekler, ⇧-tık aralık seçer;
   yüzen seçim çubuğu ve bağlam menüsü atar) ya da aynı kanaldaki aynı
@@ -581,9 +603,11 @@ gider. Hesap, kaydolma, bulut senkronizasyonu, ekip çalışma alanı ve
 telemetri **kapsam dışıdır** — bunlar iş modeli kararıdır, bağlantı kararı
 değil, ve ayrıca alınmadan yazılmaz.
 
-**3. Ses hiçbir zaman gönderilmez.** Transkripsiyon cihaz üstünde kalır:
+**3. Ses — ve ses izi — hiçbir zaman gönderilmez.** Transkripsiyon cihaz üstünde kalır:
 `DictationTranscriber(tr-TR)` ora'nın ölçülmüş farkıdır (RESEARCH.md §14) ve
-`.wav` dosyası cihazdan çıkmaz. Bulut STT ayrı bir karardır, **alınmadı**.
+`.wav` dosyası cihazdan çıkmaz. Konuşmacı ses izleri (`voiceprints`,
+`speaker_embeddings`) biyometrik veridir ve aynı kapsamdadır. Bulut STT ayrı
+bir karardır, **alınmadı**.
 Mikrofon, konuşma tanıma ve sistem sesi izin metinlerindeki "cihazınızdan
 çıkmaz" güvencesi bu madde sayesinde **doğru kalır**; bozulacak bir değişiklik
 yapılmadan önce Info.plist metinleri güncellenir.
@@ -657,6 +681,12 @@ topic_segments(id, meeting_id, title, bullets JSON, start_time, end_time)
 summaries(id, meeting_id UNIQUE, overview JSON, decisions JSON, created_at)
   -- overview: madde listesi (v4 öncesi düz metin; tek maddelik listeye düşer)
 transcripts_fts -- FTS5 virtual table (text, speaker), insert/delete/update trigger'ları
+speaker_embeddings(meeting_id, label, channel, embedding BLOB)
+  -- v5: bu toplantının kümeleri, o anki etiketleriyle. PRIMARY KEY(meeting_id, label),
+  --     toplantıyla cascade silinir
+voiceprints(id, person, meeting_id, embedding BLOB, created_at)
+  -- v5: kişi başına ≤ 10 öğrenilmiş örnek; person = ad ya da kendi sesin için 'Ben'.
+  --     meeting_id toplantı silinince NULL olur, iz kalır
 ```
 **Tarih sütunları** GRDB'nin varsayılan biçiminde yazılır
 (`YYYY-MM-DD HH:MM:SS.SSS`, UTC).
@@ -987,6 +1017,10 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       ağ yok. Tam geçişten sonra tek kanal ayrılır, satırlar kelime düzeyinde
       "Katılımcı 1/2…" diye bölünür; kullanıcı "o etiketin tümü" ile kümeyi tek
       hamlede adlandırır. Karar ölçüm beklemeden kullanıcı isteğiyle alındı.
+      **Konuşmacı hafızası (RESEARCH.md §40):** adlandırılan kümenin ses izi
+      öğrenilir, sonraki toplantılarda kişi adıyla gelir (v5 şeması: iki tablo);
+      küme adlandırılınca aksiyonların sahibi de değişir; mikrofonda hoparlör
+      yankısı bastırılır (kulaklıkta kapalı).
     - Bekleyen:
       1. **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
@@ -1056,7 +1090,8 @@ ora/Intelligence/      — FoundationIntelligence (noktalama + map-reduce özet)
                          (isteğe bağlı ikinci motor — **yalnızca özetlemeyi**
                          devralır, tek geçiş, map-reduce yok)
 ora/Store/             — OraDatabase (şema + migration), MeetingStore (tek kapı),
-                         Records (GRDB kayıtları), VocabularyStore
+                         Records (GRDB kayıtları), VocabularyStore,
+                         MeetingStore+Voice (ses izleri, öğrenme kuralı)
 ora/Pipeline/          — RecordingSession (kayıt sürerken: ses yazımı + canlı
                          transkripsiyon), MeetingPipeline (kayıt sonrası: tam
                          geçiş, noktalama, özet, depolama), PipelineEvent +
@@ -1071,6 +1106,7 @@ ora/Net/               — **ağa çıkan tek modül** (Faz 11). Outbound (izin 
                          Başka hiçbir dosyada `URLSession` geçmez — test tarar
 ora/Diarize/           — SpeakerSeparation (politika: hangi kanal, kelime düzeyi
                          atama, küme adları; saf ve motordan bağımsız),
+                         VoiceMatcher (ses izi eşleştirme, tutucu eşikler),
                          Diarizing protokolü + SpeakerTurn, FluidDiarizer
                          (FluidAudio offline VBx; modeller paketten, ağ yok) +
                          ChannelSampleSource (tek kanal, bellek eşlemeli)

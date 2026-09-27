@@ -274,4 +274,21 @@ struct SummaryShapeTests {
         OraSettings(defaults: defaults).summaryDetail = .brief
         #expect(OraSettings(defaults: defaults).summaryDetail == .brief)
     }
+
+    /// Ses izinden kişi tanınan kendi kaydımızda "Ben" satırları da vardır;
+    /// "Ben"in kim olduğu yine söylenir. Tamamen adlı içe aktarılan dökümde
+    /// söylenmez (§33) — o durumun istemi değişmedi.
+    @Test
+    func adliSatirlarlaBenBirlikteyseKaydiTutanSoylenir() {
+        var mixed = SummaryContext(meetingDate: .now, participants: [], userName: "Eren",
+                                   hasNamedSpeakers: true)
+        mixed.hasRecorderLines = true
+        #expect(FoundationIntelligence.speakerLine(mixed).contains("person recording"))
+
+        let imported = SummaryContext(meetingDate: .now, participants: [], userName: "Eren",
+                                      hasNamedSpeakers: true)
+        #expect(FoundationIntelligence.speakerLine(imported)
+                    == "- Every line begins with the speaker's name; take owners and "
+                       + "positions from those names.")
+    }
 }

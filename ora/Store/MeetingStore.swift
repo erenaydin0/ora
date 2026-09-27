@@ -155,8 +155,10 @@ nonisolated struct MeetingStore: Sendable {
 
     /// Konuşmacı etiketini değiştirir. Yalnız-mikrofon modunda her şey "Ben"
     /// damgalanıyor; kanal fiziksel gerçektir, **etiket** düzeltilebilir olmalı.
-    func setSpeaker(meetingID: Int64, segment: Segment, speaker: String) async throws {
-        try await setSpeaker(meetingID: meetingID, segments: [segment], speaker: speaker)
+    func setSpeaker(meetingID: Int64, segment: Segment, speaker: String,
+                    learnVoice: Bool = false) async throws {
+        try await setSpeaker(meetingID: meetingID, segments: [segment], speaker: speaker,
+                             learnVoice: learnVoice)
     }
 
     /// Kullanıcının **seçtiği** satırların etiketini tek işlemde değiştirir.
@@ -167,7 +169,8 @@ nonisolated struct MeetingStore: Sendable {
     /// kanal yine değişmez (kural #11), yalnızca etiket. Tek transaction —
     /// yarısı yazılmış bir atama bırakılmaz.
     @discardableResult
-    func setSpeaker(meetingID: Int64, segments: [Segment], speaker: String) async throws -> Int {
+    func setSpeaker(meetingID: Int64, segments: [Segment], speaker: String,
+                    learnVoice: Bool = false) async throws -> Int {
         try await database.write { db in
             var changed = 0
             for segment in segments {
@@ -179,8 +182,11 @@ nonisolated struct MeetingStore: Sendable {
                                 segment.channel.databaseValue])
                 changed += db.changesCount
             }
-            try Self.moveActions(db, meetingID: meetingID,
-                                 from: Set(segments.map(\.speaker)), to: speaker)
+            let labels = Set(segments.map(\.speaker))
+            try Self.moveActions(db, meetingID: meetingID, from: labels, to: speaker)
+            if learnVoice {
+                try Self.learnVoice(db, meetingID: meetingID, from: labels, to: speaker)
+            }
             return changed
         }
     }
@@ -213,7 +219,8 @@ nonisolated struct MeetingStore: Sendable {
     /// **etikettir**.
     @discardableResult
     func setSpeaker(meetingID: Int64, channel: Channel,
-                    from label: String, to speaker: String) async throws -> Int {
+                    from label: String, to speaker: String,
+                    learnVoice: Bool = false) async throws -> Int {
         try await database.write { db in
             try db.execute(sql: """
                 UPDATE transcripts SET speaker = ?
@@ -222,6 +229,9 @@ nonisolated struct MeetingStore: Sendable {
                 arguments: [speaker, meetingID, channel.databaseValue, label])
             let changed = db.changesCount
             try Self.moveActions(db, meetingID: meetingID, from: [label], to: speaker)
+            if learnVoice {
+                try Self.learnVoice(db, meetingID: meetingID, from: [label], to: speaker)
+            }
             return changed
         }
     }

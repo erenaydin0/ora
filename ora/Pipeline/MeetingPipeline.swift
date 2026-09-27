@@ -162,6 +162,11 @@ final class MeetingPipeline {
                                                   segments: transcribed)
             emit(.transcript(segments), meetingID)
             try? await store.replaceTranscript(meetingID, segments: segments)
+            // Ses izinden tanınan adlar katılımcı olarak yazılır (elle
+            // adlandırmayla aynı eşitleme).
+            if segments.contains(where: { !MeetingStore.isChannelLabel($0.speaker) }) {
+                try? await store.syncTranscriptParticipants(meetingID)
+            }
             Log.info(.transcribe, "Tam geçiş bitti — \(segments.count) segment, "
                      + "\(locale.identifier)")
             await summarize(meetingID: meetingID, segments: segments)
@@ -189,17 +194,72 @@ final class MeetingPipeline {
               let channel = SpeakerSeparation.channel(for: segments) else { return segments }
         stage(.separatingSpeakers(0), meetingID)
         do {
-            let turns = try await diarizer.turns(url: url, channel: channel) { [weak self] value in
+            let result = try await diarizer.turns(url: url, channel: channel) { [weak self] value in
                 Task { @MainActor in self?.stage(.separatingSpeakers(value), meetingID) }
             }
-            let separated = SpeakerSeparation.apply(turns, to: segments, channel: channel)
-            let labels = Set(separated.filter { $0.channel == channel }.map(\.speaker))
+            // Yalnızca gürültü sayılmayan kümeler tanınmaya aday.
+            let present = Set(SpeakerSeparation.significant(result.turns).map(\.speaker))
+            let candidates = result.embeddings.filter { present.contains($0.key) }
+
+            var known: [String: String] = [:]
+            if settings.voiceMemoryEnabled {
+                var people = (try? await store.voiceprints()) ?? [:]
+                // Uzak kanalda kullanıcının kendi sesi aday değildir — orada
+                // yalnızca hoparlörden sızan yankısı olabilir.
+                if channel == .system { people[VoicePrint.me] = nil }
+                known = VoiceMatcher.assign(clusters: candidates, people: people)
+            }
+
+            let (separated, labels) = SpeakerSeparation.separate(
+                result.turns, to: segments, channel: channel, known: known)
+            // Kümelerin sesi **verilen etiketle** saklanır: kullanıcı bir
+            // etiketi adlandırınca kime ait olduğu buradan bilinir.
+            var byLabel: [String: [Float]] = [:]
+            for (cluster, label) in labels {
+                if let embedding = result.embeddings[cluster] { byLabel[label] = embedding }
+            }
+            try? await store.saveSpeakerEmbeddings(meetingID, channel: channel,
+                                                   embeddings: byLabel)
+            if settings.voiceMemoryEnabled, channel == .system {
+                await learnOwnVoice(meetingID: meetingID, url: url, segments: segments)
+            }
+
+            let names = Set(separated.filter { $0.channel == channel }.map(\.speaker))
             Log.info(.transcribe, "Konuşmacılar ayrıldı — \(channel.databaseValue) kanalında "
-                     + "\(labels.count) etiket, \(segments.count) → \(separated.count) satır")
+                     + "\(names.count) etiket, \(known.count) tanınan kişi, "
+                     + "\(segments.count) → \(separated.count) satır")
             return separated
         } catch {
             Log.warning(.transcribe, "Konuşmacı ayrımı atlandı: \(error.localizedDescription)")
             return segments
+        }
+    }
+
+    /// Kullanıcının kendi sesinden bu kadar örnek birikince artık öğrenilmez.
+    static let ownVoiceSamples = 5
+    /// Mikrofonda en çok konuşan küme en az bu kadar konuşmalı.
+    static let ownVoiceMinimumSpeech: TimeInterval = 20
+
+    /// Uzak toplantıda mikrofon kanalı kullanıcının kendisidir: en çok konuşan
+    /// kümenin sesi "Ben" olarak öğrenilir. Yüz yüze toplantıda odadaki
+    /// kişiler aynı mikrofonu paylaştığında kaydı tutan böyle tanınır.
+    /// Birkaç örnekten sonra durur — her kayıtta ikinci bir ayrım koşmaz.
+    private func learnOwnVoice(meetingID: Int64, url: URL, segments: [Segment]) async {
+        guard segments.contains(where: { $0.channel == .mic }),
+              ((try? await store.voiceprintCount(person: VoicePrint.me)) ?? 0)
+                  < Self.ownVoiceSamples else { return }
+        do {
+            let mic = try await diarizer.turns(url: url, channel: .mic) { _ in }
+            var speech: [String: TimeInterval] = [:]
+            for turn in mic.turns { speech[turn.speaker, default: 0] += turn.duration }
+            guard let owner = speech.max(by: { $0.value < $1.value }),
+                  owner.value >= Self.ownVoiceMinimumSpeech,
+                  let embedding = mic.embeddings[owner.key] else { return }
+            try await store.addVoiceprint(person: VoicePrint.me, meetingID: meetingID,
+                                          embedding: embedding)
+            Log.info(.transcribe, "Kendi sesiniz öğrenildi (\(Int(owner.value)) sn)")
+        } catch {
+            Log.warning(.transcribe, "Kendi ses izi öğrenilemedi: \(error.localizedDescription)")
         }
     }
 
@@ -272,6 +332,7 @@ final class MeetingPipeline {
                 hasNamedSpeakers: working.contains {
                     !MeetingStore.isChannelLabel($0.speaker)
                 },
+                hasRecorderLines: working.contains { $0.speaker == Channel.mic.speaker },
                 detail: settings.summaryDetail)
             let result = try await engine.summarize(
                 working, context: context, variation: variation) { [weak self] value in

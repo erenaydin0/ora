@@ -10,6 +10,14 @@ nonisolated struct SpeakerTurn: Sendable, Equatable {
     var duration: TimeInterval { max(0, end - start) }
 }
 
+/// Bir kanalın konuşmacı ayrımı: turlar ve küme başına ortalama ses izi.
+nonisolated struct Diarization: Sendable, Equatable {
+    var turns: [SpeakerTurn]
+    /// Küme kimliği → gömme vektörü (WeSpeaker, 256 boyut). Kişileri
+    /// toplantılar arasında tanımak için (`VoiceMatcher`).
+    var embeddings: [String: [Float]] = [:]
+}
+
 /// Konuşmacı ayrımı motoru. Testte sahtelenir.
 nonisolated protocol Diarizing: Sendable {
     /// Motor bu makinede kullanılabilir mi (modeller pakette mi)?
@@ -22,7 +30,7 @@ nonisolated protocol Diarizing: Sendable {
     /// segmentasyonu ve gömülmesi ana iş parçacığında koşamaz.
     @concurrent func turns(url: URL, channel: Channel,
                            progress: @Sendable @escaping (Double) -> Void) async throws
-        -> [SpeakerTurn]
+        -> Diarization
 }
 
 /// Diarization turlarını transkripte uygulayan **politika**. Motordan
@@ -62,8 +70,31 @@ nonisolated enum SpeakerSeparation {
     /// gibi kalır. Tek küme çıkarsa hiçbir şey değişmez — etiket zaten doğrudur.
     static func apply(_ turns: [SpeakerTurn], to segments: [Segment],
                       channel: Channel) -> [Segment] {
+        separate(turns, to: segments, channel: channel).segments
+    }
+
+    /// `apply` + kümelerin aldığı son etiketler.
+    ///
+    /// - Parameter known: ses izinden tanınan kümeler (küme → kişi). Tanınan
+    ///   küme kişinin adını alır, geri kalanlar "Katılımcı N" olarak
+    ///   numaralanır. Tek küme bile tanınmışsa adlandırılır.
+    /// - Returns: `labels`, küme → verilen etiket. Tek ve tanınmamış kümede
+    ///   kanal etiketidir; kullanıcı onu adlandırınca sesi öğrenilir.
+    static func separate(_ turns: [SpeakerTurn], to segments: [Segment],
+                         channel: Channel, known: [String: String] = [:])
+        -> (segments: [Segment], labels: [String: String]) {
         let kept = significant(turns)
-        guard Set(kept.map(\.speaker)).count > 1 else { return segments }
+        let clusters = Set(kept.map(\.speaker))
+        guard clusters.count > 1 else {
+            guard let cluster = clusters.first else { return (segments, [:]) }
+            guard let name = known[cluster] else {
+                return (segments, [cluster: channel.speaker])
+            }
+            let renamed = segments.map {
+                $0.channel == channel ? relabeled($0, as: name) : $0
+            }
+            return (renamed, [cluster: name])
+        }
 
         // Önce her kelimenin kümesi bulunur, adlar ondan sonra verilir:
         // numara **ilk konuşma sırasıdır** ve atamadan önce bilinmez.
@@ -77,14 +108,15 @@ nonisolated enum SpeakerSeparation {
         }
 
         let names = labels(for: split.filter { $0.segment.channel == channel },
-                           channel: channel)
-        return split.map { item in
+                           channel: channel, known: known)
+        let result = split.map { item in
             guard let cluster = item.cluster, let name = names[cluster] else {
                 return item.segment
             }
             return relabeled(item.segment, as: name)
         }
         .sorted { $0.start < $1.start }
+        return (result, names)
     }
 
     // MARK: - Adımlar
@@ -210,7 +242,8 @@ nonisolated enum SpeakerSeparation {
     ///    kaydı tutanın önündedir; geri kalanlar numaralanır. Yanılırsa
     ///    kullanıcı tek hamlede düzeltir.
     static func labels(for items: [(segment: Segment, cluster: String?)],
-                       channel: Channel) -> [String: String] {
+                       channel: Channel,
+                       known: [String: String] = [:]) -> [String: String] {
         var order: [String] = []
         var speech: [String: TimeInterval] = [:]
         for item in items {
@@ -220,10 +253,18 @@ nonisolated enum SpeakerSeparation {
         }
         guard order.count > 1 else { return [:] }
 
+        // Ses izinden tanınanlar önce; numaralar geri kalanlara verilir.
         var names: [String: String] = [:]
         var others = order
-        if channel == .mic,
-           let owner = speech.max(by: { $0.value < $1.value })?.key {
+        for cluster in order {
+            guard let person = known[cluster] else { continue }
+            names[cluster] = person
+            others.removeAll { $0 == cluster }
+        }
+        // Yüz yüze toplantıda sahibin sesi tanınmadıysa en çok konuşan "Ben".
+        if channel == .mic, !names.values.contains(Channel.mic.speaker),
+           let owner = speech.filter({ others.contains($0.key) })
+               .max(by: { $0.value < $1.value })?.key {
             names[owner] = Channel.mic.speaker
             others.removeAll { $0 == owner }
         }

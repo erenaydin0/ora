@@ -147,6 +147,10 @@ nonisolated struct SummaryContext: Sendable, Equatable {
     /// döküm) yoksa kanal etiketleriyle mi ("Ben" / "Katılımcı", kendi
     /// kaydımız)? İstem buna göre değişir — bkz. `speakerLine`.
     var hasNamedSpeakers = false
+    /// Adlandırılmış satırların yanında "Ben" satırları da var mı? Ses izinden
+    /// kişi tanınan kendi kaydımızda olur; o zaman "Ben"in kim olduğu yine
+    /// söylenmeli. İçe aktarılan tamamen adlı dökümde yanlıştır (§33).
+    var hasRecorderLines = false
     /// Kullanıcının seçtiği özet uzunluğu (Ayarlar → Özetleme).
     var detail: SummaryDetail = .balanced
 

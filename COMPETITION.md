@@ -253,9 +253,10 @@ verirdi ama powerset çözme + VBx kümelemeyi baştan yazmak demekti.
 varsa o, yoksa mikrofon), atama kelime düzeyinde, kümeler "Katılımcı N";
 adlandırma seçenek 3'ün arayüzüyle kullanıcının işi olarak kalır.
 
-**Açık kalanlar:** ses izi ile kullanıcının kendi sesini öğrenmek ve bilinen
-kişileri toplantılar arasında adlandırmak (Anarlog v1.4.18) — FluidAudio'nun
-`speakerDatabase` gömmeleri buna hazır; mikrofon kanalında yankı bastırma yok.
+**Sonradan eklenenler (RESEARCH.md §40):** ses iziyle kişileri toplantılar
+arasında tanıma ve kendi sesini öğrenme (Anarlog v1.4.18'in karşılığı, aynı
+eşiklerle), küme adlandırılınca aksiyon sahibinin değişmesi, mikrofonda
+hoparlör yankısı bastırma (kulaklıkta kapalı).
 
 #### Önceki durum (seçenek 3)
 **Durum:** ora'nın en büyük kalite açığı. Kanal ayrımı yalnızca

@@ -330,19 +330,24 @@ final class MeetingLibrary {
     func setSpeaker(_ segment: Segment, to speaker: String) async {
         guard let meetingID = selection else { return }
         do {
-            try await store.setSpeaker(meetingID: meetingID, segment: segment, speaker: speaker)
+            try await store.setSpeaker(meetingID: meetingID, segment: segment, speaker: speaker,
+                                       learnVoice: learnsVoices())
             await finishRelabel(meetingID, name: speaker)
         } catch {
             Log.error(.store, "Konuşmacı değiştirilemedi", error)
         }
     }
 
+    /// Adlandırma sesi öğretsin mi (`OraSettings.voiceMemoryEnabled`).
+    /// Kütüphane ayarları tanımaz; denetleyici bağlar.
+    var learnsVoices: () -> Bool = { false }
+
     /// Seçili satırları tek hamlede adlandırır.
     func setSpeaker(_ segments: [Segment], to speaker: String) async {
         guard let meetingID = selection, !segments.isEmpty else { return }
         do {
             try await store.setSpeaker(meetingID: meetingID, segments: segments,
-                                       speaker: speaker)
+                                       speaker: speaker, learnVoice: learnsVoices())
             await finishRelabel(meetingID, name: speaker)
         } catch {
             Log.error(.store, "Seçili satırların konuşmacısı değiştirilemedi", error)
@@ -355,7 +360,7 @@ final class MeetingLibrary {
         guard let meetingID = selection else { return }
         do {
             try await store.setSpeaker(meetingID: meetingID, channel: channel,
-                                       from: label, to: speaker)
+                                       from: label, to: speaker, learnVoice: learnsVoices())
             await finishRelabel(meetingID, name: speaker)
         } catch {
             Log.error(.store, "Konuşmacılar değiştirilemedi", error)
