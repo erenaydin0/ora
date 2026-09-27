@@ -18,12 +18,18 @@ import Foundation
 /// düşüyordu.
 ///
 /// Sınırlar bu ölçülen orandan hesaplanır ve üretilecek çıktıya pay bırakır.
+///
+/// macOS 27'de ölçülen bütçe (RESEARCH.md §41, `tokenCount(for:)`): talimat
+/// 161, `ParcaOzeti` şeması 482, istem gövdesi 458 token — sabit kısım
+/// **~1.100 token**, parça ne olursa olsun. Yeni sürümün tokenizer'ı Türkçe'de
+/// daha verimli (**3,1–3,2 krk/token**); 12.000 krk ≈ 3.800 token. Sağlıklı
+/// bir parçanın çıktısı 400–770 token, toplam doluluk ~5.600 / 8.192.
 nonisolated enum TranscriptChunker {
 
     /// Sınırların ölçüldüğü pencere (RESEARCH.md §23).
     static let measuredContextSize = 4096
-    /// Özetleme parçası, 4096'lık pencerede: 6.000 krk ≈ 2.450 token; istem
-    /// ~300, çıktıya ~1.300 pay.
+    /// Özetleme parçası, 4096'lık pencerede: 6.000 krk ≈ 2.450 token (macOS 26
+    /// tokenizer'ı); kalan ~1.650 token istem, şema ve çıktıya.
     static let summaryLimit = 6_000
     /// Noktalama parçası — çıktı girdiyle **aynı boyutta** olacağı için daha dar:
     /// 3.500 krk ≈ 1.430 token girdi + aynı kadar çıktı + istem.

@@ -2647,3 +2647,39 @@ davranış bayt bayt aynıdır.
 
 *probe:* `SystemLanguageModel.default.contextSize` ve kısa bir `respond`
 çağrısı; `swiftc -parse-as-library` ile derlenir.
+
+### 41.1 Pencerenin gerçek dökümü
+
+`tokenCount(for:)` (macOS 26.4+) ile, `probes/bordro_toplanti.json`
+(18.001 krk) üzerinde, gerçek `chunkPrompt` + `summaryInstructions` ile:
+
+| Kalem | Token |
+|---|---|
+| Talimat (`summaryInstructions`) | 161 |
+| `ParcaOzeti` şeması (`@Guide` metinleri dahil) | 482 |
+| İstem gövdesi (`chunkPrompt`, metinsiz) | 458 |
+| **Sabit kısım** | **~1.100** |
+| 12.000 krk parça | 3.821 (**3,14 krk/token**) |
+| 6.000 krk parçalar | 1.849–1.941 (3,09–3,24) |
+| Sağlıklı çıktı | 405–772 |
+| 12.000'lik 1. parçada toplam doluluk | 5.585 / 8.192 · 29 sn |
+
+İki düzeltme: 4096 döneminin "istem ~300" tahmini yanlıştı — şema tek başına
+482 token. Ve 2,45 krk/token oranı macOS 26'nın tokenizer'ına aittir; macOS
+27'de aynı Türkçe metin ~%25 daha az token ediyor.
+
+### 41.2 Kopyalama kaçağı: çıktı pencereyi dolduruyor
+
+Toplantının konuşma ağırlıklı son ~6.000 karakteri **her iki parça
+boyutunda da** (6.000 ve 12.000 sınırı) `exceededContextWindowSize` verdi:
+"Content contains 8193 tokens", 137–139 sn sonra. Girdi ~3.000 token;
+taşan **çıktıdır**. Akışla izlendiğinde model not yazmıyor, transkript
+satırlarını konuşmacı önekiyle kelimesi kelimesine kopyalıyor
+("Zerrin ALTUN: Net o dönem tutmuyor…") — istemdeki "never quote the
+speakers" kuralına rağmen. Aynı parça bir koşuda bitti (kopya notlarla),
+bir koşuda pencereyi doldurdu. Hesap ağırlıklı ilk parça ise olgu notları
+verdi ("SSK matrahı, %14 oranında…"); oradaki üç aksiyonun üçü de sahipsiz
+("belirtilmedi") ve belirsizdi ("… kontrol etmek").
+
+Sonuç: parça sınırından bağımsız bir hata. `chunkTopics` aynı istemi aynı
+örneklemeyle ikinci kez denediği için kaçak parça ~4,5 dk harcayıp atlanıyor.
