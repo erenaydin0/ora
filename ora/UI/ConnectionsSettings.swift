@@ -60,7 +60,13 @@ struct ConnectionsSettings: View {
             }
         }
         .formStyle(.grouped)
-        .task { connections.refresh() }
+        .task {
+            connections.refresh()
+            // Girişli ChatGPT hesabının model kataloğu — tek sefer.
+            if connections.storedSecrets.contains(.chatGPT), connections.chatGPTModels.isEmpty {
+                await connections.refreshChatGPTModels()
+            }
+        }
         .sheet(item: $consentFor) { kind in
             ConsentSheet(kind: kind, localServerURL: settings.localServerURL) {
                 connections.grantConsent(kind)
@@ -111,6 +117,9 @@ private struct ConnectionFields: View {
     private var hasSecret: Bool { connections.storedSecrets.contains(kind) }
 
     var body: some View {
+        if kind == .chatGPT {
+            ChatGPTFields(connections: connections, settings: settings)
+        }
         if kind.needsSecret {
             HStack {
                 SecureField(kind.secretLabel, text: $draft,
@@ -127,7 +136,7 @@ private struct ConnectionFields: View {
         if kind == .localServer {
             TextField("Adres", text: $settings.localServerURL)
         }
-        if kind.isAIProvider {
+        if kind.isAIProvider, kind != .chatGPT {
             TextField("Model", text: Binding(
                 get: { settings.providerModels[kind.rawValue] ?? "" },
                 set: { settings.providerModels[kind.rawValue] = $0 }),
@@ -155,7 +164,7 @@ private struct ConnectionFields: View {
             }
             .disabled(!connections.isConfigured(kind) || testing)
             if hasSecret || kind == .localServer && connections.isConfigured(kind) {
-                Button("Kaldır", role: .destructive) {
+                Button(kind == .chatGPT ? "Çıkış yap" : "Kaldır", role: .destructive) {
                     connections.remove(kind)
                     result = nil
                 }
@@ -171,6 +180,85 @@ private struct ConnectionFields: View {
             Text("Deneme, kanala görünür kısa bir ileti gönderir.")
                 .font(.system(size: 11))
                 .foregroundStyle(Color.oraInkMuted)
+        }
+    }
+}
+
+/// ChatGPT aboneliğiyle giriş: anahtar yerine tarayıcıda oturum açılır.
+/// Dönüş bu Mac'te yakalanır; yakalanamazsa adres yapıştırılarak tamamlanır.
+private struct ChatGPTFields: View {
+    let connections: ConnectionCenter
+    @Bindable var settings: OraSettings
+    @State private var pasted = ""
+    @State private var message: String?
+    @State private var working = false
+
+    private var signedIn: Bool { connections.storedSecrets.contains(.chatGPT) }
+    private var modelKey: String { ConnectionKind.chatGPT.rawValue }
+
+    var body: some View {
+        if signedIn {
+            let current = settings.providerModels[modelKey] ?? ""
+            let models = connections.chatGPTModels
+            if models.isEmpty {
+                HStack {
+                    TextField("Model", text: Binding(
+                        get: { current },
+                        set: { settings.providerModels[modelKey] = $0 }),
+                        prompt: Text("Model adı"))
+                    Button("Modelleri getir") { Task { await connections.refreshChatGPTModels() } }
+                }
+            } else {
+                Picker("Model", selection: Binding(
+                    get: { current },
+                    set: { settings.providerModels[modelKey] = $0 })) {
+                    ForEach(models.contains(current) || current.isEmpty
+                            ? models : [current] + models, id: \.self) { Text($0).tag($0) }
+                }
+            }
+        } else if connections.chatGPTSignIn == nil {
+            HStack {
+                Button(working ? "Tarayıcı açılıyor…" : "ChatGPT ile giriş yap") {
+                    working = true
+                    message = nil
+                    Task {
+                        message = await connections.beginChatGPTSignIn()
+                        working = false
+                    }
+                }
+                .disabled(working)
+                Spacer()
+            }
+            Text("Tarayıcıda ChatGPT hesabınızla giriş yaparsınız; aboneliğinizin kullanım "
+                 + "hakkı kullanılır, API anahtarı gerekmez. Parolanız ora'ya gelmez.")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraInkMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text("Tarayıcıda giriş yapın…")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraInk)
+            HStack {
+                TextField("Dönüş adresi", text: $pasted,
+                          prompt: Text("Tarayıcı dönmezse adres çubuğundaki adresi yapıştırın"))
+                Button("Tamamla") {
+                    Task {
+                        message = await connections.completeChatGPTSignIn(pasted)
+                        if message == nil { pasted = "" }
+                    }
+                }
+                .disabled(pasted.trimmingCharacters(in: .whitespaces).isEmpty)
+                Button("Vazgeç") {
+                    connections.cancelChatGPTSignIn()
+                    working = false
+                }
+            }
+        }
+        if let message {
+            Text(message)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.oraRed)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

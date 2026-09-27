@@ -4,6 +4,9 @@ import Foundation
 /// Hiçbiri kurulu gelmez; bağlanmamış bir hizmete istek atılmaz.
 nonisolated enum ConnectionKind: String, CaseIterable, Sendable, Identifiable, Codable {
     case anthropic
+    /// ChatGPT aboneliğiyle giriş (Codex'in "Sign in with ChatGPT" akışı).
+    /// OpenAI aboneliğin üçüncü taraf araçlarda kullanılmasını destekliyor.
+    case chatGPT
     case openAI
     case openRouter
     /// Ollama, LM Studio gibi OpenAI uyumlu bir sunucu. Varsayılan adres bu
@@ -14,7 +17,8 @@ nonisolated enum ConnectionKind: String, CaseIterable, Sendable, Identifiable, C
 
     var id: String { rawValue }
 
-    static let aiProviders: [ConnectionKind] = [.anthropic, .openAI, .openRouter, .localServer]
+    static let aiProviders: [ConnectionKind] = [.chatGPT, .anthropic, .openAI, .openRouter,
+                                                 .localServer]
 
     var isAIProvider: Bool { Self.aiProviders.contains(self) }
 
@@ -22,6 +26,7 @@ nonisolated enum ConnectionKind: String, CaseIterable, Sendable, Identifiable, C
     var displayName: String {
         switch self {
         case .anthropic:   "Anthropic (Claude)"
+        case .chatGPT:     "ChatGPT (abonelik)"
         case .openAI:      "OpenAI"
         case .openRouter:  "OpenRouter"
         case .localServer: "Yerel sunucu (Ollama · LM Studio)"
@@ -39,8 +44,9 @@ nonisolated enum ConnectionKind: String, CaseIterable, Sendable, Identifiable, C
         }
     }
 
-    /// Anahtar gerektiriyor mu? Yerel sunucu çoğu zaman istemez.
-    var needsSecret: Bool { self != .localServer }
+    /// Elle girilen bir anahtar mı? Yerel sunucu çoğu zaman istemez;
+    /// ChatGPT'de anahtar yerine tarayıcıdan giriş yapılır.
+    var needsSecret: Bool { self != .localServer && self != .chatGPT }
 
     var secretLabel: String {
         switch self {
@@ -60,6 +66,7 @@ nonisolated enum ConnectionKind: String, CaseIterable, Sendable, Identifiable, C
     /// OpenAI uyumlu uç noktanın kökü.
     var defaultBaseURL: String? {
         switch self {
+        case .chatGPT:     "https://chatgpt.com/backend-api/codex"
         case .openAI:      "https://api.openai.com/v1"
         case .openRouter:  "https://openrouter.ai/api/v1"
         case .localServer: "http://localhost:11434/v1"
@@ -73,6 +80,9 @@ nonisolated enum OutboundPurpose: String, Sendable, Codable {
     case summary = "özet"
     case chat = "sohbet"
     case share = "paylaşım"
+    /// Abonelik girişi, token yenileme ve model listesi. Toplantı verisi
+    /// taşımaz; kullanıcının başlattığı girişin parçasıdır.
+    case signIn = "oturum"
     /// Kullanıcının "Bağlantıyı dene" düğmesi. Toplantı verisi taşımaz, bu
     /// yüzden onay istemez.
     case test = "bağlantı denemesi"

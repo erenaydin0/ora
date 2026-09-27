@@ -660,6 +660,24 @@ sağlayıcı adları özel isimdir, çevrilmez.
   toplantı ya da hazır olmayan bağlantı cihazdaki motoru kullanır; sağlayıcı
   hata verirse özet cihazda üretilir ve not düşülür. Metnin buluta gitmeye
   başladığı an bir onay ekranından geçer (ne gider, ne gitmez).
+- **ChatGPT aboneliğiyle giriş** (`ConnectionKind.chatGPT`, `ChatGPTAuth`):
+  Codex'in "Sign in with ChatGPT" akışı — OAuth yetki kodu + PKCE, Codex
+  CLI'ın istemci kimliği, dönüş `localhost:1455`'te yalnızca geri döngüde
+  dinleyen tek atımlık `OAuthCallbackServer` (port doluysa adres
+  yapıştırılarak tamamlanır). İstekler `chatgpt.com/backend-api/codex/
+  responses`'a Responses biçiminde, `store: false` + `stream: true`, SSE
+  okunur. Token Keychain'de JSON, süresi dolmadan yenilenir; yenilenemezse
+  cihazdaki motora düşülür. Modeller hesabın kataloğundan
+  (`/models?client_version=…`). OpenAI aboneliğin üçüncü taraf araçlarda
+  kullanılmasını açıkça destekliyor (OpenCode, Cline). **Bu uç nokta resmi
+  bir herkese açık API değildir**; Codex değiştikçe `clientVersion` ve
+  başlıkların güncellenmesi gerekebilir.
+- **Claude Pro/Max aboneliğiyle giriş YAPILMAZ.** Anthropic 19 Şubat 2026'dan
+  beri abonelik OAuth token'larının Claude Code ve Claude.ai dışında
+  kullanılmasını tüketici koşullarının ihlali sayıyor ve Nisan 2026'dan beri
+  uyguluyor. Anarlog bunu Claude Code'un istemci kimliği ve istemin başına
+  "You are Claude Code" kimlik cümlesi ekleyerek yapıyor — kullanıcıların
+  hesaplarını kapatılma riskine sokar. Claude için API anahtarı kullanılır.
 - **Paylaşım:** Slack (gelen webhook, mrkdwn'a çevrilmiş) ve Notion (sayfa
   altına alt sayfa; 100 blokluk parçalar, 2.000 karakterlik metin parçaları —
   **kırpılmaz**). İçerik dışa aktarımın **transkriptsiz** Markdown'ı. Elle
@@ -1062,7 +1080,8 @@ güncellenir. Kural tamamen geçersizleştiyse sil — "eskiden şöyleydi" notu
       sağlayıcını (Anthropic · OpenAI · OpenRouter · yerel sunucu) özet ve
       sohbet motoru olarak bağlama, Slack ve Notion'a ön izlemeli gönderim ve
       onaydan sonra otomatik gönderim, toplantı bazlı "cihazdan çıkmasın"
-      kilidi (v6), giden istek künyesi.
+      kilidi (v6), giden istek künyesi. ChatGPT aboneliğiyle giriş (Codex
+      akışı) eklendi; Claude aboneliği Anthropic'in koşulları nedeniyle yok.
     - Bekleyen:
       1. **Faz 0** — gerçek toplantı sesiyle doğruluk kapısı. İlk gerçek
          (TTS olmayan) örnek alındı (§14.2, güven 0.76–0.86) ama kısa.
@@ -1149,7 +1168,9 @@ ora/Net/               — **ağa çıkan tek modül** (Faz 11). Outbound (kapı
                          deneme, paylaşım, otomatik paylaşım), Connection
                          (ConnectionKind, OutboundPurpose), Secrets (Keychain),
                          OutboundLog (künye), ProviderClient (Anthropic +
-                         OpenAI uyumlu), ShareTargets (Slack, Notion). Başka
+                         OpenAI uyumlu + Codex/SSE), ChatGPTAuth (abonelik
+                         girişi, PKCE, OAuthCallbackServer), ShareTargets
+                         (Slack, Notion). Başka
                          hiçbir dosyada `URLSession` geçmez — test tarar
 ora/Diarize/           — SpeakerSeparation (politika: hangi kanal, kelime düzeyi
                          atama, küme adları; saf ve motordan bağımsız),

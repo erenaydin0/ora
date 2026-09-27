@@ -23,6 +23,11 @@ final class ConnectionCenter {
     private(set) var recent: [OutboundRecord] = []
     /// Otomatik paylaşım gibi kullanıcının beklemediği bir işte çıkan hata.
     var onError: ((OraError) -> Void)?
+    /// Sürmekte olan ChatGPT girişi (tarayıcı açık, dönüş bekleniyor).
+    private(set) var chatGPTSignIn: ChatGPTAuth.Session?
+    private var callbackServer: OAuthCallbackServer?
+    /// Hesabın görebildiği ChatGPT modelleri — girişten sonra katalogdan.
+    private(set) var chatGPTModels: [String] = []
 
     init(settings: OraSettings, store: MeetingStore, onDevice: any Intelligent,
          secrets: any SecretStoring = KeychainSecrets(),
@@ -55,6 +60,9 @@ final class ConnectionCenter {
     /// nil: izin var. Sıra önemli — önce kurulum, sonra onay, sonra kilit.
     func denial(_ kind: ConnectionKind, purpose: OutboundPurpose,
                 meetingID: Int64?) async -> String? {
+        // Giriş ve token yenileme kullanıcının başlattığı girişin parçasıdır;
+        // toplantı verisi taşımaz, bağlantı henüz kurulu olmayabilir.
+        guard purpose != .signIn else { return nil }
         guard isConfigured(kind) else {
             return "\(kind.displayName) bağlı değil. Ayarlar → Bağlantılar'dan bağlayın."
         }
@@ -80,7 +88,7 @@ final class ConnectionCenter {
         case .notion:
             return storedSecrets.contains(kind)
                 && ShareTargets.notionPageID(settings.notionPageID) != nil
-        case .anthropic, .openAI, .openRouter:
+        case .anthropic, .openAI, .openRouter, .chatGPT:
             return storedSecrets.contains(kind) && !settings.model(for: kind).isEmpty
         case .slack:
             return storedSecrets.contains(kind)
@@ -131,8 +139,14 @@ final class ConnectionCenter {
 
     // MARK: - AI sağlayıcısı
 
-    func client(_ kind: ConnectionKind) -> ProviderClient? {
+    func client(_ kind: ConnectionKind) async throws -> ProviderClient? {
         guard kind.isAIProvider, isConfigured(kind) else { return nil }
+        if kind == .chatGPT {
+            let credential = try await validChatGPTCredential()
+            return ProviderClient(kind: kind, model: settings.model(for: kind), baseURL: nil,
+                                  secret: credential.access, accountID: credential.accountID,
+                                  outbound: outbound)
+        }
         let base: URL? = kind == .localServer
             ? URL(string: settings.localServerURL)
             : kind.defaultBaseURL.flatMap(URL.init(string:))
@@ -144,9 +158,127 @@ final class ConnectionCenter {
     /// toplantı kilitliyse nil — hat o zaman cihazdaki motoru kullanır.
     func cloudEngine(meetingID: Int64) async -> (any Intelligent)? {
         guard settings.summaryEngine == .cloud, isCloudReady,
-              let client = client(settings.cloudProvider),
               (try? await store.isLocalOnly(meetingID)) != true else { return nil }
+        let client: ProviderClient?
+        do {
+            client = try await self.client(settings.cloudProvider)
+        } catch {
+            // Token yenilenemediyse (oturum kapatılmış, parola değişmiş)
+            // cihazdaki motora düşülür ve kullanıcıya söylenir (kural 9).
+            let failure = error as? OraError ?? .connectionFailed(reason: error.localizedDescription)
+            Log.warning(.net, "Bağlı sağlayıcı hazırlanamadı: \(failure.turkishDetail)")
+            onError?(failure)
+            return nil
+        }
+        guard let client else { return nil }
         return CloudIntelligence(client: client, meetingID: meetingID, fallback: onDevice)
+    }
+
+    // MARK: - ChatGPT aboneliği
+
+    /// Girişi başlatır: tarayıcı açılır, dönüş bu Mac'te dinlenir. Port
+    /// doluysa kullanıcı adres çubuğundaki adresi yapıştırarak tamamlar
+    /// (`completeChatGPTSignIn`). nil: giriş tamamlandı; değilse Türkçe neden.
+    func beginChatGPTSignIn() async -> String? {
+        let session = startChatGPTSession()
+        let server = try? OAuthCallbackServer(port: ChatGPTAuth.callbackPort)
+        callbackServer = server
+        ChatGPTAuth.openInBrowser(session)
+        guard let server else {
+            return "Giriş dönüşü dinlenemiyor. Tarayıcıda giriş yaptıktan sonra adres "
+                + "çubuğundaki adresi aşağıya yapıştırın."
+        }
+        do {
+            let callback = try await server.waitForCallback()
+            guard chatGPTSignIn == session else { return nil }   // yapıştırarak tamamlandı
+            return await completeChatGPTSignIn(callback)
+        } catch is CancellationError {
+            return nil
+        } catch let error as OraError {
+            return error.turkishDetail
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Dönüş adresiyle girişi bitirir: kod token'a çevrilir, Keychain'e
+    /// yazılır, hesabın modelleri okunur.
+    func completeChatGPTSignIn(_ input: String) async -> String? {
+        guard let session = chatGPTSignIn else { return "Önce giriş başlatın." }
+        do {
+            let code = try ChatGPTAuth.code(from: input, session: session)
+            let data = try await outbound.send(
+                ChatGPTAuth.exchangeRequest(code: code, session: session),
+                connection: .chatGPT, purpose: .signIn, meetingID: nil, characters: 0)
+            let credential = try ChatGPTAuth.credential(from: data)
+            try secrets.setSecret(credential.encoded, for: .chatGPT)
+            chatGPTSignIn = nil
+            callbackServer?.cancel()
+            callbackServer = nil
+            refresh()
+            await refreshChatGPTModels()
+            Log.info(.net, "ChatGPT aboneliğiyle giriş yapıldı")
+            return nil
+        } catch let error as OraError {
+            return error.turkishDetail
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Yeni bir giriş oturumu kurar — tarayıcı açmaz, dinlemez. Yapıştırarak
+    /// tamamlama da bu oturumla doğrulanır.
+    @discardableResult
+    func startChatGPTSession() -> ChatGPTAuth.Session {
+        cancelChatGPTSignIn()
+        let session = ChatGPTAuth.Session.start()
+        chatGPTSignIn = session
+        return session
+    }
+
+    func cancelChatGPTSignIn() {
+        callbackServer?.cancel()
+        callbackServer = nil
+        chatGPTSignIn = nil
+    }
+
+    /// Süresi dolmak üzereyse yenilenmiş kimlik; yenilenen Keychain'e yazılır.
+    func validChatGPTCredential() async throws -> ChatGPTAuth.Credential {
+        guard let credential = ChatGPTAuth.Credential.decode(secrets.secret(for: .chatGPT)) else {
+            throw OraError.connectionFailed(reason: "ChatGPT'ye giriş yapılmamış.")
+        }
+        guard credential.needsRefresh else { return credential }
+        let data: Data
+        do {
+            data = try await outbound.send(ChatGPTAuth.refreshRequest(credential),
+                                           connection: .chatGPT, purpose: .signIn,
+                                           meetingID: nil, characters: 0)
+        } catch {
+            throw OraError.connectionFailed(
+                reason: "ChatGPT oturumu yenilenemedi; Ayarlar → Bağlantılar'dan yeniden "
+                    + "giriş yapın.")
+        }
+        let renewed = try ChatGPTAuth.credential(from: data, previous: credential)
+        try secrets.setSecret(renewed.encoded, for: .chatGPT)
+        return renewed
+    }
+
+    /// Hesabın model kataloğu. Model seçilmemişse ilki seçilir.
+    func refreshChatGPTModels() async {
+        do {
+            let credential = try await validChatGPTCredential()
+            let data = try await outbound.send(ChatGPTAuth.modelsRequest(credential),
+                                               connection: .chatGPT, purpose: .signIn,
+                                               meetingID: nil, characters: 0)
+            chatGPTModels = ChatGPTAuth.models(from: data)
+            if settings.providerModels[ConnectionKind.chatGPT.rawValue, default: ""].isEmpty,
+               let first = chatGPTModels.first {
+                settings.providerModels[ConnectionKind.chatGPT.rawValue] = first
+            }
+        } catch {
+            Log.warning(.net, "ChatGPT modelleri okunamadı: \(error.localizedDescription)")
+        }
+        refresh()
     }
 
     // MARK: - Deneme
@@ -157,8 +289,8 @@ final class ConnectionCenter {
         defer { refresh() }
         do {
             switch kind {
-            case .anthropic, .openAI, .openRouter, .localServer:
-                guard let client = client(kind) else {
+            case .anthropic, .openAI, .openRouter, .localServer, .chatGPT:
+                guard let client = try await client(kind) else {
                     return await denial(kind, purpose: .test, meetingID: nil)
                 }
                 _ = try await client.complete(system: "Kısa yanıt ver.",
