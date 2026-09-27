@@ -83,8 +83,10 @@ final class RecordingSession {
 
     /// Ses yazımını başlatır. Başarısız olursa oturum açılmaz ve hata fırlatılır;
     /// çağıran yarım kalan toplantı satırını siler.
-    func start(meetingID: Int64, preferredApp: String?) async throws {
-        try await capture.start(meetingID: meetingID, preferredApp: preferredApp)
+    func start(meetingID: Int64, preferredApp: String?,
+               echoCancellation: Bool = false) async throws {
+        try await capture.start(meetingID: meetingID, preferredApp: preferredApp,
+                                echoCancellation: echoCancellation)
         self.meetingID = meetingID
     }
 

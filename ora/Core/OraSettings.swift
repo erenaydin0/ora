@@ -54,6 +54,15 @@ final class OraSettings {
         didSet { store(transcriptionLanguage.rawValue, .transcriptionLanguage) }
     }
 
+    // MARK: - Mikrofon
+
+    /// Hoparlörden çalan karşı tarafın sesi mikrofon kanalından silinsin mi
+    /// (Apple'ın ses işlemesi). **Varsayılan açık**; kulaklık takılıyken kayıt
+    /// başında kendiliğinden atlanır (`OutputRoute`).
+    var echoCancellationEnabled: Bool {
+        didSet { store(echoCancellationEnabled, .echoCancellationEnabled) }
+    }
+
     // MARK: - Konuşmacı ayrımı
 
     /// Tam geçişten sonra konuşmacılar ayrılsın mı ("Katılımcı 1", "Katılımcı
@@ -170,6 +179,8 @@ final class OraSettings {
         announceRecording = defaults.bool(forKey: Key.announceRecording.rawValue)
         compressAudio = defaults.bool(forKey: Key.compressAudio.rawValue)
         appLockEnabled = defaults.bool(forKey: Key.appLockEnabled.rawValue)
+        echoCancellationEnabled = defaults.object(
+            forKey: Key.echoCancellationEnabled.rawValue) as? Bool ?? true
         speakerSeparationEnabled = defaults.object(
             forKey: Key.speakerSeparationEnabled.rawValue) as? Bool ?? true
         audioRetentionDays = defaults.integer(forKey: Key.audioRetentionDays.rawValue)
@@ -196,7 +207,7 @@ final class OraSettings {
         case compressAudio, audioRetentionDays, announceRecording, appLockEnabled
         case transcriptionLanguage
         case summaryEngine, localModelID, summaryDetail
-        case speakerSeparationEnabled
+        case speakerSeparationEnabled, echoCancellationEnabled
     }
 
     private let defaults: UserDefaults

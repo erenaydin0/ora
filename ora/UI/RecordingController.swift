@@ -650,7 +650,8 @@ final class RecordingController {
 
         // Ses yazımı başlamazsa yarım toplantı satırı bırakılmaz.
         do {
-            try await session.start(meetingID: meetingID, preferredApp: preferredApp)
+            try await session.start(meetingID: meetingID, preferredApp: preferredApp,
+                                    echoCancellation: settings.echoCancellationEnabled)
         } catch {
             try? await store.delete(meetingID)
             self.error = error as? OraError ?? .audioWriteFailed(underlying: error)

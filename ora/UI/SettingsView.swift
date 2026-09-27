@@ -86,6 +86,17 @@ private struct GeneralSettings: View {
                 }
             }
 
+            Section("Mikrofon") {
+                Toggle("Hoparlör yankısını bastır", isOn: $settings.echoCancellationEnabled)
+                Text("Kulaklıksız toplantıda hoparlörden çalan karşı tarafın sesi "
+                     + "mikrofonunuza geri girer ve sizin satırlarınıza karışır. Bu "
+                     + "ayar onu kayıt sırasında siler; kulaklık takılıyken "
+                     + "kendiliğinden devre dışı kalır. Sonraki kayıttan itibaren geçerli.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.oraInkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Section("Konuşmacılar") {
                 Toggle("Konuşmacıları ayır", isOn: $settings.speakerSeparationEnabled)
                 Text("Kayıt bittikten sonra karşı taraftaki sesler ayrılır ve satırlar "

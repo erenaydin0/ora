@@ -22,6 +22,8 @@ final class FakeCapture: AudioCapturing, @unchecked Sendable {
     /// Doluysa `start()` bunu fırlatır — izin reddi senaryosu.
     var startError: OraError?
     private(set) var startCount = 0
+    /// Son `start()` çağrısında yankı bastırma istendi mi?
+    private(set) var lastEchoCancellation: Bool?
 
     init(stopURL: URL = URL(fileURLWithPath: "/dev/null")) {
         self.stopURL = stopURL
@@ -30,8 +32,9 @@ final class FakeCapture: AudioCapturing, @unchecked Sendable {
         stateContinuation.yield(.idle)
     }
 
-    func start(meetingID: Int64, preferredApp: String?) async throws {
+    func start(meetingID: Int64, preferredApp: String?, echoCancellation: Bool) async throws {
         startCount += 1
+        lastEchoCancellation = echoCancellation
         if let startError {
             stateContinuation.yield(.failed(startError))
             throw startError

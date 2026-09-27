@@ -65,7 +65,8 @@ nonisolated final class AudioCapture: AudioCapturing, @unchecked Sendable {
 
     // MARK: - Başlat
 
-    func start(meetingID: Int64, preferredApp: String? = nil) async throws {
+    func start(meetingID: Int64, preferredApp: String? = nil,
+               echoCancellation: Bool = false) async throws {
         guard await MicrophoneCapture.requestAccess() else {
             let error = OraError.permissionDenied(.microphone)
             stateContinuation.yield(.failed(error))
@@ -94,7 +95,7 @@ nonisolated final class AudioCapture: AudioCapturing, @unchecked Sendable {
         let systemAligner = SourceAligner()
 
         do {
-            try microphone.start { [weak self] frames, hostTime in
+            try microphone.start(echoCancellation: echoCancellation) { [weak self] frames, hostTime in
                 self?.receive(.mic, frames, hostTime, micAligner)
             }
         } catch {

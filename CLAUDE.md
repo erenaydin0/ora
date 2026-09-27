@@ -199,6 +199,15 @@ Bu sıra asla değişmez:
 - `muteBehavior` asla `.muted` yapılmaz; kullanıcı toplantıyı duymaya devam etmeli.
 - Tap bir toplama (aggregate) cihazına bağlanır, ondan `AVAudioEngine`/IOProc ile
   okunur. Mikrofon ayrı yakalanır; ikisi **host time** damgasıyla hizalanır.
+- **Mikrofonda yankı bastırma** (`OraSettings.echoCancellationEnabled`,
+  varsayılan açık): Apple'ın ses işlemesi (`setVoiceProcessingEnabled`),
+  kayıt başında **yalnızca çıkış hoparlörse** açılır — kulaklıkta hiçbir
+  şeyi iyileştirmez (`OutputRoute`: Bluetooth, yerleşik `hdpn` jakı ve
+  mikrofonlu USB kulaklık sayılır; emin olunamayan her şey hoparlör).
+  Diğer uygulamaların sesini kısma (ducking) `.min`'e çekilir — kullanıcı
+  toplantıyı tam seste duymalı. İşleme açıkken yalnızca 0. kanal okunur
+  (giriş düğümü birden çok kanal bildiriyor, işlenmiş ses ilkinde). Açılamazsa
+  kayıt işlemesiz sürer. Çıkış kayıt ortasında değişirse karar değişmez.
 
 ## Speech API Kuralları — ölçülmüş davranış
 - **`SpeechTranscriber` DEĞİL, `DictationTranscriber` kullan.** `SpeechTranscriber`
@@ -1032,6 +1041,7 @@ ora/Calendar/          — CalendarReader (EventKit, opt-in). Eşleştirme
                          Calendar `ora/Detect/`'e bağlanmaz
 ora/Capture/           — AudioCapture (orkestra), MicrophoneCapture,
                          SystemAudioTap, StereoRecordingWriter, AudioClock,
+                         OutputRoute (kulaklık mı hoparlör mü — yankı bastırma),
                          RecordingRecovery, MeetingApps, Channel,
                          SingleShotInput (AVAudioConverter girdi bloğu —
                          gerekçesi belgelenmiş `@unchecked Sendable`, §31)

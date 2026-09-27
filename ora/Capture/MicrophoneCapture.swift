@@ -9,6 +9,8 @@ nonisolated final class MicrophoneCapture: @unchecked Sendable {
     private let engine = AVAudioEngine()
     private var resampler: MonoResampler?
     private var isRunning = false
+    /// Bu kayıtta Apple'ın ses işlemesi (yankı bastırma) açık mı?
+    private(set) var isEchoCancelling = false
 
     /// İzin daha önce verilmiş mi? İstem **çıkarmaz**.
     static func isAuthorized() async -> Bool {
@@ -26,10 +28,31 @@ nonisolated final class MicrophoneCapture: @unchecked Sendable {
         }
     }
 
-    func start(sink: @escaping Sink) throws {
+    /// - Parameter echoCancellation: hoparlörden çalan sesi mikrofondan sil.
+    ///   Kulaklık takılıysa yok sayılır (`OutputRoute`). Açılamazsa kayıt
+    ///   **işlemesiz sürer** — yankı bastırma bir iyileştirmedir, kaydın
+    ///   önüne geçmez (kural #2'nin ruhu).
+    func start(echoCancellation: Bool = false, sink: @escaping Sink) throws {
         guard !isRunning else { return }
 
         let input = engine.inputNode
+        isEchoCancelling = false
+        if echoCancellation, OutputRoute.current() == .speakers {
+            do {
+                // Biçim sorulmadan **önce** açılır: ses işleme giriş düğümünün
+                // biçimini değiştirir.
+                try input.setVoiceProcessingEnabled(true)
+                // Varsayılan davranış diğer uygulamaların sesini kısmak;
+                // kullanıcı toplantıyı tam seste duymaya devam etmeli.
+                input.voiceProcessingOtherAudioDuckingConfiguration =
+                    AVAudioVoiceProcessingOtherAudioDuckingConfiguration(
+                        enableAdvancedDucking: false, duckingLevel: .min)
+                isEchoCancelling = true
+            } catch {
+                Log.warning(.capture, "Yankı bastırma açılamadı, işlemesiz kaydediliyor: "
+                            + error.localizedDescription)
+            }
+        }
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw OraError.audioDeviceFailed(stage: "mikrofon formatı", status: -1)
@@ -39,7 +62,9 @@ nonisolated final class MicrophoneCapture: @unchecked Sendable {
         }
         self.resampler = resampler
 
-        let channelCount = Int(format.channelCount)
+        // Ses işleme açıkken giriş düğümü birden çok kanal bildirebiliyor ve
+        // işlenmiş ses yalnızca ilkinde duruyor; ortalamak onu seyreltirdi.
+        let channelCount = isEchoCancelling ? 1 : Int(format.channelCount)
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, time in
             guard let channels = buffer.floatChannelData else { return }
             let frames = Int(buffer.frameLength)
@@ -69,11 +94,13 @@ nonisolated final class MicrophoneCapture: @unchecked Sendable {
         } catch {
             input.removeTap(onBus: 0)
             self.resampler = nil
+            disableVoiceProcessing()
             throw OraError.audioWriteFailed(underlying: error)
         }
         isRunning = true
         Log.info(.capture, "Mikrofon açıldı — \(Int(format.sampleRate)) Hz, "
-                 + "\(format.channelCount) kanal")
+                 + "\(format.channelCount) kanal"
+                 + (isEchoCancelling ? ", yankı bastırma açık" : ""))
     }
 
     func stop() {
@@ -82,5 +109,14 @@ nonisolated final class MicrophoneCapture: @unchecked Sendable {
         engine.stop()
         resampler = nil
         isRunning = false
+        // Motor sonraki kayıtta yeniden kullanılır; o kayıt kulaklıkla
+        // olabilir.
+        disableVoiceProcessing()
+    }
+
+    private func disableVoiceProcessing() {
+        guard isEchoCancelling else { return }
+        try? engine.inputNode.setVoiceProcessingEnabled(false)
+        isEchoCancelling = false
     }
 }

@@ -45,7 +45,9 @@ nonisolated struct LiveBuffer: @unchecked Sendable {
 nonisolated protocol AudioCapturing: Sendable {
     /// - Parameter preferredApp: takvim etkinliğinden çıkarılan toplantı
     ///   uygulaması. Verilirse tap yalnızca onu hedefler.
-    func start(meetingID: Int64, preferredApp: String?) async throws
+    ///   `echoCancellation`: hoparlörden çalan sesi mikrofon kanalından sil
+    ///   (kulaklıkta kendiliğinden atlanır).
+    func start(meetingID: Int64, preferredApp: String?, echoCancellation: Bool) async throws
     /// Stereo WAV yolunu döndürür.
     func stop() async throws -> URL
     var state: AsyncStream<CaptureState> { get }
